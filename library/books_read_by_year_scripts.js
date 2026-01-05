@@ -31,7 +31,9 @@ $(document).ready(function () {
             }));
             for (var i = 0; i < obj.length; i++) {
                 var tr = "<tr>" +
-                    "<td><button class='book-id-button' onclick=\"setval(" + obj[i][0] + ")\">" + obj[i][0].toString() + "</button></td>" +
+                    "<td><button class='book-id-button' onclick=\"setval(" + obj[i][0] + ")\">" +
+                    obj[i][0].toString() + "</button><a href=\"/js_reports/carousel.html?centerbookid=" +
+                    obj[i][0].toString() + "&windowsize=3\"> C </a></td>" +
                     "<td>" + obj[i][1] + "</td>" +
                     "<td>" + obj[i][2] + "</td>" +
                     "<td>" + obj[i][3] + "</td>" +

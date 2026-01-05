@@ -7,4 +7,4 @@ __pycache__/
 test_*.png
 .coverage
 curl_test_script.bash
-/tools/bin/.envrc
+/tools/.envrc

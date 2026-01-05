@@ -1,10 +1,22 @@
 let minCarouselBookId = 0;
 let maxCarouselBookId = 0;
-const windowSize = 20;
-const startingBookId = 2;
+var windowSize;
+var startingBookId;
 
 $(document).ready(function () {
     topnavbar();
+
+    const queryString = window.location.search;
+    const urlParams = new URLSearchParams(queryString);
+    startingBookId = parseInt(urlParams.get("centerbookid"));
+    windowSize = parseInt(urlParams.get("windowsize"));
+    if (isNaN(startingBookId)) {
+        startingBookId = 2;
+    }
+    if (isNaN(windowSize)) {
+        windowSize = 12;
+    }
+    console.log(startingBookId);
 
     const endpointUrl = baseApiUrl + "/complete_records_window";
     // GET with 2 parameeters /BOOKID/WINDOWSIZE
@@ -36,17 +48,17 @@ function listItems(bookObj, readObj, tagObj, imgObj) {
         " <a href=\"#\" class=\"card-link\">\n";
     bookString += "  <div class=\"book-record\">\n";
     bookString += "    <img src=\"" + imgUrl + "\" class=\"card-image\">\n";
-    bookString += "    <div class=\"badge\"> Book ID: " + bookObj['data'][0][0] + "</div>\n";
-    let fieldsList = [1, 2, 3, 4, 12, 5, 6, 7, 11, 9];
+    bookString += "    <div class=\"badge\">" + bookObj['data'][0][1] + "</div>\n";
+    let fieldsList = [2, 3, 4, 12, 0, 5, 6, 7, 11, 9];
     for (const i of fieldsList) {
         bookString += "    <span class='field-title'>" + bookObj['header'][i] + ":</span> " + bookObj['data'][0][i] + "</br>\n";
     }
     if (readObj['data'].length > 0) {
         for (var i = 1; i < readObj['header'].length; i++) {
-            bookString += "    <span class='field-title'>" + readObj['header'][i] + ":</span> " + readObj['data'][0][i] + "</br>\n";
+            bookString += "</br>    <span class='field-title'>Reading Notes:</span> " + readObj['data'][0][i] + "</br>\n";
         }
     }
-    bookString += "    <span class='field-title'>" + tagObj['header'][0] + ":</span> " + tagObj['data'][0].join(", ") + "</br>\n";
+    bookString += "</br>    <span class='field-title'>" + tagObj['header'][0] + ":</span> " + tagObj['data'][0].join(", ") + "</br>\n";
     bookString += "    <button class=\"card-button\"><i class=\"fa-solid fa-arrow-right\"></i></button>\n";
     bookString += "  </div>\n  </a>\n</li>\n";
     //console.log(bookString);
