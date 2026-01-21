@@ -1,296 +1,55 @@
-import datetime
-import json
-import logging
-import os
-from decimal import Decimal
+"""
+API Utility Module for Books Database.
 
+This module provides database access functions for the books collection.
+It imports from sub-modules for configuration and serialization.
+"""
+import datetime
 import numpy as np
 import pymysql
 
-app_logger = logging.getLogger('flask.app')
+# Import from sub-modules for modular organization
+from .config import (
+    app_logger,
+    table_header,
+    locations_sort_order,
+    FMT,
+    API_KEY,
+    read_json_configuration,
+    books_conf,
+    isbn_conf,
+)
+from .serialization import (
+    sort_list_by_index_list,
+    serialized_result_dict,
+    _convert_db_types,
+    _create_serializeable_result_dict,
+)
 
-table_header = ["BookCollectionID",
-                "Title",
-                "Author",
-                "CopyrightDate",
-                "ISBNNumber",
-                "PublisherName",
-                "CoverType",
-                "Pages",
-                "Category",
-                "Note",
-                "Recycled",
-                "Location",
-                "ISBNNumber13"]
-
-locations_sort_order = [3, 4, 2, 1, 7, 6, 5]
-
-FMT = "%Y-%m-%d"
-
-API_KEY = None
-
-
-def read_json_configuration():
-    """
-    Retrieve database and ISBN lookup configuration from JSON file.
-
-    Parameters
-    ----------
-    None
-
-    Returns
-    -------
-    tuple
-        A tuple containing two dictionaries:
-        * ``books_db_config`` – mapping database connection parameters
-        * ``isbn_lookup_config`` – mapping ISBN lookup service parameters
-        The global variable ``API_KEY`` is set during execution.
-
-    Raises
-    ------
-    SystemExit
-        If a configuration key is missing or the file cannot be read.
-
-    Notes
-    -----
-    The function reads ``./config/configuration.json`` and expects the following
-    keys: ``username``, ``password``, ``database``, ``host``, ``port``,
-    ``isbn_com.url_isbn``, ``isbn_com.key`` and ``api_key``.  If any key is
-    absent a ``SystemExit`` exception is raised and the error is logged.
-    """
-    config_filename = os.getenv("BOOKDB_CONFIG", "./config/configuration.json")
-    with open(config_filename, "r") as config_file:
-        c = json.load(config_file)
-        try:
-            books_db_config = {
-                "user": c["username"].strip(),
-                "passwd": c["password"].strip(),
-                "db": c["database"].strip(),
-                "host": c["host"].strip(),
-                "port": int(c["port"])
-            }
-            isbn_lookup_config = {
-                "url_isbn": c["isbn_com"]["url_isbn"].strip(),
-                "key": c["isbn_com"]["key"].strip()
-            }
-            global API_KEY
-            if os.getenv("API_KEY") is not None:
-                API_KEY = os.getenv("API_KEY").replace('\n', '')
-            elif "api_key" in c:
-                API_KEY = c["api_key"].replace('\n', '')
-            else:
-                raise KeyError("Missing API key configuration.")
-            app_logger.debug(f"API key configuration loaded successfully. Using API_KEY={API_KEY}")
-        except KeyError as e:
-            app_logger.error(e)
-            raise SystemExit("Missing or incomplete configuration file.")
-        return books_db_config, isbn_lookup_config
-
-
-# server configuration
-books_conf, isbn_conf = read_json_configuration()
-
-
-def sort_list_by_index_list(lst, indexes, reverse=False):
-    """
-    Sort elements of a list based on a corresponding list of indexes.
-
-    This function pairs each element of `lst` with an index from `indexes`,
-    sorts the pairs by the indexes, and then returns a new list containing
-    the elements in that sorted order. An optional `reverse` flag can be
-    used to reverse the order of the sorting.
-
-    Parameters
-    ----------
-    lst : list
-        The list of values to be reordered.
-    indexes : list
-        The list of indexes that determine the sorting order.
-    reverse : bool, optional
-        If True, the sorting order is reversed.
-
-    Returns
-    -------
-    list
-        A list of values from `lst` sorted according to `indexes`.
-    """
-    return [val for (_, val) in sorted(zip(indexes, lst), key=lambda x: \
-        x[0], reverse=reverse)]
-
-
-def serialized_result_dict(db_result_rows, header=None, error_list=None):
-    """
-    Serializes database result rows into JSON.
-
-    This function takes the result rows from a database query, optionally a
-    header specifying column names, and an optional list of error messages.
-    It first converts the rows into a dictionary representation by delegating
-    to `create_result_dict`.  The resulting dictionary is then encoded as a
-    JSON string using the standard library `json.dumps` function.  The JSON
-    string is returned to the caller.
-
-    Arguments
-    ---------
-    db_result_rows
-        The rows returned from a database query, typically a list of tuples
-        or lists.
-    header
-        Optional list of column names that map to each element of a row.
-        If omitted, the keys in the resulting dictionary are generated
-        automatically.
-    error_list
-        Optional list of error messages to include in the output dictionary.
-
-    Returns
-    -------
-    str
-        A JSON formatted string representing the serialized result set.
-
-    Raises
-    ------
-    ValueError
-        If `create_result_dict` raises a `ValueError` when converting the rows.
-    TypeError
-        If `json.dumps` receives an unsupported object type.
-
-    Notes
-    -----
-    The function does not perform any validation of the input beyond what
-    `create_result_dict` and `json.dumps` require.  It is intended for
-    serialization tasks where the output will be transmitted or stored as
-    text.  The caller should ensure that the database rows and header are
-    consistent in length.
-
-    See Also
-    --------
-    create_result_dict
-        Helper function that creates the intermediate dictionary from the rows.
-    json.dumps
-        Standard library function used for JSON encoding.
-    """
-    result = _create_serializeable_result_dict(db_result_rows, header, error_list=None)
-    result_dict_json = json.dumps(result)
-    return result_dict_json
-
-
-def _convert_db_types(value_list):
-    """
-    Converts database row values to JSON‑serializable types.
-
-    When data is fetched from a database, certain Python types such as
-    `Decimal`, `datetime.datetime` and `datetime.date` are not directly
-    serializable by many JSON libraries.  This helper function transforms a
-    sequence of values by converting each `Decimal` to a `float` and each
-    date‑time object to a string formatted as ``YYYY‑MM‑DD``.  All other
-    values are passed through unchanged.  The original list is left
-    untouched; a new list is returned.
-
-    Args:
-        value_list: The list of values to be converted.  Elements may be
-            of type `Decimal`, `datetime.datetime`, `datetime.date`, or
-            other scalar types such as `int`, `float`, or `str`.
-
-    Returns:
-        A new list where each `Decimal` has been converted to a `float`,
-        each `datetime.datetime` or `datetime.date` has been formatted
-        as a string in the ``YYYY‑MM‑DD`` format, and all other values
-        are left unchanged.
-    """
-    new_value_list = []
-    for d in value_list:  # Process each value in the row
-        if isinstance(d, Decimal):  # Convert Decimal values to float
-            new_value_list.append(float(d))
-        elif isinstance(d, datetime.datetime) or isinstance(d, datetime.date):  # Format dates
-            new_value_list.append(d.strftime("%Y-%m-%d"))
-        else:  # Include other values as-is
-            new_value_list.append(d)
-    return new_value_list
-
-
-def _create_serializeable_result_dict(db_result, header, error_list=None):
-    """
-    Converts the results of a database query into a dictionary format with a header and data.
-
-    This function processes the rows returned by a database cursor and organizes them into a
-    dictionary with two keys: 'header' and 'data'. The 'header' key contains the provided list
-    of column names, and the 'data' key contains the rows of data, with each value formatted
-    appropriately based on its type.
-
-    Parameters:
-    cursor (iterable): The database cursor containing the query results.
-    header (list): A list of strings representing the column names for the data.
-
-    Returns:
-    dict: A dictionary with the following structure:
-        {
-            "header": [header],
-            "data": [
-                [row1_values],
-                [row2_values],
-                ...
-            ],
-            "error": ["error string"]   # This key is optional
-        }
-        - Decimal values are converted to floats.
-        - datetime.date and datetime.datetime values are formatted as "YYYY-MM-DD".
-        - Other values are included as-is.
-
-    Notes:
-    - If the length of the header does not match the length of a row, a warning message
-      is printed to the console.
-    """
-    result_dict = {"header": header, "data": []}  # Initialize the result dictionary
-    if error_list is not None:
-        # optional the include error key
-        result_dict["error"] = error_list
-
-    result_rows = []  # List to store processed rows
-    if db_result is None or len(db_result) == 0:
-        pass
-    elif isinstance(db_result[0], tuple) or isinstance(db_result[0], list):
-        # Standard format for multiple columns
-        for row in db_result:  # Iterate over each row in the cursor
-            if len(header) != len(row):  # Check if the header length matches the row length
-                app_logger.debug("mismatched header to data provided")
-            result_rows.append(_convert_db_types(row))  # Add the processed row to the result rows list
-    else:  # Non-standard format for single column as a list
-        result_rows = _convert_db_types(db_result)
-    result_dict["data"] = result_rows  # Add the processed rows to the result dictionary
-    return result_dict  # Return the result dictionary
-
-
-def resp_header(rdata):
-    """
-    Generate HTTP response headers for a JSON payload.
-
-    This function constructs a list of header tuples suitable for sending an HTTP
-    response containing JSON data.  It automatically sets the `Content-Type`
-    to JSON with UTF‑8 encoding and calculates the correct `Content-Length`
-    based on the supplied response body.
-
-    Args:
-        rdata (bytes or str): The raw response body.  The length of this data is
-            used to set the `Content-Length` header.  `rdata` should already be
-            encoded as UTF‑8 bytes or a Unicode string representing the JSON
-            payload.
-
-    Returns:
-        list[tuple[str, str]]: A list of two‑item tuples where each tuple
-            contains a header name and its corresponding value.  The list
-            always contains the `Content-Type` header for JSON with UTF‑8
-            encoding followed by the `Content-Length` header reflecting
-            the byte length of `rdata`.
-    """
-    response_header = [
-        ('Content-type', 'application/json; charset=utf-8'),
-        ('Content-Length', str(len(rdata)))
-    ]
-    return response_header
+# Re-export for backward compatibility - consumers can still use:
+#   from booksdb.api_util import API_KEY, books_conf, etc.
+__all__ = [
+    # Config exports
+    'app_logger', 'table_header', 'locations_sort_order', 'FMT',
+    'API_KEY', 'read_json_configuration', 'books_conf', 'isbn_conf',
+    # Serialization exports
+    'sort_list_by_index_list', 'serialized_result_dict',
+    '_convert_db_types', '_create_serializeable_result_dict',
+    # Functions defined in this module
+    'get_valid_locations', 'get_recently_touched', 'get_next_book_id',
+    'get_book_ids_in_window', 'get_complete_book_record',
+    'update_book_record_by_key', 'summary_books_read_by_year_utility',
+    'books_read_by_year_utility', 'status_read_utility',
+    'tags_search_utility', 'books_search_utility', 'book_tags',
+    'get_tag_counts', 'add_tag_to_book', 'get_images_for_book',
+    'daily_page_record_from_db', 'reading_book_data_from_db',
+    'update_reading_book_data', 'estimate_completion_dates',
+    'calculate_estimates',
+]
 
 
 ##########################################################################
 # BASIC API UTILITIES
-#    Return: data_rowe, raw_data, header, error_str_list
 ##########################################################################
 
 def get_valid_locations():
@@ -391,7 +150,7 @@ def get_recently_touched(limit=10):
         db = pymysql.connect(**books_conf)
         cursor = db.cursor()
 
-        # Execute the query - removed duplicate UNION of book collection table
+        # Execute the query - get most recently touched books from all tables
         query = ('SELECT abc.BookCollectionID, max(abc.LastUpdate) as LastUpdate, bc.Title FROM\n'
                  '(       SELECT BookCollectionID, LastUpdate \n'
                  '        FROM `book collection`\n'
@@ -404,10 +163,11 @@ def get_recently_touched(limit=10):
                  '        a.RecordID = b.RecordID\n'
                  '        UNION \n'
                  '        SELECT BookCollectionID, EstimateDate as LastUpdate\n'
-                 '        FROM `complete date estimates`) abc\n'
+                 '        FROM `complete date estimates`\n'
                  '        UNION \n'
-                 '        SELECT BookCollectionID, LastUpdate\n'
+                 '        SELECT BookCollectionID, LastUpdated as LastUpdate\n'
                  '        FROM `images`\n'
+                 ') abc\n'
                  'JOIN `book collection` bc ON abc.BookCollectionID = bc.BookCollectionID \n'
                  'GROUP BY abc.BookCollectionID, bc.Title\n'
                  'ORDER BY LastUpdate DESC LIMIT %s;\n')
@@ -462,18 +222,18 @@ def get_next_book_id(current_book_id, direction=1):
         pymysql.Error: If an error occurs during the database query.
     """
     db = pymysql.connect(**books_conf)
-    order = "ASC" if direction > 0 else "DESC"
-    ineq = ">" if direction > 0 else "<"
-    query_str = ("SELECT a.BookCollectionID "
-                 "FROM `book collection` as a "
-                 f"WHERE a.BookCollectionID {ineq} {current_book_id} "
-                 f"ORDER BY a.BookCollectionID {order} "
-                 "LIMIT 1;")
+    # Direction determines comparison operator and sort order (safe - derived from int)
+    if direction > 0:
+        query_str = ("SELECT a.BookCollectionID FROM `book collection` as a "
+                     "WHERE a.BookCollectionID > %s ORDER BY a.BookCollectionID ASC LIMIT 1")
+    else:
+        query_str = ("SELECT a.BookCollectionID FROM `book collection` as a "
+                     "WHERE a.BookCollectionID < %s ORDER BY a.BookCollectionID DESC LIMIT 1")
     app_logger.debug(query_str)
     next_book_id = None
     c = db.cursor()
     try:
-        c.execute(query_str)
+        c.execute(query_str, (current_book_id,))
     except pymysql.Error as e:
         app_logger.error(e)
         return next_book_id
@@ -485,8 +245,7 @@ def get_next_book_id(current_book_id, direction=1):
                 # get the first record
                 next_book_id = 2
             else:
-                query_str = ("SELECT max(a.BookCollectionID) "
-                             "FROM `book collection` as a; ")
+                query_str = "SELECT max(a.BookCollectionID) FROM `book collection` as a"
                 c = db.cursor()
                 try:
                     c.execute(query_str)
@@ -539,127 +298,117 @@ def get_book_ids_in_window(book_id, window):
     top_half_window = int((window + 1) / 2)
     bottom_half_window = window - top_half_window
 
-    query_str = ("SELECT a.BookCollectionID "
-                 "FROM `book collection` as a "
-                 "WHERE a.BookCollectionID {ineq} {book_id} "
-                 "ORDER BY a.BookCollectionID {order} "
-                 "LIMIT {limit};")
-    # get the bottom half first - window leading up to book_id
-    q = query_str.format(ineq="<=", book_id=book_id, order="DESC", limit=bottom_half_window)
-    app_logger.debug(q)
+    # Query templates with parameterized book_id and limit
+    # Comparison operator and order are safe (hardcoded strings)
+    queries = {
+        "le_desc": "SELECT a.BookCollectionID FROM `book collection` as a WHERE a.BookCollectionID <= %s ORDER BY a.BookCollectionID DESC LIMIT %s",
+        "gt_desc": "SELECT a.BookCollectionID FROM `book collection` as a WHERE a.BookCollectionID > %s ORDER BY a.BookCollectionID DESC LIMIT %s",
+        "gt_asc": "SELECT a.BookCollectionID FROM `book collection` as a WHERE a.BookCollectionID > %s ORDER BY a.BookCollectionID ASC LIMIT %s",
+        "le_asc": "SELECT a.BookCollectionID FROM `book collection` as a WHERE a.BookCollectionID <= %s ORDER BY a.BookCollectionID ASC LIMIT %s",
+    }
+
     c = db.cursor()
     book_id_list = []
+
+    # get the bottom half first - window leading up to book_id
     try:
-        c.execute(q)
-    except pymysql.Error as e:
-        app_logger.error(e)
-    else:
+        c.execute(queries["le_desc"], (book_id, bottom_half_window))
         s = c.fetchall()
         for row in s:
             book_id_list.append(row[0])
         book_id_list.reverse()
+    except pymysql.Error as e:
+        app_logger.error(e)
+
     if len(book_id_list) < bottom_half_window:
         # Make a ring of ideas - get some from the end of book records
         deficit = bottom_half_window - len(book_id_list)
-        q = query_str.format(ineq=">", book_id=book_id, order="DESC", limit=deficit)
-        app_logger.debug(q)
         try:
-            c.execute(q)
-        except pymysql.Error as e:
-            app_logger.error(e)
-        else:
+            c.execute(queries["gt_desc"], (book_id, deficit))
             s = c.fetchall()
             for row in s:
                 book_id_list.insert(0, row[0])
+        except pymysql.Error as e:
+            app_logger.error(e)
+
     # now get the top half - window after book_id
-    q = query_str.format(ineq=">", book_id=book_id, order="ASC", limit=top_half_window)
-    app_logger.debug(q)
     try:
-        c.execute(q)
-    except pymysql.Error as e:
-        app_logger.error(e)
-    else:
+        c.execute(queries["gt_asc"], (book_id, top_half_window))
         s = c.fetchall()
         for row in s:
             book_id_list.append(row[0])
+    except pymysql.Error as e:
+        app_logger.error(e)
+
     if len(book_id_list) < window:
         # Make a ring of ideas - get some from the start of book records
         deficit = window - len(book_id_list)
-        q = query_str.format(ineq="<=", book_id=book_id, order="ASC", limit=deficit)
-        app_logger.debug(q)
         try:
-            c.execute(q)
-        except pymysql.Error as e:
-            app_logger.error(e)
-        else:
+            c.execute(queries["le_asc"], (book_id, deficit))
             s = c.fetchall()
             for row in s:
                 book_id_list.append(row[0])
+        except pymysql.Error as e:
+            app_logger.error(e)
+
     return book_id_list
 
 
 def get_complete_book_record(book_id):
-    # process any query parameters
+    """Retrieve complete book record including reads, tags, and images."""
     db = pymysql.connect(**books_conf)
+
     q_book = ("SELECT a.BookCollectionID, a.Title, a.Author, a.CopyrightDate, "
               "a.ISBNNumber, a.PublisherName, a.CoverType, a.Pages, "
               "a.Category, a.Note, a.Recycled, a.Location, a.ISBNNumber13 "
-              "FROM `book collection` as a "
-              f"WHERE a.BookCollectionID = {book_id};")
+              "FROM `book collection` as a WHERE a.BookCollectionID = %s")
     h_book = table_header
-    q_read = ("SELECT b.ReadDate, b.ReadNote "
-              "FROM `books read` as b "
-              f"WHERE b.BookCollectionID = {book_id};")
+
+    q_read = "SELECT b.ReadDate, b.ReadNote FROM `books read` as b WHERE b.BookCollectionID = %s"
     h_read = ["DateRead", "ReadNote"]
-    q_tags = ("SELECT b.Label "
-              "FROM `books tags` as a JOIN `tag labels` as b "
-              "ON b.TagID = a.TagID "
-              f"WHERE a.BookID = {book_id};")
+
+    q_tags = ("SELECT b.Label FROM `books tags` as a JOIN `tag labels` as b "
+              "ON b.TagID = a.TagID WHERE a.BookID = %s")
     h_tags = ["Tag"]
-    q_img = ("SELECT a.url "
-             "FROM `images` as a "
-             f"WHERE a.BookCollectionID = {book_id} "
-             "AND a.type = \"cover-face\"; ")
+
+    q_img = ("SELECT a.url FROM `images` as a "
+             "WHERE a.BookCollectionID = %s AND a.type = 'cover-face'")
     h_img = ["ImageURL"]
-    app_logger.debug(q_book)
-    app_logger.debug(q_read)
-    app_logger.debug(q_tags)
-    app_logger.debug(q_img)
 
     result_data = {"book": None, "reads": None, "tags": None, "img": None, "error": []}
     c = db.cursor()
+
     try:
-        c.execute(q_book)
-    except pymysql.Error as e:
-        app_logger.error(e)
-        result_data["error"].append(str(e))
-    else:
+        c.execute(q_book, (book_id,))
         s = c.fetchall()
         result_data["book"] = _create_serializeable_result_dict(s, h_book)
-    try:
-        c.execute(q_read)
     except pymysql.Error as e:
         app_logger.error(e)
         result_data["error"].append(str(e))
-    else:
+
+    try:
+        c.execute(q_read, (book_id,))
         s = c.fetchall()
         result_data["reads"] = _create_serializeable_result_dict(s, h_read)
-    try:
-        c.execute(q_tags)
     except pymysql.Error as e:
         app_logger.error(e)
         result_data["error"].append(str(e))
-    else:
+
+    try:
+        c.execute(q_tags, (book_id,))
         s = c.fetchall()
         result_data["tags"] = _create_serializeable_result_dict([[x[0] for x in s]], h_tags)
-    try:
-        c.execute(q_img)
     except pymysql.Error as e:
         app_logger.error(e)
         result_data["error"].append(str(e))
-    else:
+
+    try:
+        c.execute(q_img, (book_id,))
         s = c.fetchall()
         result_data["img"] = _create_serializeable_result_dict([[x[0] for x in s]], h_img)
+    except pymysql.Error as e:
+        app_logger.error(e)
+        result_data["error"].append(str(e))
 
     if len(result_data["error"]) == 0:
         del result_data["error"]
@@ -686,26 +435,42 @@ def update_book_record_by_key(update_dict):
         returned.
     :rtype: list
     """
+    # Allowed column names for update (whitelist to prevent SQL injection)
+    allowed_columns = {
+        "Title", "Author", "CopyrightDate", "ISBNNumber", "ISBNNumber13",
+        "PublisherName", "CoverType", "Pages", "Category", "Note",
+        "Recycled", "Location"
+    }
+
     db = pymysql.connect(**books_conf)
-    search_str = "UPDATE `book collection` SET "
-    continuation = False
-    for key in update_dict:
+    book_collection_id = update_dict.get("BookCollectionID")
+    if not book_collection_id:
+        return [{"error": "BookCollectionID is required"}]
+
+    # Build SET clause with parameterized values
+    set_parts = []
+    values = []
+    for key, value in update_dict.items():
         if key == "BookCollectionID":
-            BookCollectionID = update_dict[key]
             continue
-        if continuation:
-            search_str += ", "
-        else:
-            continuation = True
-            search_str += f" {key} = \"{update_dict[key]}\""
-    search_str += f" WHERE BookCollectionID = {BookCollectionID} "
+        if key not in allowed_columns:
+            app_logger.warning(f"Ignoring unknown column: {key}")
+            continue
+        set_parts.append(f"`{key}` = %s")
+        values.append(value)
+
+    if not set_parts:
+        return [{"error": "No valid columns to update"}]
+
+    values.append(book_collection_id)
+    search_str = f"UPDATE `book collection` SET {', '.join(set_parts)} WHERE BookCollectionID = %s"
     app_logger.debug(search_str)
+
     results = []
     with db:
         with db.cursor() as c:
             try:
-                c.execute(search_str.format(**update_dict))
-                app_logger.debug(search_str.format(**update_dict))
+                c.execute(search_str, tuple(values))
                 results.append(update_dict)
             except pymysql.Error as e:
                 app_logger.error(e)
@@ -730,38 +495,43 @@ def summary_books_read_by_year_utility(target_year=None):
     tuple: A tuple containing the serialized result, raw data, and header.
     """
     error_list = None
-    # Initialize database connection
     db = pymysql.connect(**books_conf)
     cursor = db.cursor()
 
-    # Building the SQL query string
-    query = (
-        "SELECT YEAR(b.ReadDate) as Year, SUM(a.Pages) as Pages, COUNT(a.Pages) as Books "
-        "FROM `book collection` as a JOIN `books read` as b "
-        "ON a.BookCollectionID = b.BookCollectionID "
-        "WHERE b.ReadDate is not NULL "
-    )
+    # Build query with optional year filter
+    params = ()
     if target_year is not None:
-        query += f" AND YEAR(b.ReadDate) = {target_year} "
-    query += "GROUP BY Year ORDER BY Year ASC"
+        query = (
+            "SELECT YEAR(b.ReadDate) as Year, SUM(a.Pages) as Pages, COUNT(a.Pages) as Books "
+            "FROM `book collection` as a JOIN `books read` as b "
+            "ON a.BookCollectionID = b.BookCollectionID "
+            "WHERE b.ReadDate is not NULL AND YEAR(b.ReadDate) = %s "
+            "GROUP BY Year ORDER BY Year ASC"
+        )
+        params = (target_year,)
+    else:
+        query = (
+            "SELECT YEAR(b.ReadDate) as Year, SUM(a.Pages) as Pages, COUNT(a.Pages) as Books "
+            "FROM `book collection` as a JOIN `books read` as b "
+            "ON a.BookCollectionID = b.BookCollectionID "
+            "WHERE b.ReadDate is not NULL "
+            "GROUP BY Year ORDER BY Year ASC"
+        )
 
-    # Prepare response data
     headers = ["year", "pages read", "books read"]
     app_logger.debug(query)
 
-    # Execute query and handle exceptions
     try:
-        cursor.execute(query)
+        cursor.execute(query, params)
         results = cursor.fetchall()
     except pymysql.Error as e:
         app_logger.error(e)
         error_list = [str(e)]
         results = None
     finally:
-        # Close the database connection
         db.close()
 
-    return results, results, headers, error_list
+    return results, headers, error_list
 
 
 def books_read_by_year_utility(target_year=None):
@@ -813,28 +583,39 @@ def books_read_by_year_utility(target_year=None):
     """
     error_list = None
     db = pymysql.connect(**books_conf)
-    search_str = ("SELECT a.BookCollectionID, a.Title, a.Author, a.CopyrightDate, "
-                  "a.ISBNNumber, a.PublisherName, a.CoverType, a.Pages, "
-                  "a.Category, a.Note, a.Recycled, a.Location, a.ISBNNumber13, "
-                  "b.ReadDate "
-                  "FROM `book collection` as a JOIN `books read` as b "
-                  "ON a.BookCollectionID = b.BookCollectionID "
-                  "WHERE b.ReadDate is not NULL ")
+
+    params = ()
     if target_year is not None:
-        search_str += f" AND YEAR(b.ReadDate) = {target_year} "
-    search_str += "ORDER BY b.ReadDate, a.BookCollectionID ASC"
+        search_str = ("SELECT a.BookCollectionID, a.Title, a.Author, a.CopyrightDate, "
+                      "a.ISBNNumber, a.PublisherName, a.CoverType, a.Pages, "
+                      "a.Category, a.Note, a.Recycled, a.Location, a.ISBNNumber13, "
+                      "b.ReadDate "
+                      "FROM `book collection` as a JOIN `books read` as b "
+                      "ON a.BookCollectionID = b.BookCollectionID "
+                      "WHERE b.ReadDate is not NULL AND YEAR(b.ReadDate) = %s "
+                      "ORDER BY b.ReadDate, a.BookCollectionID ASC")
+        params = (target_year,)
+    else:
+        search_str = ("SELECT a.BookCollectionID, a.Title, a.Author, a.CopyrightDate, "
+                      "a.ISBNNumber, a.PublisherName, a.CoverType, a.Pages, "
+                      "a.Category, a.Note, a.Recycled, a.Location, a.ISBNNumber13, "
+                      "b.ReadDate "
+                      "FROM `book collection` as a JOIN `books read` as b "
+                      "ON a.BookCollectionID = b.BookCollectionID "
+                      "WHERE b.ReadDate is not NULL "
+                      "ORDER BY b.ReadDate, a.BookCollectionID ASC")
+
     header = table_header + ["ReadDate"]
     app_logger.debug(search_str)
     s = None
     c = db.cursor()
     try:
-        c.execute(search_str)
+        c.execute(search_str, params)
+        s = c.fetchall()
     except pymysql.Error as e:
         app_logger.error(e)
         error_list = [str(e)]
-    else:
-        s = c.fetchall()
-    return s, s, header, error_list
+    return s, header, error_list
 
 
 def status_read_utility(book_id):
@@ -861,20 +642,20 @@ def status_read_utility(book_id):
     """
     error_list = None
     db = pymysql.connect(**books_conf)
-    search_str = (f"select BookCollectionID, ReadDate, ReadNote "
-                  f"FROM `books read` "
-                  f"WHERE BookCollectionID = {book_id} ORDER BY ReadDate ASC;")
+    search_str = ("SELECT BookCollectionID, ReadDate, ReadNote "
+                  "FROM `books read` "
+                  "WHERE BookCollectionID = %s ORDER BY ReadDate ASC")
     app_logger.debug(search_str)
     c = db.cursor()
     header = ["BookCollectionID", "ReadDate", "ReadNote"]
+    s = None
     try:
-        c.execute(search_str)
+        c.execute(search_str, (book_id,))
+        s = c.fetchall()
     except pymysql.Error as e:
         app_logger.error(e)
         error_list = [str(e)]
-    else:
-        s = c.fetchall()
-    return s, s, header, error_list
+    return s, header, error_list
 
 
 def tags_search_utility(match_str):
@@ -905,19 +686,19 @@ def tags_search_utility(match_str):
     db = pymysql.connect(**books_conf)
     search_str = ("SELECT a.BookID, b.TagID, b.Label as Tag"
                   " FROM `books tags` a JOIN `tag labels` b ON a.TagID=b.TagID"
-                  f" WHERE b.Label LIKE \"%{match_str}%\" "
+                  " WHERE b.Label LIKE %s"
                   " ORDER BY b.Label ASC")
     header = ["BookCollectionID", "TagID", "Tag"]
     app_logger.debug(search_str)
     c = db.cursor()
+    s = None
     try:
-        c.execute(search_str)
+        c.execute(search_str, (f"%{match_str}%",))
+        s = c.fetchall()
     except pymysql.Error as e:
         app_logger.error(e)
         error_list = [str(e)]
-    else:
-        s = c.fetchall()
-    return s, s, header, error_list
+    return s, header, error_list
 
 
 def books_search_utility(args):
@@ -974,50 +755,64 @@ def books_search_utility(args):
       MySQL cursor, which yields a list of tuples.  The column order matches the
       selection in the query string.
     """
+    # Allowed search columns (whitelist to prevent SQL injection)
+    allowed_book_columns = {
+        "BookCollectionID", "Title", "Author", "CopyrightDate", "ISBNNumber",
+        "ISBNNumber13", "PublisherName", "CoverType", "Pages", "Category",
+        "Note", "Recycled", "Location"
+    }
+
     error_list = None
     s = None
     db = pymysql.connect(**books_conf)
-    where = []
+    where_parts = []
+    params = []
+
     for key in args:
+        value = args.get(key)
         if key == "BookCollectionID":
-            where.append(f"a.{key} = \"{args.get(key)}\"")
+            where_parts.append("a.BookCollectionID = %s")
+            params.append(value)
         elif key == "ReadDate":
-            where.append(f"b.{key} LIKE \"%{args.get(key)}%\"")
+            where_parts.append("b.ReadDate LIKE %s")
+            params.append(f"%{value}%")
         elif key == "Tags":
-            _, s, _, _ = tags_search_utility(args.get(key))
-            id_list = str(tuple([int(x[0]) for x in s]))
-            if len(s) == 1:
-                # remove trailing comma
-                id_list = id_list.replace(",", "")
-            app_logger.debug(id_list)
-            if id_list == "()":
-                # no matching tags - force no results
-                where.append("a.BookCollectionID in (0)")
+            # Get book IDs matching the tag
+            tag_results, _, _ = tags_search_utility(value)
+            if tag_results:
+                book_ids = [int(x[0]) for x in tag_results]
+                placeholders = ", ".join(["%s"] * len(book_ids))
+                where_parts.append(f"a.BookCollectionID IN ({placeholders})")
+                params.extend(book_ids)
             else:
-                where.append(f"a.BookCollectionID in {id_list}")
+                # No matching tags - force no results
+                where_parts.append("a.BookCollectionID IN (0)")
+        elif key in allowed_book_columns:
+            where_parts.append(f"a.`{key}` LIKE %s")
+            params.append(f"%{value}%")
         else:
-            where.append(f"a.{key} LIKE \"%{args.get(key)}%\"")
-    where_str = " AND ".join(where)
+            app_logger.warning(f"Ignoring unknown search column: {key}")
+
     search_str = ("SELECT a.BookCollectionID, a.Title, a.Author, a.CopyrightDate, "
                   "a.ISBNNumber, a.PublisherName, a.CoverType, a.Pages, "
                   "a.Category, a.Note, a.Recycled, a.Location, a.ISBNNumber13, "
                   "b.ReadDate "
                   "FROM `book collection` as a LEFT JOIN `books read` as b "
-                  "ON a.BookCollectionID = b.BookCollectionID ")
-    if where_str != '':
-        search_str += "WHERE " + where_str
+                  "ON a.BookCollectionID = b.BookCollectionID")
+    if where_parts:
+        search_str += " WHERE " + " AND ".join(where_parts)
     search_str += " ORDER BY a.Author, a.Title ASC"
+
     app_logger.debug(search_str)
     header = table_header + ["ReadDate"]
     c = db.cursor()
     try:
-        c.execute(search_str)
+        c.execute(search_str, tuple(params))
+        s = c.fetchall()
     except pymysql.Error as e:
         app_logger.error(e)
         error_list = [str(e)]
-    else:
-        s = c.fetchall()
-    return s, s, header, error_list
+    return s, header, error_list
 
 
 def book_tags(book_id):
@@ -1047,12 +842,12 @@ def book_tags(book_id):
     s = None
     db = pymysql.connect(**books_conf)
     search_str = "SELECT a.Label as Tag"
-    search_str += " FROM `tag labels` a JOIN `books tags` b ON a.TagID =b.TagID"
-    search_str += f" WHERE b.BookID = {book_id} ORDER BY Tag"
+    search_str += " FROM `tag labels` a JOIN `books tags` b ON a.TagID = b.TagID"
+    search_str += " WHERE b.BookID = %s ORDER BY Tag"
     app_logger.debug(search_str)
     c = db.cursor()
     try:
-        c.execute(search_str)
+        c.execute(search_str, (book_id,))
     except pymysql.Error as e:
         app_logger.error(e)
         error_list = [str(e)]
@@ -1063,9 +858,137 @@ def book_tags(book_id):
     return rdata, error_list
 
 
+def get_tag_counts(tag_prefix=None):
+    """
+    Retrieve tag count information from the database.
+
+    Parameters
+    ----------
+    tag_prefix : str or None
+        Optional tag prefix to filter results. If provided, only tags
+        starting with this prefix are returned.
+
+    Returns
+    -------
+    tuple
+        A tuple containing:
+        1. rows - List of (Tag, Count) tuples
+        2. header - List of column names ["Tag", "Count"]
+        3. error_list - List of error messages or None if successful
+    """
+    db = pymysql.connect(**books_conf)
+    search_str = "SELECT a.Label as Tag, COUNT(b.TagID) as Count"
+    search_str += " FROM `tag labels` a JOIN `books tags` b ON a.TagID = b.TagID"
+    params = ()
+    if tag_prefix is not None:
+        search_str += " WHERE Label LIKE %s"
+        params = (f"{tag_prefix}%",)
+    search_str += " GROUP BY Label ORDER BY Count DESC, Label ASC"
+    app_logger.debug(search_str)
+    header = ["Tag", "Count"]
+    error_list = None
+    rows = []
+    c = db.cursor()
+    try:
+        c.execute(search_str, params)
+        rows = c.fetchall()
+    except pymysql.Error as e:
+        app_logger.error(e)
+        error_list = [str(e)]
+    finally:
+        db.close()
+    return rows, header, error_list
+
+
+def add_tag_to_book(book_id, tag):
+    """
+    Add a tag to a book, creating the tag label if it doesn't exist.
+
+    Parameters
+    ----------
+    book_id : int
+        The BookCollectionID of the book to tag.
+    tag : str
+        The tag label to add (will be lowercased).
+
+    Returns
+    -------
+    tuple
+        A tuple containing:
+        1. A dictionary with BookID, Tag, and TagID on success,
+           or an error dictionary on failure.
+        2. A list of error messages or None if successful.
+    """
+    db = pymysql.connect(**books_conf)
+    tag = tag.lower().strip()
+    result_data = None
+    error_list = None
+    with db:
+        with db.cursor() as c:
+            try:
+                c.execute('INSERT IGNORE INTO `tag labels` SET Label=%s', (tag,))
+                c.execute('SELECT TagID FROM `tag labels` WHERE Label=%s', (tag,))
+                tag_id = c.fetchone()[0]
+                c.execute('INSERT INTO `books tags` (BookID, TagID) VALUES (%s, %s)', (book_id, tag_id))
+                result_data = {"BookID": book_id, "Tag": tag, "TagID": tag_id}
+            except pymysql.Error as e:
+                app_logger.error(e)
+                error_list = [str(e)]
+                result_data = {"error": str(e)}
+        db.commit()
+    return result_data, error_list
+
+
+##########################################################################
+# IMAGES
+##########################################################################
+
+
+def get_images_for_book(book_id):
+    """
+    Retrieve all image records for a given BookCollectionID.
+
+    Parameters
+    ----------
+    book_id : int
+        The BookCollectionID to fetch images for.
+
+    Returns
+    -------
+    tuple
+        A tuple containing:
+        1. A list of image dictionaries with keys: id, BookCollectionID, name, url, type
+        2. A list of error messages or None if successful
+    """
+    db = pymysql.connect(**books_conf)
+    search_str = "SELECT id, BookCollectionID, name, url, type FROM `images` WHERE BookCollectionID = %s"
+    images = []
+    error_list = None
+
+    with db:
+        with db.cursor() as c:
+            try:
+                c.execute(search_str, (book_id,))
+                results = c.fetchall()
+
+                for row in results:
+                    images.append({
+                        "id": row[0],
+                        "BookCollectionID": row[1],
+                        "name": row[2],
+                        "url": row[3],
+                        "type": row[4]
+                    })
+            except pymysql.Error as e:
+                app_logger.error(e)
+                error_list = [str(e)]
+
+    return images, error_list
+
+
 ##########################################################################
 # READING ESTIMATES
-#########################################################################
+##########################################################################
 
 
 def daily_page_record_from_db(RecordID):
@@ -1078,10 +1001,12 @@ def daily_page_record_from_db(RecordID):
     RecordID (int): The ID for which daily page records are to be fetched.
 
     Returns:
-    tuple: A tuple containing the modified list of records and the RecordID.
+    tuple: A tuple containing (data, error_list) where data is the modified list
+           of records and error_list is None or a list of error strings.
     """
     # Initialize an empty list for the data
     data = []
+    error_list = None
 
     # Connect to the database
     try:
@@ -1089,9 +1014,9 @@ def daily_page_record_from_db(RecordID):
         with db.cursor() as cur:
             # Execute the query to fetch daily page records
             q = ("SELECT a.RecordDate, a.page FROM `daily page records` a "
-                 f"WHERE a.RecordID = {RecordID} ORDER BY a.RecordDate ASC")
+                 "WHERE a.RecordID = %s ORDER BY a.RecordDate ASC")
             app_logger.debug(q)
-            cur.execute(q)
+            cur.execute(q, (RecordID,))
             rows = cur.fetchall()
 
             # Check if any rows were returned
@@ -1103,11 +1028,12 @@ def daily_page_record_from_db(RecordID):
                     data.append(list(row) + [day_number])
     except pymysql.MySQLError as e:
         app_logger.error(f"Database error: {e}")
+        error_list = [str(e)]
     finally:
         # Ensure the database connection is closed
         db.close()
 
-    return data, RecordID
+    return data, error_list
 
 
 def reading_book_data_from_db(RecordID):
@@ -1120,27 +1046,30 @@ def reading_book_data_from_db(RecordID):
     RecordID (int): The ID for which book data is to be fetched.
 
     Returns:
-    tuple: A tuple containing the list of book data records and the RecordID.
+    tuple: A tuple containing (rows, error_list) where rows is the list of book
+           data records and error_list is None or a list of error strings.
     """
     # Initialize an empty list for the data
     rows = []
+    error_list = None
     # Establish a database connection
     try:
         db = pymysql.connect(**books_conf)
         with db.cursor() as cur:
             # Execute the query to fetch book data
-            q = f'SELECT StartDate, LastReadablePage FROM `complete date estimates` WHERE RecordID = {RecordID}'
+            q = 'SELECT StartDate, LastReadablePage FROM `complete date estimates` WHERE RecordID = %s'
             app_logger.debug(q)
-            cur.execute(q)
+            cur.execute(q, (RecordID,))
             rows = cur.fetchall()
     except pymysql.MySQLError as e:
         # Handle database errors
         app_logger.error(f"Database error: {e}")
+        error_list = [str(e)]
     finally:
         # Ensure the database connection is closed
         db.close()
 
-    return rows, RecordID
+    return rows, error_list
 
 
 def update_reading_book_data(record_id, date_range):

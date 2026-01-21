@@ -12,7 +12,7 @@ from flask import Flask, Response, send_file, request, abort
 from matplotlib import pylab as plt
 from werkzeug.utils import secure_filename
 
-from isbn_com import Endpoint as isbn
+from books.isbn_com import Endpoint as isbn
 
 dictConfig({
     'version': 1,
@@ -30,6 +30,35 @@ dictConfig({
 })
 
 app = Flask(__name__)
+
+
+def resp_header(rdata):
+    """
+    Generate HTTP response headers for a JSON payload.
+
+    This function constructs a list of header tuples suitable for sending an HTTP
+    response containing JSON data.  It automatically sets the `Content-Type`
+    to JSON with UTF‑8 encoding and calculates the correct `Content-Length`
+    based on the supplied response body.
+
+    Args:
+        rdata (bytes or str): The raw response body.  The length of this data is
+            used to set the `Content-Length` header.  `rdata` should already be
+            encoded as UTF‑8 bytes or a Unicode string representing the JSON
+            payload.
+
+    Returns:
+        list[tuple[str, str]]: A list of two‑item tuples where each tuple
+            contains a header name and its corresponding value.  The list
+            always contains the `Content-Type` header for JSON with UTF‑8
+            encoding followed by the `Content-Length` header reflecting
+            the byte length of `rdata`.
+    """
+    response_header = [
+        ('Content-type', 'application/json; charset=utf-8'),
+        ('Content-Length', str(len(rdata)))
+    ]
+    return response_header
 
 
 def require_app_key(view_function):
@@ -73,6 +102,45 @@ def require_app_key(view_function):
     return decorated_function
 
 
+def json_response(data, status=200):
+    """
+    Create a Flask Response object with JSON data and appropriate headers.
+
+    Parameters
+    ----------
+    data : dict or list
+        The data to serialize as JSON.
+    status : int, optional
+        The HTTP status code (default: 200).
+
+    Returns
+    -------
+    Response
+        A Flask Response object with JSON content and headers.
+    """
+    rdata = json.dumps(data)
+    return Response(response=rdata, status=status, headers=resp_header(rdata))
+
+
+def json_string_response(json_str, status=200):
+    """
+    Create a Flask Response object from an already-serialized JSON string.
+
+    Parameters
+    ----------
+    json_str : str
+        A pre-serialized JSON string.
+    status : int, optional
+        The HTTP status code (default: 200).
+
+    Returns
+    -------
+    Response
+        A Flask Response object with JSON content and headers.
+    """
+    return Response(response=json_str, status=status, headers=resp_header(json_str))
+
+
 @app.route('/favicon.ico')
 def favicon():
     return '', 204
@@ -102,9 +170,7 @@ def configuration():
         "isbn_configuration": isbn_conf_clean,
         "date": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M")
     }
-    rdata = json.dumps(clean)
-    response_headers = resp_header(rdata)
-    return Response(response=rdata, status=200, headers=response_headers)
+    return json_response(clean)
 
 
 ##########################################################################
@@ -135,7 +201,7 @@ def valid_locations():
     """
     rdata, s, header, errors = get_valid_locations()
     result = serialized_result_dict(rdata, header, errors)
-    return Response(response=result, status=200, headers=resp_header(result))
+    return json_string_response(result)
 
 
 ##########################################################################
@@ -169,8 +235,7 @@ def recent(limit=10):
     limit = int(limit)
     recent_books, s, header, error_list = get_recently_touched(limit)
     result = serialized_result_dict(recent_books, header, error_list)
-    # Return the successful response
-    return Response(response=result, status=200, headers=resp_header(result))
+    return json_string_response(result)
 
 
 ##########################################################################
@@ -208,20 +273,29 @@ def add_books():
     search_str = ("INSERT INTO `book collection` "
                   "(Title, Author, CopyrightDate, ISBNNumber, ISBNNumber13, PublisherName, CoverType, Pages, "
                   "Location, Note, Recycled) "
-                  "VALUES "
-                  "(\"{Title}\", \"{Author}\", \"{CopyrightDate}\", \"{ISBNNumber}\", \"{ISBNNumber13}\", "
-                  "\"{PublisherName}\", \"{CoverType}\", \"{Pages}\", "
-                  "\"{Location}\", \"{Note}\", \"{Recycled}\");")
+                  "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)")
     book_id_str = "SELECT LAST_INSERT_ID();"
     rdata = []
     with db:
         with db.cursor() as c:
             for record in records:
                 try:
-                    record["Note"] = db.escape(record["Note"])
-                    if len(record["CopyrightDate"].strip()) == 4:
-                        record["CopyrightDate"] += "-01-01 00:00:00"  # make it a valid date string!
-                    c.execute(search_str.format(**record))
+                    copyright_date = record["CopyrightDate"]
+                    if len(copyright_date.strip()) == 4:
+                        copyright_date += "-01-01 00:00:00"  # make it a valid date string!
+                    c.execute(search_str, (
+                        record["Title"],
+                        record["Author"],
+                        copyright_date,
+                        record["ISBNNumber"],
+                        record["ISBNNumber13"],
+                        record["PublisherName"],
+                        record["CoverType"],
+                        record["Pages"],
+                        record["Location"],
+                        record["Note"],
+                        record["Recycled"]
+                    ))
                     c.execute(book_id_str)
                     record["BookCollectionID"] = c.fetchall()[0][0]
                     rdata.append(record)
@@ -229,9 +303,7 @@ def add_books():
                     app.logger.error(e)
                     rdata.append({"error": str(e)})
         db.commit()
-    rdata = json.dumps({"add_books": rdata})
-    response_headers = resp_header(rdata)
-    return Response(response=rdata, status=200, headers=response_headers)
+    return json_response({"add_books": rdata})
 
 
 @app.route('/add_read_dates', methods=['POST'])
@@ -254,24 +326,24 @@ def add_read_dates():
     # records should be a list of dictionaries including all fields
     db = pymysql.connect(**books_conf)
     records = request.get_json()
-    search_str = 'INSERT INTO `books read` (BookCollectionID, ReadDate, ReadNote) VALUES '
-    search_str += '({BookCollectionID}, "{ReadDate}", "{ReadNote}")'
+    search_str = 'INSERT INTO `books read` (BookCollectionID, ReadDate, ReadNote) VALUES (%s, %s, %s)'
     res = {"update_read_dates": [], "error": []}
     with db:
         with db.cursor() as c:
             for record in records:
                 try:
-                    record["ReadNote"] = db.escape(record["ReadNote"])
-                    app.logger.debug(search_str.format(**record))
-                    c.execute(search_str.format(**record))
+                    app.logger.debug(f"Inserting read date for BookCollectionID: {record['BookCollectionID']}")
+                    c.execute(search_str, (
+                        record["BookCollectionID"],
+                        record["ReadDate"],
+                        record["ReadNote"]
+                    ))
                     res["update_read_dates"].append(record)
                 except pymysql.Error as e:
                     app.logger.error(e)
                     res["error"].append(str(e))
         db.commit()
-    res = json.dumps(res)
-    response_headers = resp_header(res)
-    return Response(response=res, status=200, headers=response_headers)
+    return json_response(res)
 
 
 @app.route('/books_by_isbn', methods=['POST'])
@@ -298,9 +370,7 @@ def books_by_isbn():
             res.append(proto)
         else:
             app.logger.error(f"No records found for isbn {book_isbn}.")
-    rdata = json.dumps({"book_records": res})
-    response_headers = resp_header(rdata)
-    return Response(response=rdata, status=200, headers=response_headers)
+    return json_response({"book_records": res})
 
 
 ##########################################################################
@@ -326,24 +396,23 @@ def update_edit_read_note():
     # records should be a single dictionaries including all fields
     db = pymysql.connect(**books_conf)
     record = request.get_json()
-    record["ReadNote"] = db.escape(record["ReadNote"])
-    search_str = "UPDATE `books read` SET "
-    search_str += "ReadNote=\"{ReadNote}\" "
-    search_str += "WHERE BookCollectionID = \"{BookCollectionID}\" AND ReadDate = \"{ReadDate}\";"
-    app.logger.debug(search_str.format(**record))
+    search_str = "UPDATE `books read` SET ReadNote=%s WHERE BookCollectionID = %s AND ReadDate = %s"
+    app.logger.debug(f"Updating read note for BookCollectionID: {record['BookCollectionID']}")
     rdata = []
     with db:
         with db.cursor() as c:
             try:
-                c.execute(search_str.format(**record))
+                c.execute(search_str, (
+                    record["ReadNote"],
+                    record["BookCollectionID"],
+                    record["ReadDate"]
+                ))
                 rdata.append(record)
             except pymysql.Error as e:
                 app.logger.error(e)
                 rdata.append({"error": str(e)})
         db.commit()
-    rdata = json.dumps({"update_read": rdata})
-    response_headers = resp_header(rdata)
-    return Response(response=rdata, status=200, headers=response_headers)
+    return json_response({"update_read": rdata})
 
 
 @app.route('/update_book_note_status', methods=['POST'])
@@ -367,14 +436,10 @@ def update_book_note_status():
     record = request.get_json()
     # test of the record has BookCollectionID and one or both of Note and Recycled fields
     if not ("BookCollectionID" in record and ("Note" in record or "Recycled" in record)):
-        rdata = json.dumps({"error": "Missing required fields: BookCollectionID, Note OR Recycled"})
-        response_headers = resp_header(rdata)
-        return Response(response=rdata, status=400, headers=response_headers)
+        return json_response({"error": "Missing required fields: BookCollectionID, Note OR Recycled"}, status=400)
     else:
         data = update_book_record_by_key(record)
-        rdata = json.dumps({"update_read": data})
-        response_headers = resp_header(rdata)
-        return Response(response=rdata, status=200, headers=response_headers)
+        return json_response({"update_read": data})
 
 
 @app.route('/update_book_record', methods=['POST'])
@@ -397,14 +462,10 @@ def update_book_record():
     record = request.get_json()
     # test of the record has BookCollectionID and one of any other field
     if not ("BookCollectionID" in record and len(record.keys()) > 1):
-        rdata = json.dumps({"error": "Missing required fields: BookCollectionID, and any other field"})
-        response_headers = resp_header(rdata)
-        return Response(response=rdata, status=400, headers=response_headers)
+        return json_response({"error": "Missing required fields: BookCollectionID, and any other field"}, status=400)
     else:
         data = update_book_record_by_key(record)
-        rdata = json.dumps({"update_read": data})
-        response_headers = resp_header(rdata)
-        return Response(response=rdata, status=200, headers=response_headers)
+        return json_response({"update_read": data})
 
 
 ##########################################################################
@@ -432,10 +493,9 @@ def summary_books_read_by_year(target_year=None):
         A Flask Response object containing the serialized summary data, the
         appropriate HTTP headers, and a 200 status code.
     """
-    rdata, _, header, error_list = summary_books_read_by_year_utility(target_year)
+    rdata, header, error_list = summary_books_read_by_year_utility(target_year)
     result = serialized_result_dict(rdata, header, error_list)
-    response_headers = resp_header(result)
-    return Response(response=result, status=200, headers=response_headers)
+    return json_string_response(result)
 
 
 @app.route('/books_read')
@@ -463,8 +523,7 @@ def books_read(target_year=None):
     """
     rdata, _, header, error_list = books_read_by_year_utility(target_year)
     result = serialized_result_dict(rdata, header, error_list)
-    response_headers = resp_header(result)
-    return Response(response=result, status=200, headers=response_headers)
+    return json_string_response(result)
 
 
 @app.route('/status_read/<book_id>')
@@ -486,10 +545,9 @@ def status_read(book_id=None):
         requested book.  The response body is the raw data returned
         by `status_read_utility`, and the status code is 200.
     """
-    rdata, _, header, error_list = status_read_utility(book_id)
+    rdata, header, error_list = status_read_utility(book_id)
     result = serialized_result_dict(rdata, header, error_list)
-    response_headers = resp_header(result)
-    return Response(response=result, status=200, headers=response_headers)
+    return json_string_response(result)
 
 
 ##########################################################################
@@ -524,10 +582,9 @@ def books_search():
     """
     # process any query parameters
     args = request.args
-    rdata, s, header, error_list = books_search_utility(args)
+    rdata, header, error_list = books_search_utility(args)
     result = serialized_result_dict(rdata, header, error_list)
-    response_headers = resp_header(result)
-    return Response(response=result, status=200, headers=response_headers)
+    return json_string_response(result)
 
 
 ##########################################################################
@@ -576,9 +633,7 @@ def complete_record_window(book_id, window=20):
     window_list = []
     for bid in get_book_ids_in_window(book_id, int(window)):
         window_list.append(get_complete_book_record(bid))
-    rdata = json.dumps(window_list)
-    response_headers = resp_header(rdata)
-    return Response(response=rdata, status=200, headers=response_headers)
+    return json_response(window_list)
 
 
 @app.route('/complete_record/<book_id>')
@@ -617,18 +672,16 @@ def complete_record(book_id, adjacent=None):
           in an empty JSON response.
     """
     if adjacent is None:
-        rdata = json.dumps(get_complete_book_record(book_id))
+        return json_response(get_complete_book_record(book_id))
     elif adjacent.lower() == "next":
         next_id = get_next_book_id(book_id, 1)
-        rdata = json.dumps(get_complete_book_record(next_id))
+        return json_response(get_complete_book_record(next_id))
     elif adjacent.lower().startswith("prev"):
         previous_id = get_next_book_id(book_id, -1)
-        rdata = json.dumps(get_complete_book_record(previous_id))
+        return json_response(get_complete_book_record(previous_id))
     else:
         app.logger.error(f"Invalid adjacent parameter: {adjacent}")
-        rdata = json.dumps({})
-    response_headers = resp_header(rdata)
-    return Response(response=rdata, status=200, headers=response_headers)
+        return json_response({})
 
 
 ##########################################################################
@@ -638,22 +691,8 @@ def complete_record(book_id, adjacent=None):
 @app.route('/add_tag/<book_id>/<tag>', methods=["PUT"])
 @require_app_key
 def add_tag(book_id, tag):
-    db = pymysql.connect(**books_conf)
-    tag = tag.lower()
-    with db:
-        with db.cursor() as c:
-            try:
-                c.execute(f'INSERT IGNORE INTO `tag labels` SET Label="{tag}";')
-                c.execute(f'SELECT * from `tag labels` WHERE Label="{tag}";')
-                tag_id = c.fetchall()[0][0]
-                c.execute('INSERT INTO `books tags` (BookID, TagID) VALUES (%s, %s)', (book_id, tag_id))
-                rdata = json.dumps({"BookID": f"{book_id}", "Tag": f"{tag}", "TagID": f"{tag_id}"})
-            except pymysql.Error as e:
-                app.logger.error(e)
-                rdata = json.dumps({"error": str(e)})
-        db.commit()
-    response_headers = resp_header(rdata)
-    return Response(response=rdata, status=200, headers=response_headers)
+    result_data, error_list = add_tag_to_book(book_id, tag)
+    return json_response(result_data)
 
 
 @app.route('/tag_counts')
@@ -663,33 +702,17 @@ def tag_counts(tag=None):
     """
     Retrieve tag count information from the database.
 
-    This view handles GET requests to `/tag_counts` or `/tag_counts/<tag>`. It queries the MySQL database configured in `books_conf` to count occurrences of each tag label. If a `tag` parameter is supplied, the query filters results to labels that start with the provided string. The function logs the executed query, executes it, handles any database errors, and returns a Flask Response object containing the serialized JSON data and appropriate response headers.
-
     Args:
         tag (str or None): Optional tag name used to filter results by label prefix.
 
     Returns:
         Response: Flask Response object with JSON data and response headers.
     """
-    db = pymysql.connect(**books_conf)
-    search_str = "SELECT a.Label as Tag, COUNT(b.TagID) as Count"
-    search_str += " FROM `tag labels` a JOIN `books tags` b ON a.TagID =b.TagID"
-    if tag is not None:
-        search_str += f" WHERE Label LIKE \"{tag}%\""
-    search_str += " GROUP BY Label ORDER BY count DESC, Label ASC"
-    app.logger.debug(search_str)
-    header = ["Tag", "Count"]
-    c = db.cursor()
-    try:
-        c.execute(search_str)
-    except pymysql.Error as e:
-        rdata = json.dumps({"error": str(e)})
-        app.logger.error(e)
-    else:
-        s = c.fetchall()
-        rdata = serialized_result_dict(s, header)
-    response_headers = resp_header(rdata)
-    return Response(response=rdata, status=200, headers=response_headers)
+    rows, header, error_list = get_tag_counts(tag)
+    if error_list:
+        return json_response({"error": error_list})
+    result = serialized_result_dict(rows, header)
+    return json_string_response(result)
 
 
 @app.route('/tags/<book_id>')
@@ -715,9 +738,7 @@ def tags(book_id=None):
     rdata, error_list = book_tags(book_id)
     if error_list:
         rdata["error"] = error_list
-    result = json.dumps(rdata)
-    response_headers = resp_header(result)
-    return Response(response=result, status=200, headers=response_headers)
+    return json_response(rdata)
 
 
 @app.route('/update_tag_value/<current>/<updated>', methods=["PUT"])
@@ -751,19 +772,18 @@ def update_tag_value(current, updated):
     None
     """
     db = pymysql.connect(**books_conf)
+    result_data = None
     with db:
         with db.cursor() as c:
             try:
                 _updated = updated.lower().strip(" ")
-                records = c.execute("UPDATE `tag labels` SET Label = '{}' WHERE Label = '{}'".format(
-                    _updated, current))
-                rdata = json.dumps({"data": {"tag_update": f"{current} >> {updated}", "updated_tags": records}})
+                records = c.execute("UPDATE `tag labels` SET Label = %s WHERE Label = %s", (_updated, current))
+                result_data = {"data": {"tag_update": f"{current} >> {updated}", "updated_tags": records}}
             except pymysql.Error as e:
                 app.logger.error(e)
-                rdata = json.dumps({"error": str(e)})
+                result_data = {"error": str(e)}
         db.commit()
-    response_headers = resp_header(rdata)
-    return Response(response=rdata, status=200, headers=response_headers)
+    return json_response(result_data)
 
 
 @app.route('/tags_search/<match_str>')
@@ -788,10 +808,9 @@ def tags_search(match_str):
     Any exception raised by `tags_search_utility`, `resp_header` or
     `Response` constructor will propagate to the caller.
     """
-    row_data, s, header, error_list = tags_search_utility(match_str)
+    row_data, header, error_list = tags_search_utility(match_str)
     result = serialized_result_dict(row_data, header, error_list)
-    response_headers = resp_header(result)
-    return Response(response=result, status=200, headers=response_headers)
+    return json_string_response(result)
 
 
 @app.route('/tag_maintenance')
@@ -808,9 +827,7 @@ def tag_maintenance():
             except pymysql.Error as e:
                 rdata = {"error": [str(e)]}
                 app.logger.error(e)
-    rdata = json.dumps(rdata)
-    response_headers = resp_header(rdata)
-    return Response(response=rdata, status=200, headers=response_headers)
+    return json_response(rdata)
 
 
 ##########################################################################
@@ -820,15 +837,15 @@ def tag_maintenance():
 @require_app_key
 def date_page_records(record_id=None):
     # data is [(RecordDate, page, day_number from first page record), ...]
-    data, record_id = daily_page_record_from_db(record_id)
+    data, error_list = daily_page_record_from_db(record_id)
     rdata = {"date_page_records": [], "RecordID": record_id}
-    if len(data) > 0:
+    if error_list:
+        rdata["error"] = error_list
+    elif len(data) > 0:
         rdata["date_page_records"] = [(x.strftime(FMT), int(y), int(z)) for [x, y, z] in data]
     else:
         rdata["error"] = "No records found."
-    rdata = json.dumps(rdata)
-    response_headers = resp_header(rdata)
-    return Response(response=rdata, status=200, headers=response_headers)
+    return json_response(rdata)
 
 
 @app.route('/record_set/<book_id>')
@@ -836,23 +853,21 @@ def date_page_records(record_id=None):
 def record_set(book_id=None):
     db = pymysql.connect(**books_conf)
     rdata = {"record_set": {"BookCollectionID": book_id, "RecordID": [], "Estimate": []}}
-    q = ("SELECT StartDate, RecordID FROM `complete date estimates` "
-         f"WHERE BookCollectionID = {book_id} ORDER BY StartDate ASC")
+    q = "SELECT StartDate, RecordID FROM `complete date estimates` WHERE BookCollectionID = %s ORDER BY StartDate ASC"
     with db:
         with db.cursor() as c:
             try:
-                c.execute(q)
+                c.execute(q, (book_id,))
                 res = c.fetchall()
             except pymysql.Error as e:
-                rdata["error"].append(str(e))
+                rdata["error"] = [str(e)]
                 app.logger.error(e)
+                res = []
         db.commit()
     for record in [(str(x[0]), int(x[1])) for x in res]:
         rdata["record_set"]["RecordID"].append(record)
         rdata["record_set"]["Estimate"].append(calculate_estimates(record[1]))
-    rdata = json.dumps(rdata)
-    response_headers = resp_header(rdata)
-    return Response(response=rdata, status=200, headers=response_headers)
+    return json_response(rdata)
 
 
 @app.route('/add_date_page', methods=['POST'])
@@ -874,24 +889,24 @@ def add_date_page():
     """
     # records should be a single dictionaries including all fields
     record = request.get_json()
-    search_str = "INSERT INTO `daily page records` SET "
-    search_str += 'RecordID="{RecordID}", '
-    search_str += 'RecordDate="{RecordDate}", '
-    search_str += 'page="{Page}";'
-    app.logger.debug(search_str.format(**record))
+    search_str = "INSERT INTO `daily page records` (RecordID, RecordDate, page) VALUES (%s, %s, %s)"
+    app.logger.debug(f"Inserting date page record for RecordID: {record.get('RecordID')}")
     db = pymysql.connect(**books_conf)
-    rdata = json.dumps({"error": "No record added."})
+    result_data = {"error": "No record added."}
     with db:
         with db.cursor() as c:
             try:
-                c.execute(search_str.format(**record))
-                rdata = json.dumps({"add_date_page": record})
+                c.execute(search_str, (
+                    record["RecordID"],
+                    record["RecordDate"],
+                    record["Page"]
+                ))
+                result_data = {"add_date_page": record}
             except pymysql.Error as e:
                 app.logger.error(e)
-                rdata = json.dumps({"add_date_page": {}, "error": str(e)})
+                result_data = {"add_date_page": {}, "error": str(e)}
         db.commit()
-    response_headers = resp_header(rdata)
-    return Response(response=rdata, status=200, headers=response_headers)
+    return json_response(result_data)
 
 
 @app.route('/add_book_estimate/<book_id>/<last_readable_page>', methods=["PUT"])
@@ -903,22 +918,21 @@ def add_book_estimate(book_id, last_readable_page, start_date=None):
     last_readable_page = int(last_readable_page)
     if start_date is None:
         start_date = datetime.datetime.now().strftime(FMT)
-    q = (f'INSERT INTO `complete date estimates` SET BookCollectionID={book_id},'
-         f' StartDate="{start_date}", LastReadablePage={last_readable_page};')
-    app.logger.debug(q)
+    q = "INSERT INTO `complete date estimates` (BookCollectionID, StartDate, LastReadablePage) VALUES (%s, %s, %s)"
+    app.logger.debug(f"Inserting book estimate for BookCollectionID: {book_id}")
+    result_data = None
     with db:
         with db.cursor() as c:
             try:
-                c.execute(q)
-                rdata = json.dumps({"add_book_estimate":
-                                        {"BookCollectionID": f"{book_id}", "LastReadablePage":
-                                            f"{last_readable_page}", "StartDate": f"{start_date}"}})
+                c.execute(q, (book_id, start_date, last_readable_page))
+                result_data = {"add_book_estimate":
+                                   {"BookCollectionID": f"{book_id}", "LastReadablePage":
+                                       f"{last_readable_page}", "StartDate": f"{start_date}"}}
             except pymysql.Error as e:
                 app.logger.error(e)
-                rdata = json.dumps({"add_book_estimate": {}, "error": str(e)})
+                result_data = {"add_book_estimate": {}, "error": str(e)}
         db.commit()
-    response_headers = resp_header(rdata)
-    return Response(response=rdata, status=200, headers=response_headers)
+    return json_response(result_data)
 
 
 ##########################################################################
@@ -935,41 +949,15 @@ def get_images(book_id):
 
     Returns:
         JSON response with list of image records for the book
-
-    E.g.
-    curl http://172.17.0.2:5000/images/1234
     """
-    db = pymysql.connect(**books_conf)
-    search_str = "SELECT id, BookCollectionID, name, url, type FROM `images` WHERE BookCollectionID = %s"
-
-    with db:
-        with db.cursor() as c:
-            try:
-                c.execute(search_str, (book_id,))
-                results = c.fetchall()
-
-                # Convert results to list of dictionaries
-                images = []
-                for row in results:
-                    images.append({
-                        "id": row[0],
-                        "BookCollectionID": row[1],
-                        "name": row[2],
-                        "url": row[3],
-                        "type": row[4]
-                    })
-
-                rdata = json.dumps({
-                    "BookCollectionID": int(book_id),
-                    "images": images,
-                    "count": len(images)
-                })
-            except pymysql.Error as e:
-                app.logger.error(e)
-                rdata = json.dumps({"error": str(e)})
-
-    response_headers = resp_header(rdata)
-    return Response(response=rdata, status=200, headers=response_headers)
+    images, error_list = get_images_for_book(book_id)
+    if error_list:
+        return json_response({"error": error_list})
+    return json_response({
+        "BookCollectionID": int(book_id),
+        "images": images,
+        "count": len(images)
+    })
 
 
 @app.route('/add_image', methods=['POST'])
@@ -999,9 +987,7 @@ def add_image():
 
     # Validate required fields
     if 'BookCollectionID' not in record:
-        rdata = json.dumps({"error": "Missing required field: BookCollectionID"})
-        response_headers = resp_header(rdata)
-        return Response(response=rdata, status=400, headers=response_headers)
+        return json_response({"error": "Missing required field: BookCollectionID"}, status=400)
 
     # Set default type if not provided
     if 'type' not in record:
@@ -1023,51 +1009,47 @@ def add_image():
 
                 if response.status_code != 200:
                     app.logger.warning(f"Image URL returned status {response.status_code}: {image_url}")
-                    rdata = json.dumps(
-                        {"error": f"Image URL not accessible (status {response.status_code}): {image_url}"})
-                    response_headers = resp_header(rdata)
-                    return Response(response=rdata, status=400, headers=response_headers)
+                    return json_response(
+                        {"error": f"Image URL not accessible (status {response.status_code}): {image_url}"}, status=400)
 
                 # Optionally verify it's an image by checking content-type
                 content_type = response.headers.get('Content-Type', '')
                 if not content_type.startswith('image/'):
                     app.logger.warning(f"URL does not point to an image (content-type: {content_type}): {image_url}")
-                    rdata = json.dumps({"error": f"URL does not appear to be an image (content-type: {content_type})"})
-                    response_headers = resp_header(rdata)
-                    return Response(response=rdata, status=400, headers=response_headers)
+                    return json_response({"error": f"URL does not appear to be an image (content-type: {content_type})"}, status=400)
 
             except requests.exceptions.Timeout:
                 app.logger.error(f"Timeout while verifying image URL: {image_url}")
-                rdata = json.dumps({"error": f"Timeout while verifying image URL: {image_url}"})
-                response_headers = resp_header(rdata)
-                return Response(response=rdata, status=400, headers=response_headers)
+                return json_response({"error": f"Timeout while verifying image URL: {image_url}"}, status=400)
             except requests.exceptions.RequestException as e:
                 app.logger.error(f"Error verifying image URL: {image_url} - {str(e)}")
-                rdata = json.dumps({"error": f"Error verifying image URL: {str(e)}"})
-                response_headers = resp_header(rdata)
-                return Response(response=rdata, status=400, headers=response_headers)
+                return json_response({"error": f"Error verifying image URL: {str(e)}"}, status=400)
 
     search_str = ("INSERT INTO `images` "
                   "(BookCollectionID, name, url, type) "
-                  "VALUES "
-                  "({BookCollectionID}, \"{name}\", \"{url}\", \"{type}\");")
+                  "VALUES (%s, %s, %s, %s)")
     image_id_str = "SELECT LAST_INSERT_ID();"
 
+    result_data = None
     with db:
         with db.cursor() as c:
             try:
-                app.logger.debug(search_str.format(**record))
-                c.execute(search_str.format(**record))
+                app.logger.debug(f"Inserting image for BookCollectionID: {record['BookCollectionID']}")
+                c.execute(search_str, (
+                    record["BookCollectionID"],
+                    record.get("name", ""),
+                    record.get("url", ""),
+                    record["type"]
+                ))
                 c.execute(image_id_str)
                 record["id"] = c.fetchall()[0][0]
-                rdata = json.dumps({"add_image": record})
+                result_data = {"add_image": record}
             except pymysql.Error as e:
                 app.logger.error(e)
-                rdata = json.dumps({"error": str(e)})
+                result_data = {"error": str(e)}
         db.commit()
 
-    response_headers = resp_header(rdata)
-    return Response(response=rdata, status=200, headers=response_headers)
+    return json_response(result_data)
 
 
 @app.route('/upload_image', methods=['POST'])
@@ -1088,16 +1070,12 @@ def upload_image():
         JSON response with upload status and file path
     """
     if 'file' not in request.files:
-        rdata = json.dumps({"error": "No file part in the request"})
-        response_headers = resp_header(rdata)
-        return Response(response=rdata, status=400, headers=response_headers)
+        return json_response({"error": "No file part in the request"}, status=400)
 
     file = request.files['file']
 
     if file.filename == '':
-        rdata = json.dumps({"error": "No file selected"})
-        response_headers = resp_header(rdata)
-        return Response(response=rdata, status=400, headers=response_headers)
+        return json_response({"error": "No file selected"}, status=400)
 
     # Get the configured image path
     image_path = '/books/uploads'
@@ -1108,9 +1086,7 @@ def upload_image():
             os.makedirs(image_path)
         except OSError as e:
             app.logger.error(f"Failed to create directory {image_path}: {e}")
-            rdata = json.dumps({"error": f"Failed to create directory: {str(e)}"})
-            response_headers = resp_header(rdata)
-            return Response(response=rdata, status=500, headers=response_headers)
+            return json_response({"error": f"Failed to create directory: {str(e)}"}, status=500)
 
     # Use custom filename if provided, otherwise use secure_filename on original
     custom_filename = request.form.get('filename')
@@ -1124,20 +1100,16 @@ def upload_image():
     try:
         file.save(file_path)
         app.logger.info(f"File uploaded successfully: {file_path}")
-        rdata = json.dumps({
+        return json_response({
             "upload_image": {
                 "status": "success",
                 "filename": filename,
                 "path": file_path
             }
         })
-        response_headers = resp_header(rdata)
-        return Response(response=rdata, status=200, headers=response_headers)
     except Exception as e:
         app.logger.error(f"Failed to save file: {e}")
-        rdata = json.dumps({"error": f"Failed to save file: {str(e)}"})
-        response_headers = resp_header(rdata)
-        return Response(response=rdata, status=500, headers=response_headers)
+        return json_response({"error": f"Failed to save file: {str(e)}"}, status=500)
 
 
 @app.route('/image/year_progress_comparison.png')
@@ -1182,7 +1154,7 @@ def all_years(year=None):
     else:
         year = int(year)
     img = BytesIO()
-    _, s, h, e = summary_books_read_by_year_utility()
+    s, h, e = summary_books_read_by_year_utility()
     df = pd.DataFrame(s, columns=h)
     df['pages read'] = df['pages read'].astype(float)
     df["rank"] = df["pages read"].rank(ascending=False)

@@ -75,7 +75,7 @@ def _execute_book_search(params: dict) -> str:
     """
     try:
         # Call the books_search_utility from booksdb
-        data_rows, raw_data, header, error_list = api_util.books_search_utility(params)
+        data_rows, header, error_list = api_util.books_search_utility(params)
 
         if error_list:
             return json.dumps({
