@@ -1,0 +1,723 @@
+{
+  "info": {
+    "name": "Book Service API",
+    "description": "Comprehensive REST API for personal book collection management (v0.16.2)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "book-service-api-v0.16.2"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      {
+        "key": "value",
+        "value": "{{api_key}}",
+        "type": "string"
+      },
+      {
+        "key": "key",
+        "value": "x-api-key",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Configuration & Metadata",
+      "item": [
+        {
+          "name": "Get API Configuration",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/configuration",
+              "host": ["{{base_url}}"],
+              "path": ["configuration"]
+            },
+            "description": "Retrieve API version, database config, and ISBN config"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Valid Locations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/valid_locations",
+              "host": ["{{base_url}}"],
+              "path": ["valid_locations"]
+            },
+            "description": "Get list of valid book storage locations"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Query Operations",
+      "item": [
+        {
+          "name": "Get Recent Books (Default 10)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/recent",
+              "host": ["{{base_url}}"],
+              "path": ["recent"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Recent Books (Custom Limit)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/recent/20",
+              "host": ["{{base_url}}"],
+              "path": ["recent", "20"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Search Books by Author",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/books_search?Author=Tolkien",
+              "host": ["{{base_url}}"],
+              "path": ["books_search"],
+              "query": [
+                {
+                  "key": "Author",
+                  "value": "Tolkien"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Search Books by Multiple Criteria",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/books_search?Author=Asimov&Recycled=0",
+              "host": ["{{base_url}}"],
+              "path": ["books_search"],
+              "query": [
+                {
+                  "key": "Author",
+                  "value": "Asimov"
+                },
+                {
+                  "key": "Recycled",
+                  "value": "0"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Complete Book Record",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/complete_record/1234",
+              "host": ["{{base_url}}"],
+              "path": ["complete_record", "1234"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Navigate to Next Book",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/complete_record/1234/next",
+              "host": ["{{base_url}}"],
+              "path": ["complete_record", "1234", "next"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Books Window",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/complete_records_window/1234/20",
+              "host": ["{{base_url}}"],
+              "path": ["complete_records_window", "1234", "20"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Reading History",
+      "item": [
+        {
+          "name": "Get All Books Read",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/books_read",
+              "host": ["{{base_url}}"],
+              "path": ["books_read"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Books Read in Year",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/books_read/2024",
+              "host": ["{{base_url}}"],
+              "path": ["books_read", "2024"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Reading Summary (All Years)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/summary_books_read_by_year",
+              "host": ["{{base_url}}"],
+              "path": ["summary_books_read_by_year"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Reading Summary (Specific Year)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/summary_books_read_by_year/2024",
+              "host": ["{{base_url}}"],
+              "path": ["summary_books_read_by_year", "2024"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Read Status for Book",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/status_read/1234",
+              "host": ["{{base_url}}"],
+              "path": ["status_read", "1234"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Tag Management",
+      "item": [
+        {
+          "name": "Get Tags for Book",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tags/1234",
+              "host": ["{{base_url}}"],
+              "path": ["tags", "1234"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Tag Counts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tag_counts",
+              "host": ["{{base_url}}"],
+              "path": ["tag_counts"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Tag Counts by Prefix",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tag_counts/sci",
+              "host": ["{{base_url}}"],
+              "path": ["tag_counts", "sci"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Search Books by Tag",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tags_search/science-fiction",
+              "host": ["{{base_url}}"],
+              "path": ["tags_search", "science-fiction"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add Tag to Book",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/add_tag/1234/science-fiction",
+              "host": ["{{base_url}}"],
+              "path": ["add_tag", "1234", "science-fiction"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Rename Tag Globally",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/update_tag_value/sci-fi/science-fiction",
+              "host": ["{{base_url}}"],
+              "path": ["update_tag_value", "sci-fi", "science-fiction"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Tag Maintenance (Normalize)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tag_maintenance",
+              "host": ["{{base_url}}"],
+              "path": ["tag_maintenance"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Mutation Operations",
+      "item": [
+        {
+          "name": "Add Books",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"Title\": \"Foundation\",\n    \"Author\": \"Asimov, Isaac\",\n    \"CopyrightDate\": \"1951\",\n    \"IsbnNumber\": \"0553293354\",\n    \"IsbnNumber13\": \"9780553293357\",\n    \"PublisherName\": \"Spectra\",\n    \"CoverType\": \"Soft\",\n    \"Pages\": 255,\n    \"Location\": \"Main Collection\",\n    \"BookNote\": \"\",\n    \"Recycled\": 0\n  }\n]"
+            },
+            "url": {
+              "raw": "{{base_url}}/add_books",
+              "host": ["{{base_url}}"],
+              "path": ["add_books"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add Read Dates",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"BookId\": 1234,\n    \"ReadDate\": \"2024-01-15\",\n    \"ReadNote\": \"Excellent book\"\n  }\n]"
+            },
+            "url": {
+              "raw": "{{base_url}}/add_read_dates",
+              "host": ["{{base_url}}"],
+              "path": ["add_read_dates"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add Books by ISBN",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isbn_list\": [\"0060929480\", \"9780345339683\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/books_by_isbn",
+              "host": ["{{base_url}}"],
+              "path": ["books_by_isbn"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Book Record",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"BookId\": 1234,\n  \"BookNote\": \"Updated note\",\n  \"Pages\": 310\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/update_book_record",
+              "host": ["{{base_url}}"],
+              "path": ["update_book_record"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Book Note/Status",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"BookId\": 1234,\n  \"BookNote\": \"Donated to library\",\n  \"Recycled\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/update_book_note_status",
+              "host": ["{{base_url}}"],
+              "path": ["update_book_note_status"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Read Note",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"BookId\": 1234,\n  \"ReadDate\": \"2024-01-15\",\n  \"ReadNote\": \"Updated reading note\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/update_edit_read_note",
+              "host": ["{{base_url}}"],
+              "path": ["update_edit_read_note"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Reading Estimates",
+      "item": [
+        {
+          "name": "Get Record Set",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/record_set/1234",
+              "host": ["{{base_url}}"],
+              "path": ["record_set", "1234"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Daily Page Records",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/date_page_records/75",
+              "host": ["{{base_url}}"],
+              "path": ["date_page_records", "75"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add Book Estimate (Current Date)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/add_book_estimate/1234/300",
+              "host": ["{{base_url}}"],
+              "path": ["add_book_estimate", "1234", "300"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add Book Estimate (Custom Date)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/add_book_estimate/1234/300/2024-01-01",
+              "host": ["{{base_url}}"],
+              "path": ["add_book_estimate", "1234", "300", "2024-01-01"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add Daily Page Progress",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"RecordId\": 75,\n  \"RecordDate\": \"2024-01-15\",\n  \"Page\": 150\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/add_date_page",
+              "host": ["{{base_url}}"],
+              "path": ["add_date_page"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Image Management",
+      "item": [
+        {
+          "name": "Get Images for Book",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/images/1234",
+              "host": ["{{base_url}}"],
+              "path": ["images", "1234"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add Image Metadata",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"BookId\": 1234,\n  \"Name\": \"cover.jpg\",\n  \"Url\": \"https://example.com/images/cover.jpg\",\n  \"ImageType\": \"cover-face\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/add_image",
+              "host": ["{{base_url}}"],
+              "path": ["add_image"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Upload Image File",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "/path/to/image.jpg"
+                },
+                {
+                  "key": "filename",
+                  "value": "book_cover.jpg",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/upload_image",
+              "host": ["{{base_url}}"],
+              "path": ["upload_image"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Visualization",
+      "item": [
+        {
+          "name": "Year Progress Comparison (Default 15 Years)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/image/year_progress_comparison.png",
+              "host": ["{{base_url}}"],
+              "path": ["image", "year_progress_comparison.png"]
+            },
+            "description": "Returns PNG image comparing reading progress across recent years"
+          },
+          "response": []
+        },
+        {
+          "name": "Year Progress Comparison (Custom Window)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/image/year_progress_comparison.png/10",
+              "host": ["{{base_url}}"],
+              "path": ["image", "year_progress_comparison.png", "10"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "All Years Statistics (Current Year)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/image/all_years.png",
+              "host": ["{{base_url}}"],
+              "path": ["image", "all_years.png"]
+            },
+            "description": "Returns PNG image with 3-panel statistics chart"
+          },
+          "response": []
+        },
+        {
+          "name": "All Years Statistics (Specific Year)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/image/all_years.png/2023",
+              "host": ["{{base_url}}"],
+              "path": ["image", "all_years.png", "2023"]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Collection-level pre-request script",
+          "// Add any global pre-request logic here"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Collection-level test script",
+          "// Basic status code check",
+          "if (pm.response.code !== 401) {",
+          "    pm.test('Status code is 200', function() {",
+          "        pm.response.to.have.status(200);",
+          "    });",
+          "}",
+          "",
+          "// Check response time",
+          "pm.test('Response time is less than 2000ms', function() {",
+          "    pm.expect(pm.response.responseTime).to.be.below(2000);",
+          "});"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8084",
+      "type": "string"
+    },
+    {
+      "key": "api_key",
+      "value": "YOUR_API_KEY_HERE",
+      "type": "string"
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 __version__ = '0.16.2'
 
 import functools
+import json
 import os
 from io import BytesIO
 from logging.config import dictConfig
@@ -251,13 +252,13 @@ def add_books():
       "Title": "Delete Me Now",
       "Author": "Tester, N A",
       "CopyrightDate": "1999-01-01",
-      "ISBNNumber": "1234",
-      "ISBNNumber13": "1234",
+      "IsbnNumber": "1234",
+      "IsbnNumber13": "1234",
       "PublisherName": "Printerman",
       "CoverType": "Hard",
       "Pages": "7",
       "Location": "Main Collection",
-      "Note": "",
+      "BookNote": "",
       "Recycled": 0
     }, ...]
 
@@ -270,9 +271,9 @@ def add_books():
     # records should be a list of dictionaries including all fields
     db = pymysql.connect(**books_conf)
     records = request.get_json()
-    search_str = ("INSERT INTO `book collection` "
-                  "(Title, Author, CopyrightDate, ISBNNumber, ISBNNumber13, PublisherName, CoverType, Pages, "
-                  "Location, Note, Recycled) "
+    search_str = ("INSERT INTO books "
+                  "(Title, Author, CopyrightDate, IsbnNumber, IsbnNumber13, PublisherName, CoverType, Pages, "
+                  "Location, BookNote, Recycled) "
                   "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)")
     book_id_str = "SELECT LAST_INSERT_ID();"
     rdata = []
@@ -287,17 +288,17 @@ def add_books():
                         record["Title"],
                         record["Author"],
                         copyright_date,
-                        record["ISBNNumber"],
-                        record["ISBNNumber13"],
+                        record["IsbnNumber"],
+                        record["IsbnNumber13"],
                         record["PublisherName"],
                         record["CoverType"],
                         record["Pages"],
                         record["Location"],
-                        record["Note"],
+                        record["BookNote"],
                         record["Recycled"]
                     ))
                     c.execute(book_id_str)
-                    record["BookCollectionID"] = c.fetchall()[0][0]
+                    record["BookId"] = c.fetchall()[0][0]
                     rdata.append(record)
                 except pymysql.Error as e:
                     app.logger.error(e)
@@ -312,7 +313,7 @@ def add_read_dates():
     """
     Post Payload:
     [{
-      "BookCollectionID": 1606,
+      "BookId": 1606,
       "ReadDate": "0000-00-00",
       "ReadNote": ""
     }, ...]
@@ -326,15 +327,15 @@ def add_read_dates():
     # records should be a list of dictionaries including all fields
     db = pymysql.connect(**books_conf)
     records = request.get_json()
-    search_str = 'INSERT INTO `books read` (BookCollectionID, ReadDate, ReadNote) VALUES (%s, %s, %s)'
+    search_str = 'INSERT INTO books_read (BookId, ReadDate, ReadNote) VALUES (%s, %s, %s)'
     res = {"update_read_dates": [], "error": []}
     with db:
         with db.cursor() as c:
             for record in records:
                 try:
-                    app.logger.debug(f"Inserting read date for BookCollectionID: {record['BookCollectionID']}")
+                    app.logger.debug(f"Inserting read date for BookId: {record['BookId']}")
                     c.execute(search_str, (
-                        record["BookCollectionID"],
+                        record["BookId"],
                         record["ReadDate"],
                         record["ReadNote"]
                     ))
@@ -382,7 +383,7 @@ def update_edit_read_note():
     """
     Post Payload:
     {
-      "BookCollectionID": 1606,
+      "BookId": 1606,
       "ReadDate": "0000-00-00"
       "ReadNote": "New note."
     }
@@ -396,15 +397,15 @@ def update_edit_read_note():
     # records should be a single dictionaries including all fields
     db = pymysql.connect(**books_conf)
     record = request.get_json()
-    search_str = "UPDATE `books read` SET ReadNote=%s WHERE BookCollectionID = %s AND ReadDate = %s"
-    app.logger.debug(f"Updating read note for BookCollectionID: {record['BookCollectionID']}")
+    search_str = "UPDATE books_read SET ReadNote=%s WHERE BookId = %s AND ReadDate = %s"
+    app.logger.debug(f"Updating read note for BookId: {record['BookId']}")
     rdata = []
     with db:
         with db.cursor() as c:
             try:
                 c.execute(search_str, (
                     record["ReadNote"],
-                    record["BookCollectionID"],
+                    record["BookId"],
                     record["ReadDate"]
                 ))
                 rdata.append(record)
@@ -421,8 +422,8 @@ def update_book_note_status():
     """
     Post Payload:
     {
-      "BookCollectionID": 1606,
-      "Note": "",
+      "BookId": 1606,
+      "BookNote": "",
       "Recycled": 0
     }
 
@@ -434,9 +435,9 @@ def update_book_note_status():
     """
     # records should be a single dictionaries including all changed fields
     record = request.get_json()
-    # test of the record has BookCollectionID and one or both of Note and Recycled fields
-    if not ("BookCollectionID" in record and ("Note" in record or "Recycled" in record)):
-        return json_response({"error": "Missing required fields: BookCollectionID, Note OR Recycled"}, status=400)
+    # test of the record has BookId and one or both of BookNote and Recycled fields
+    if not ("BookId" in record and ("BookNote" in record or "Recycled" in record)):
+        return json_response({"error": "Missing required fields: BookId, BookNote OR Recycled"}, status=400)
     else:
         data = update_book_record_by_key(record)
         return json_response({"update_read": data})
@@ -448,7 +449,7 @@ def update_book_record():
     """
     Post Payload:
     {
-      "BookCollectionID": 1606,
+      "BookId": 1606,
       "Recycled": 0
     }
 
@@ -460,9 +461,9 @@ def update_book_record():
     """
     # records should be a single dictionaries including all changed fields
     record = request.get_json()
-    # test of the record has BookCollectionID and one of any other field
-    if not ("BookCollectionID" in record and len(record.keys()) > 1):
-        return json_response({"error": "Missing required fields: BookCollectionID, and any other field"}, status=400)
+    # test of the record has BookId and one of any other field
+    if not ("BookId" in record and len(record.keys()) > 1):
+        return json_response({"error": "Missing required fields: BookId, and any other field"}, status=400)
     else:
         data = update_book_record_by_key(record)
         return json_response({"update_read": data})
@@ -685,6 +686,41 @@ def complete_record(book_id, adjacent=None):
 
 
 ##########################################################################
+# DELETE
+##########################################################################
+
+@app.route('/delete_book/<book_id>', methods=['DELETE'])
+@require_app_key
+def delete_book_endpoint(book_id):
+    result = delete_book(int(book_id))
+    if "error" in result:
+        return json_response(result, status=404)
+    return json_response(result)
+
+
+##########################################################################
+# COMPLETE RECORD WINDOW BY IDS
+##########################################################################
+
+@app.route('/complete_record_window', methods=['POST'])
+@require_app_key
+def complete_record_window_by_ids():
+    data = request.get_json()
+    book_ids = data.get("book_ids", [])
+    results = get_complete_records_by_ids(book_ids)
+    return json_response(results)
+
+
+##########################################################################
+# HEALTH
+##########################################################################
+
+@app.route('/health')
+def health():
+    return 'OK', 200
+
+
+##########################################################################
 # TAGS
 ##########################################################################
 
@@ -748,7 +784,7 @@ def update_tag_value(current, updated):
     Handles updating a tag label in the database.
 
     This endpoint accepts the current tag label and the updated tag label as URL
-    parameters, performs an UPDATE statement on the `tag labels` table and returns
+    parameters, performs an UPDATE statement on the ``tag_labels`` table and returns
     a JSON response with the number of affected rows or an error message.  The
     operation is protected by the # @require_app_key decorator and logs any
     database errors.
@@ -777,7 +813,7 @@ def update_tag_value(current, updated):
         with db.cursor() as c:
             try:
                 _updated = updated.lower().strip(" ")
-                records = c.execute("UPDATE `tag labels` SET Label = %s WHERE Label = %s", (_updated, current))
+                records = c.execute("UPDATE tag_labels SET Label = %s WHERE Label = %s", (_updated, current))
                 result_data = {"data": {"tag_update": f"{current} >> {updated}", "updated_tags": records}}
             except pymysql.Error as e:
                 app.logger.error(e)
@@ -822,7 +858,7 @@ def tag_maintenance():
         with db.cursor() as c:
             try:
                 # lower case
-                c.execute("UPDATE `tag labels` SET Label = TRIM(LOWER(Label))")
+                c.execute("UPDATE tag_labels SET Label = TRIM(LOWER(Label))")
                 db.commit()
             except pymysql.Error as e:
                 rdata = {"error": [str(e)]}
@@ -838,7 +874,7 @@ def tag_maintenance():
 def date_page_records(record_id=None):
     # data is [(RecordDate, page, day_number from first page record), ...]
     data, error_list = daily_page_record_from_db(record_id)
-    rdata = {"date_page_records": [], "RecordID": record_id}
+    rdata = {"date_page_records": [], "RecordId": record_id}
     if error_list:
         rdata["error"] = error_list
     elif len(data) > 0:
@@ -852,8 +888,8 @@ def date_page_records(record_id=None):
 @require_app_key
 def record_set(book_id=None):
     db = pymysql.connect(**books_conf)
-    rdata = {"record_set": {"BookCollectionID": book_id, "RecordID": [], "Estimate": []}}
-    q = "SELECT StartDate, RecordID FROM `complete date estimates` WHERE BookCollectionID = %s ORDER BY StartDate ASC"
+    rdata = {"record_set": {"BookId": book_id, "RecordId": [], "Estimate": []}}
+    q = "SELECT StartDate, RecordId FROM complete_date_estimates WHERE BookId = %s ORDER BY StartDate ASC"
     with db:
         with db.cursor() as c:
             try:
@@ -865,7 +901,7 @@ def record_set(book_id=None):
                 res = []
         db.commit()
     for record in [(str(x[0]), int(x[1])) for x in res]:
-        rdata["record_set"]["RecordID"].append(record)
+        rdata["record_set"]["RecordId"].append(record)
         rdata["record_set"]["Estimate"].append(calculate_estimates(record[1]))
     return json_response(rdata)
 
@@ -876,7 +912,7 @@ def add_date_page():
     """
     Post Payload:
     {
-      "RecordID": 123,
+      "RecordId": 123,
       "RecordDate": "0000-00-00"
       "Page": 123
     }
@@ -889,15 +925,15 @@ def add_date_page():
     """
     # records should be a single dictionaries including all fields
     record = request.get_json()
-    search_str = "INSERT INTO `daily page records` (RecordID, RecordDate, page) VALUES (%s, %s, %s)"
-    app.logger.debug(f"Inserting date page record for RecordID: {record.get('RecordID')}")
+    search_str = "INSERT INTO daily_page_records (RecordId, RecordDate, Page) VALUES (%s, %s, %s)"
+    app.logger.debug(f"Inserting date page record for RecordId: {record.get('RecordId')}")
     db = pymysql.connect(**books_conf)
     result_data = {"error": "No record added."}
     with db:
         with db.cursor() as c:
             try:
                 c.execute(search_str, (
-                    record["RecordID"],
+                    record["RecordId"],
                     record["RecordDate"],
                     record["Page"]
                 ))
@@ -918,15 +954,15 @@ def add_book_estimate(book_id, last_readable_page, start_date=None):
     last_readable_page = int(last_readable_page)
     if start_date is None:
         start_date = datetime.datetime.now().strftime(FMT)
-    q = "INSERT INTO `complete date estimates` (BookCollectionID, StartDate, LastReadablePage) VALUES (%s, %s, %s)"
-    app.logger.debug(f"Inserting book estimate for BookCollectionID: {book_id}")
+    q = "INSERT INTO complete_date_estimates (BookId, StartDate, LastReadablePage) VALUES (%s, %s, %s)"
+    app.logger.debug(f"Inserting book estimate for BookId: {book_id}")
     result_data = None
     with db:
         with db.cursor() as c:
             try:
                 c.execute(q, (book_id, start_date, last_readable_page))
                 result_data = {"add_book_estimate":
-                                   {"BookCollectionID": f"{book_id}", "LastReadablePage":
+                                   {"BookId": f"{book_id}", "LastReadablePage":
                                        f"{last_readable_page}", "StartDate": f"{start_date}"}}
             except pymysql.Error as e:
                 app.logger.error(e)
@@ -942,10 +978,10 @@ def add_book_estimate(book_id, last_readable_page, start_date=None):
 @require_app_key
 def get_images(book_id):
     """
-    Retrieve all image information for a given BookCollectionID.
+    Retrieve all image information for a given BookId.
 
     Parameters:
-        book_id: The BookCollectionID to fetch images for
+        book_id: The BookId to fetch images for
 
     Returns:
         JSON response with list of image records for the book
@@ -954,7 +990,7 @@ def get_images(book_id):
     if error_list:
         return json_response({"error": error_list})
     return json_response({
-        "BookCollectionID": int(book_id),
+        "BookId": int(book_id),
         "images": images,
         "count": len(images)
     })
@@ -968,15 +1004,15 @@ def add_image():
 
     Post Payload:
     {
-      "BookCollectionID": 1234,
-      "name": "book_cover.jpg",
-      "url": "/resources/books/book_cover.jpg",
-      "type": "cover-face"
+      "BookId": 1234,
+      "Name": "book_cover.jpg",
+      "Url": "/resources/books/book_cover.jpg",
+      "ImageType": "cover-face"
     }
 
     E.g.
     curl -X POST -H "Content-type: application/json" -H "x-api-key: YOUR_API_KEY" \
-    -d '{"BookCollectionID": 1234, "name": "cover.jpg", "url": "/resources/books/cover.jpg", "type": "cover-face"}' \
+    -d '{"BookId": 1234, "Name": "cover.jpg", "Url": "/resources/books/cover.jpg", "ImageType": "cover-face"}' \
     http://172.17.0.2:5000/add_image
 
     Returns:
@@ -986,16 +1022,16 @@ def add_image():
     record = request.get_json()
 
     # Validate required fields
-    if 'BookCollectionID' not in record:
-        return json_response({"error": "Missing required field: BookCollectionID"}, status=400)
+    if 'BookId' not in record:
+        return json_response({"error": "Missing required field: BookId"}, status=400)
 
     # Set default type if not provided
-    if 'type' not in record:
-        record['type'] = 'cover-face'
+    if 'ImageType' not in record:
+        record['ImageType'] = 'cover-face'
 
     # Verify image exists at the provided url
-    if 'url' in record and record['url']:
-        image_url = record['url']
+    if 'Url' in record and record['Url']:
+        image_url = record['Url']
 
         # Check if it's a web URL (http:// or https://)
         if image_url.startswith('http://') or image_url.startswith('https://'):
@@ -1025,8 +1061,8 @@ def add_image():
                 app.logger.error(f"Error verifying image URL: {image_url} - {str(e)}")
                 return json_response({"error": f"Error verifying image URL: {str(e)}"}, status=400)
 
-    search_str = ("INSERT INTO `images` "
-                  "(BookCollectionID, name, url, type) "
+    search_str = ("INSERT INTO images "
+                  "(BookId, Name, Url, ImageType) "
                   "VALUES (%s, %s, %s, %s)")
     image_id_str = "SELECT LAST_INSERT_ID();"
 
@@ -1034,15 +1070,15 @@ def add_image():
     with db:
         with db.cursor() as c:
             try:
-                app.logger.debug(f"Inserting image for BookCollectionID: {record['BookCollectionID']}")
+                app.logger.debug(f"Inserting image for BookId: {record['BookId']}")
                 c.execute(search_str, (
-                    record["BookCollectionID"],
-                    record.get("name", ""),
-                    record.get("url", ""),
-                    record["type"]
+                    record["BookId"],
+                    record.get("Name", ""),
+                    record.get("Url", ""),
+                    record["ImageType"]
                 ))
                 c.execute(image_id_str)
-                record["id"] = c.fetchall()[0][0]
+                record["ImageId"] = c.fetchall()[0][0]
                 result_data = {"add_image": record}
             except pymysql.Error as e:
                 app.logger.error(e)

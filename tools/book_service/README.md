@@ -7,15 +7,15 @@ This directory contains two service implementations for the Book Database: a RES
 The `book_service` directory provides:
 
 ### 1. **REST API** (`books/`)
-- Flask-based HTTP API (Port 8083)
+- Flask-based HTTP API (Port 8084)
 - 50+ endpoints for managing books, reading history, and tags
 - Authentication via `x-api-key` header
 - Visualization and image management
 - Version: 0.16.2
 
 ### 2. **MCP Server** (`booksmcp/`)
-- Model Context Protocol server for AI integration (Port 3002)
-- FastMCP framework with 10 search tools
+- Model Context Protocol server for AI integration (Port 3005)
+- FastMCP framework with 9 search tools
 - Designed for Claude Desktop and other MCP clients
 - Version: 3.0.0
 
@@ -41,7 +41,7 @@ cd book_service/books
 docker-compose up -d
 
 # Test
-curl -H "x-api-key: YOUR_KEY" http://localhost:8083/configuration
+curl -H "x-api-key: YOUR_KEY" http://localhost:8084/configuration
 ```
 
 ### MCP Server
@@ -56,7 +56,7 @@ cd book_service/booksmcp
 docker-compose up -d
 
 # Test
-curl http://localhost:3002/health
+curl http://localhost:3005/health
 ```
 
 ## Documentation
@@ -129,14 +129,14 @@ vim config/configuration.json
 {
   "username": "mysql_user",
   "password": "mysql_password",
-  "database": "books",
+  "database": "book_collection",
   "host": "localhost",
   "port": 3306,
   "isbn_com": {
     "url_isbn": "https://api2.isbndb.com/book/{}",
     "key": "your_isbndb_api_key"
   },
-  "endpoint": "http://localhost:8083",
+  "endpoint": "http://localhost:8084",
   "api_key": "your_api_key_here"
 }
 ```
@@ -187,8 +187,8 @@ cd book_service/booksmcp
 docker-compose up -d
 
 # Verify
-curl -H "x-api-key: $API_KEY" http://localhost:8083/configuration
-curl http://localhost:3002/health
+curl -H "x-api-key: $API_KEY" http://localhost:8084/configuration
+curl http://localhost:3005/health
 ```
 
 For detailed deployment documentation, see `../README.md#deployment`
@@ -236,8 +236,8 @@ Both services share the same database layer and configuration:
 ┌───▼────┐    ┌────▼────┐
 │REST API│    │MCP      │
 │Flask   │    │Server   │
-│:8083   │    │FastMCP  │
-│        │    │:3002    │
+│:8084   │    │FastMCP  │
+│        │    │:3005    │
 └────────┘    └─────────┘
 ```
 
@@ -247,7 +247,7 @@ Both services share the same database layer and configuration:
 - **REST API README**: `books/README.md` - REST API quick reference
 - **MCP Server README**: `booksmcp/README.md` - Complete MCP guide (575 lines)
 - **Test Documentation**: `../test/README.md` - Test suite documentation
-- **Database Schema**: `../schema_booksdb.sql` - MySQL database schema
+- **Database Schema**: `../database/schema.sql` - MySQL database schema
 
 ## Version Information
 

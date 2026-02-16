@@ -8,7 +8,7 @@ services:
     volumes:
       - /var/www/html/resources/books:/books/uploads
     ports:
-      - 8083:8083
+      - 8084:8084
     extra_hosts:
       - host.docker.internal:host-gateway
 networks: {}

@@ -18,14 +18,14 @@ class TestOllamaAgent(unittest.TestCase):
                 "model_name": "test-model",
                 "ollama_host": "http://localhost:11434"
             },
-            "endpoint": "http://localhost:8083",
+            "endpoint": "http://localhost:8084",
             "api_key": "test-api-key"
         }
         self.agent = OllamaAgent(self.config)
 
     def test_init(self):
         self.assertEqual(self.agent.ollama_host, "http://localhost:11434")
-        self.assertEqual(self.agent.book_db_host, "http://localhost:8083")
+        self.assertEqual(self.agent.book_db_host, "http://localhost:8084")
         self.assertEqual(self.agent.model_name, "test-model")
         self.assertEqual(self.agent.api_key, "test-api-key")
         self.assertIsNone(self.agent.reply)
@@ -35,7 +35,7 @@ class TestOllamaAgent(unittest.TestCase):
         minimal_config = {}
         agent = OllamaAgent(minimal_config)
         self.assertEqual(agent.ollama_host, "http://localhost:11434")
-        self.assertEqual(agent.book_db_host, "http://localhost:8083")
+        self.assertEqual(agent.book_db_host, "http://localhost:8084")
         self.assertEqual(agent.model_name, "gpt-oss")
         self.assertEqual(agent.api_key, "")
 
@@ -81,7 +81,7 @@ class TestOllamaAgent(unittest.TestCase):
             self.agent.version()
             output = fake_out.getvalue()
             self.assertIn("1.5.0", output)
-            self.assertIn("http://localhost:8083", output)
+            self.assertIn("http://localhost:8084", output)
             self.assertIn("http://localhost:11434", output)
             self.assertIn("test-model", output)
 
@@ -337,7 +337,7 @@ class TestOllamaAgentIntegration(unittest.TestCase):
     def test_full_chat_flow(self, mock_get, mock_client_class):
         config = {
             "ai_agent": {"model_name": "test", "ollama_host": "http://localhost:11434"},
-            "endpoint": "http://localhost:8083",
+            "endpoint": "http://localhost:8084",
             "api_key": "test-key"
         }
         agent = OllamaAgent(config)

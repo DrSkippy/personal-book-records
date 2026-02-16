@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "book_collection_database_schema",
+  "title": "book_collection Database Schema",
+  "description": "JSON Schema representation of the book_collection MySQL database. Describes each table as a schema with column types, constraints, and relationships.",
+  "type": "object",
+  "definitions": {
+    "Book": {
+      "type": "object",
+      "description": "Core book catalog. Each row is a unique physical book in the collection.",
+      "properties": {
+        "BookId":        { "type": "integer", "description": "Primary key, auto-increment" },
+        "Title":         { "type": "string", "maxLength": 200, "description": "Book title" },
+        "Author":        { "type": "string", "maxLength": 200, "description": "Book author" },
+        "CopyrightDate": { "type": ["string", "null"], "format": "date-time", "description": "Copyright date" },
+        "IsbnNumber":    { "type": ["string", "null"], "maxLength": 13, "description": "ISBN-10" },
+        "PublisherName":  { "type": ["string", "null"], "maxLength": 50, "description": "Publisher name" },
+        "CoverType":     { "type": ["string", "null"], "maxLength": 30, "description": "Cover type (e.g. Hard, Soft)" },
+        "Pages":         { "type": ["integer", "null"], "description": "Number of pages" },
+        "BookNote":      { "type": ["string", "null"], "description": "Free-form notes about the book" },
+        "Recycled":      { "type": ["boolean", "null"], "description": "True if recycled/donated" },
+        "Location":      { "type": "string", "maxLength": 50, "description": "Physical location (e.g. Main Collection)" },
+        "IsbnNumber13":  { "type": ["string", "null"], "maxLength": 13, "description": "ISBN-13" },
+        "LastUpdate":    { "type": "string", "format": "date-time", "description": "Auto-maintained timestamp" }
+      },
+      "required": ["BookId", "Title", "Author", "Location", "LastUpdate"]
+    },
+
+    "TagLabel": {
+      "type": "object",
+      "description": "Tag vocabulary. Each label is unique.",
+      "properties": {
+        "TagId": { "type": "integer", "description": "Primary key, auto-increment" },
+        "Label": { "type": ["string", "null"], "maxLength": 50, "description": "Unique tag label" }
+      },
+      "required": ["TagId"]
+    },
+
+    "BookRead": {
+      "type": "object",
+      "description": "Reading log. A book can have multiple entries for re-reads.",
+      "properties": {
+        "BookId":     { "type": "integer", "description": "FK to books.BookId" },
+        "ReadDate":   { "type": "string", "format": "date", "description": "Date the book was read" },
+        "ReadNote":   { "type": ["string", "null"], "description": "Notes about the reading" },
+        "LastUpdate": { "type": "string", "format": "date-time", "description": "Auto-maintained timestamp" }
+      },
+      "required": ["BookId", "ReadDate", "LastUpdate"]
+    },
+
+    "BookTag": {
+      "type": "object",
+      "description": "Many-to-many join between books and tags.",
+      "properties": {
+        "BookId":     { "type": "integer", "description": "FK to books.BookId" },
+        "TagId":      { "type": "integer", "description": "FK to tag_labels.TagId" },
+        "LastUpdate": { "type": "string", "format": "date-time", "description": "Auto-maintained timestamp" }
+      },
+      "required": ["BookId", "TagId", "LastUpdate"]
+    },
+
+    "CompleteDateEstimate": {
+      "type": "object",
+      "description": "Reading pace tracking with estimated finish dates.",
+      "properties": {
+        "RecordId":           { "type": "integer", "description": "Primary key, auto-increment" },
+        "BookId":             { "type": "integer", "description": "FK to books.BookId" },
+        "StartDate":          { "type": "string", "format": "date-time", "description": "When reading session started" },
+        "LastReadablePage":   { "type": "integer", "description": "Total readable pages in book" },
+        "EstimateDate":       { "type": ["string", "null"], "format": "date-time", "description": "When estimate was calculated" },
+        "EstimatedFinishDate": { "type": ["string", "null"], "format": "date-time", "description": "Projected completion date" }
+      },
+      "required": ["RecordId", "BookId", "StartDate", "LastReadablePage"]
+    },
+
+    "DailyPageRecord": {
+      "type": "object",
+      "description": "Daily reading progress entries tied to an estimate session.",
+      "properties": {
+        "RecordDate": { "type": "string", "format": "date-time", "description": "Date of the progress entry" },
+        "Page":       { "type": "integer", "description": "Page reached on this date" },
+        "RecordId":   { "type": "integer", "description": "FK to complete_date_estimates.RecordId" },
+        "LastUpdate": { "type": "string", "format": "date-time", "description": "Auto-maintained timestamp" }
+      },
+      "required": ["RecordDate", "Page", "RecordId", "LastUpdate"]
+    },
+
+    "Image": {
+      "type": "object",
+      "description": "Book cover images and associated metadata.",
+      "properties": {
+        "ImageId":   { "type": "integer", "description": "Primary key, auto-increment" },
+        "BookId":    { "type": "integer", "description": "FK to books.BookId" },
+        "Name":      { "type": ["string", "null"], "maxLength": 255, "description": "Filename" },
+        "Url":       { "type": ["string", "null"], "maxLength": 255, "description": "Image URL" },
+        "ImageType": { "type": ["string", "null"], "maxLength": 64, "default": "cover-face", "description": "Type of image" },
+        "LastUpdate": { "type": "string", "format": "date-time", "description": "Auto-maintained timestamp" }
+      },
+      "required": ["ImageId", "BookId", "LastUpdate"]
+    }
+  },
+
+  "properties": {
+    "books":                   { "type": "array", "items": { "$ref": "#/definitions/Book" } },
+    "tag_labels":              { "type": "array", "items": { "$ref": "#/definitions/TagLabel" } },
+    "books_read":              { "type": "array", "items": { "$ref": "#/definitions/BookRead" } },
+    "books_tags":              { "type": "array", "items": { "$ref": "#/definitions/BookTag" } },
+    "complete_date_estimates": { "type": "array", "items": { "$ref": "#/definitions/CompleteDateEstimate" } },
+    "daily_page_records":      { "type": "array", "items": { "$ref": "#/definitions/DailyPageRecord" } },
+    "images":                  { "type": "array", "items": { "$ref": "#/definitions/Image" } }
+  }
+}

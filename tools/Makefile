@@ -12,7 +12,7 @@
         test test-book-service test-mcp-service test-local test-coverage \
         test-bookdbtool test-bookdbtool-coverage \
         up-book-service up-mcp-server down-book-service down-mcp-server \
-        clean clean-images stop-all info
+        clean clean-images clean-test-records stop-all info
 
 # Variables
 HOSTNAME := $(shell hostname)
@@ -76,7 +76,7 @@ help:
 	@echo "  TEST CONTAINER TARGETS:"
 	@echo "    run-test-all             - Run all test containers locally"
 	@echo "    run-test-book-service    - Run book service test container (port 9999)"
-	@echo "    run-test-mcp-service     - Run MCP server test container (port 3002)"
+	@echo "    run-test-mcp-service     - Run MCP server test container (port 3005)"
 	@echo "    stop-test-all            - Stop all test containers"
 	@echo "    stop-test-book-service   - Stop book service test container"
 	@echo "    stop-test-mcp-service    - Stop MCP server test container"
@@ -96,6 +96,7 @@ help:
 	@echo "    stop-all                 - Stop all running containers (prod & test)"
 	@echo "    clean                    - Clean Python cache files"
 	@echo "    clean-images             - Remove all built Docker images"
+	@echo "    clean-test-records       - Remove test records from the database"
 	@echo "    logs-book-service        - View book service container logs"
 	@echo "    logs-mcp-service         - View MCP server container logs"
 	@echo "    info                     - Show configuration and status"
@@ -198,7 +199,7 @@ endif
 run-local-book-service:
 	@echo "Starting book service locally (without Docker)..."
 	@echo "Make sure you have poetry installed and dependencies installed"
-	@echo "Running on http://localhost:8083"
+	@echo "Running on http://localhost:8084"
 	cd $(BOOK_SERVICE_DIR) && \
 		export PYTHONPATH=$(BOOK_SERVICE_DIR) && \
 		export BOOKSDB_CONFIG=./config/configuration.json && \
@@ -207,10 +208,10 @@ run-local-book-service:
 run-local-mcp-service:
 	@echo "Starting MCP server locally (without Docker)..."
 	@echo "Make sure you have dependencies installed"
-	@echo "Running on http://localhost:3002"
+	@echo "Running on http://localhost:3005"
 	cd $(BOOK_SERVICE_DIR) && \
 		export PYTHONPATH=$(BOOK_SERVICE_DIR) && \
-		export PORT=3002 && \
+		export PORT=3005 && \
 		export HOST=0.0.0.0 && \
 		export BOOKDB_CONFIG=./config/configuration.json && \
 		poetry run python -m booksmcp.server
@@ -222,30 +223,30 @@ run-local-mcp-service:
 run-test-book-service: build-test-book-service
 	@echo "Starting book service test container..."
 	@echo "Running on http://localhost:9999"
-	-docker stop ${BOOK_TEST_TAG} 2>/dev/null || true
-	-docker rm ${BOOK_TEST_TAG} 2>/dev/null || true
+	-docker stop ${BOOK_TEST_IMAGE} 2>/dev/null || true
+	-docker rm ${BOOK_TEST_IMAGE} 2>/dev/null || true
 	docker run -d \
-		--name ${BOOK_TEST_TAG} \
-		-p 127.0.0.1:9999:8083 \
+		--name ${BOOK_TEST_IMAGE} \
+		-p 127.0.0.1:9999:8084 \
 		${BOOK_TEST_TAG}
 	@echo "✓ Book service test container running at http://localhost:9999"
-	@echo "  Container name: ${BOOK_TEST_TAG}"
+	@echo "  Container name: ${BOOK_TEST_IMAGE}"
 	@echo "  To view logs: make logs-test-book-service"
 	@echo "  To stop: make stop-test-book-service"
 
 run-test-mcp-service: build-test-mcp-service
 	@echo "Starting MCP server test container..."
-	@echo "Running on http://localhost:3002"
-	-docker stop ${MCP_TEST_TAG} 2>/dev/null || true
-	-docker rm ${MCP_TEST_TAG} 2>/dev/null || true
+	@echo "Running on http://localhost:3005"
+	-docker stop ${MCP_TEST_IMAGE} 2>/dev/null || true
+	-docker rm ${MCP_TEST_IMAGE} 2>/dev/null || true
 	docker run -d \
-		--name ${MCP_TEST_TAG} \
-		-p 127.0.0.1:3002:3002 \
+		--name ${MCP_TEST_IMAGE} \
+		-p 127.0.0.1:3005:3005 \
 		-e BOOKDB_CONFIG=/app/config/configuration.json \
 		--add-host=host.docker.internal:host-gateway \
 	    ${MCP_TEST_TAG}
-	@echo "✓ MCP server test container running at http://localhost:3002"
-	@echo "  Container name: ${MCP_TEST_TAG}"
+	@echo "✓ MCP server test container running at http://localhost:3005"
+	@echo "  Container name: ${MCP_TEST_IMAGE}"
 	@echo "  To view logs: make logs-test-mcp-service"
 	@echo "  To stop: make stop-test-mcp-service"
 
@@ -254,18 +255,18 @@ run-test-all: run-test-book-service run-test-mcp-service
 	@echo ""
 	@echo "Services:"
 	@echo "  Book Service: http://localhost:9999"
-	@echo "  MCP Server:   http://localhost:3002"
+	@echo "  MCP Server:   http://localhost:3005"
 
 stop-test-book-service:
 	@echo "Stopping book service test container..."
-	-docker stop ${BOOK_TEST_TAG} 2>/dev/null || true
-	-docker rm ${BOOK_TEST_TAG} 2>/dev/null || true
+	-docker stop ${BOOK_TEST_IMAGE} 2>/dev/null || true
+	-docker rm ${BOOK_TEST_IMAGE} 2>/dev/null || true
 	@echo "✓ Book service test container stopped"
 
 stop-test-mcp-service:
 	@echo "Stopping MCP server test container..."
-	-docker stop ${MCP_TEST_TAG} 2>/dev/null || true
-	-docker rm ${MCP_TEST_TAG} 2>/dev/null || true
+	-docker stop ${MCP_TEST_IMAGE} 2>/dev/null || true
+	-docker rm ${MCP_TEST_IMAGE} 2>/dev/null || true
 	@echo "✓ MCP server test container stopped"
 
 stop-test-all: stop-test-book-service stop-test-mcp-service
@@ -341,8 +342,8 @@ test-bookdbtool-coverage:
 
 stop-all:
 	@echo "Stopping all running containers..."
-	-docker stop books booksmcp-service ${BOOK_TEST_TAG} ${MCP_TEST_TAG} 2>/dev/null || true
-	-docker rm books booksmcp-service ${BOOK_TEST_TAG} ${MCP_TEST_TAG} 2>/dev/null || true
+	-docker stop books booksmcp-service ${BOOK_TEST_IMAGE} ${MCP_TEST_IMAGE} 2>/dev/null || true
+	-docker rm books booksmcp-service ${BOOK_TEST_IMAGE} ${MCP_TEST_IMAGE} 2>/dev/null || true
 	@echo "✓ All containers stopped"
 
 logs-book-service:
@@ -366,6 +367,13 @@ clean:
 	find . -type f -name "./tmp/*.png" -delete 2>/dev/null || true
 	@echo "✓ Downloaded test image (png) files removed"
 
+
+clean-test-records:
+	@echo "Removing test records from database..."
+	cd $(BOOK_SERVICE_DIR) && \
+		PYTHONPATH=. \
+		poetry run python test_books/clean_test_records.py
+	@echo "✓ Test records cleaned"
 
 clean-images:
 	@echo "Removing all built Docker images..."

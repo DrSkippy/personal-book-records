@@ -146,13 +146,13 @@ class TitleFixer:
         Query database for books that need fixing.
 
         Returns:
-            list: List of dict with BookCollectionID and Title
+            list: List of dict with BookId and Title
         """
         try:
             with self.connection.cursor() as cursor:
                 sql = """
-                    SELECT BookCollectionID, Title, Author
-                    FROM `book collection`
+                    SELECT BookId, Title, Author
+                    FROM books
                     ORDER BY Title
                 """
                 cursor.execute(sql)
@@ -182,7 +182,7 @@ class TitleFixer:
         Update a book's title in the database.
 
         Args:
-            book_id: BookCollectionID
+            book_id: BookId
             new_title: New title to set
 
         Returns:
@@ -194,9 +194,9 @@ class TitleFixer:
         try:
             with self.connection.cursor() as cursor:
                 sql = """
-                    UPDATE `book collection`
+                    UPDATE books
                     SET Title = %s
-                    WHERE BookCollectionID = %s
+                    WHERE BookId = %s
                 """
                 cursor.execute(sql, (new_title, book_id))
                 self.connection.commit()
@@ -238,7 +238,7 @@ class TitleFixer:
         print("=" * 80 + "\n")
 
         for book in books_to_fix:
-            book_id = book['BookCollectionID']
+            book_id = book['BookId']
             old_title = book['Title']
             author = book['Author']
             new_title = self.fix_title(old_title)

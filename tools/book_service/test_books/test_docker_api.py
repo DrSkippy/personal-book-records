@@ -20,7 +20,7 @@ class TestAppFunctions(unittest.TestCase):
         r = requests.post(ep, json=data, headers={'x-api-key': f'{au.API_KEY}'})
         print(r.json())
         self.assertTrue(r.status_code == 200)
-        self.book_id_list = [x["BookCollectionID"] for x in r.json()["add_books"]]
+        self.book_id_list = [x["BookId"] for x in r.json()["add_books"]]
 
     def test_configuration(self):
         ep = ENDPOINT + "/configuration"
@@ -108,7 +108,7 @@ class TestAppFunctions(unittest.TestCase):
         with open(f"{EXAMPLES_PATH}/test_update_read_dates.json", "r") as infile:
             data = json.load(infile)
         for x, r in zip(data, book_id_list):
-            x["BookCollectionID"] = r
+            x["BookId"] = r
         res = requests.post(ep, json=data, headers={'x-api-key': f'{au.API_KEY}'})
         print(res.json())
         self.assertTrue(res.status_code == 200)
@@ -119,7 +119,7 @@ class TestAppFunctions(unittest.TestCase):
         print(f"QUERY={ep}")
         with open(f"{EXAMPLES_PATH}/test_update_book_note_status.json", "r") as infile:
             data = json.load(infile)
-        data["BookCollectionID"] = int(id)
+        data["BookId"] = int(id)
         res = requests.post(ep, json=data, headers={'x-api-key': f'{au.API_KEY}'})
         print(res.json())
         self.assertTrue(res.status_code == 200)
@@ -183,17 +183,17 @@ class TestAppFunctions(unittest.TestCase):
 
         # Use a valid test image URL
         data = {
-            "BookCollectionID": int(book_id),
-            "name": "test_image.jpg",
-            "url": "https://httpbin.org/image/jpeg",
-            "type": "cover-face"
+            "BookId": int(book_id),
+            "Name": "test_image.jpg",
+            "Url": "https://httpbin.org/image/jpeg",
+            "ImageType": "cover-face"
         }
 
         res = requests.post(ep, json=data, headers={'x-api-key': f'{au.API_KEY}'})
         print(res.json())
         self.assertTrue(res.status_code == 200)
         self.assertIn("add_image", res.json())
-        self.assertIn("id", res.json()["add_image"])
+        self.assertIn("ImageId", res.json()["add_image"])
 
     def test_add_image_with_invalid_url(self):
         """Test adding an image with an invalid URL returns error"""
@@ -202,10 +202,10 @@ class TestAppFunctions(unittest.TestCase):
         print(f"QUERY={ep}")
 
         data = {
-            "BookCollectionID": int(book_id),
-            "name": "test_image.jpg",
-            "url": "https://invalid-url-that-does-not-exist-12345.com/image.jpg",
-            "type": "cover-face"
+            "BookId": int(book_id),
+            "Name": "test_image.jpg",
+            "Url": "https://invalid-url-that-does-not-exist-12345.com/image.jpg",
+            "ImageType": "cover-face"
         }
 
         res = requests.post(ep, json=data, headers={'x-api-key': f'{au.API_KEY}'})
@@ -214,14 +214,14 @@ class TestAppFunctions(unittest.TestCase):
         self.assertIn("error", res.json())
 
     def test_add_image_missing_book_id(self):
-        """Test adding an image without BookCollectionID returns error"""
+        """Test adding an image without BookId returns error"""
         ep = ENDPOINT + "/add_image"
         print(f"QUERY={ep}")
 
         data = {
-            "name": "test_image.jpg",
-            "url": "https://httpbin.org/image/jpeg",
-            "type": "cover-face"
+            "Name": "test_image.jpg",
+            "Url": "https://httpbin.org/image/jpeg",
+            "ImageType": "cover-face"
         }
 
         res = requests.post(ep, json=data, headers={'x-api-key': f'{au.API_KEY}'})
@@ -236,10 +236,10 @@ class TestAppFunctions(unittest.TestCase):
         print(f"QUERY={ep}")
 
         data = {
-            "BookCollectionID": int(book_id),
-            "name": "test_image.jpg",
-            "url": "https://httpbin.org/image/jpeg",
-            "type": "cover-face"
+            "BookId": int(book_id),
+            "Name": "test_image.jpg",
+            "Url": "https://httpbin.org/image/jpeg",
+            "ImageType": "cover-face"
         }
 
         res = requests.post(ep, json=data)
@@ -322,12 +322,12 @@ class TestAppFunctions(unittest.TestCase):
     def tearDownClass(cls):
         print("""For DB Cleanup:
 
-        USE books;
-        DELETE FROM `tag labels` where label="delete_me";
-        DELETE FROM `book collection` WHERE PublisherName="Printerman";
-        DELETE FROM `books read` WHERE ReadDate="1945-10-19";
-        DELETE FROM `images` WHERE name LIKE "test_%";
-        DELETE FROM `images` WHERE name LIKE "custom_test%";
+        USE book_collection;
+        DELETE FROM tag_labels where label="delete_me";
+        DELETE FROM books WHERE PublisherName="Printerman";
+        DELETE FROM books_read WHERE ReadDate="1945-10-19";
+        DELETE FROM images WHERE Name LIKE "test_%";
+        DELETE FROM images WHERE Name LIKE "custom_test%";
 
         # Also delete test uploaded files from filesystem if needed:
         # rm /var/www/html/resources/books/test_upload.png

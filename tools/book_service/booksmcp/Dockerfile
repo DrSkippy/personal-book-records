@@ -28,15 +28,15 @@ COPY config/ /app/config/
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
-ENV PORT=3002
+ENV PORT=3005
 ENV HOST=0.0.0.0
 
-# Expose port 3002 for HTTP access
-EXPOSE 3002
+# Expose port 3005 for HTTP access
+EXPOSE 3005
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:3002/health')"
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:3005/health')"
 
 # Run the MCP server
 CMD ["python", "-m", "booksmcp.server"]

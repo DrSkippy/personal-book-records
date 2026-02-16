@@ -14,34 +14,34 @@ from columnar import columnar
 
 class BCTool:
     COLUMN_INDEX = {
-        "BookCollectionID": 0,
+        "BookId": 0,
         "Title": 1,
         "Author": 2,
         "CopyrightDate": 3,
-        "ISBNNumber": 4,
+        "IsbnNumber": 4,
         "PublisherName": 5,
         "CoverType": 6,
         "Pages": 7,
-        "Category": 8,
-        "Note": 19,
-        "Location": 11,
-        "ISBNNumber13": 12,
-        "ReadDate": 13
+        "BookNote": 8,
+        "Recycled": 9,
+        "Location": 10,
+        "IsbnNumber13": 11,
+        "ReadDate": 12
     }
     COLLECTION_DB_DICT = {
         "Title": "",
         "Author": "",
         "CopyrightDate": "2000-01-01",
-        "ISBNNumber": "",
-        "ISBNNumber13": "",
+        "IsbnNumber": "",
+        "IsbnNumber13": "",
         "PublisherName": "",
         "CoverType": "Digital, Hard, Soft",
         "Pages": 0,
         "Location": "Main Collection, DOWNLOAD, Oversized, Pets, Woodwork, Reference, Birding",
-        "Note": "",
+        "BookNote": "",
         "Recycled": "0=No or 1=Yes"
     }
-    MINIMAL_BOOK_INDEXES = [0, 1, 2, 7, 9, 10, 11, 13]
+    MINIMAL_BOOK_INDEXES = [0, 1, 2, 7, 8, 9, 10, 12]
     page_size = 35
     terminal_width = 180
     LINES_TO_ROWS = 1.3
@@ -89,11 +89,11 @@ class BCTool:
 
     def _populate_add_read_date(self, book_collection_id, today=True):
         proto = {
-            "BookCollectionID": book_collection_id,
+            "BookId": book_collection_id,
             "ReadDate": datetime.date.today().strftime("%Y-%m-%d"),
             "ReadNote": ""
         }
-        return self._inputer(proto, exclude_keys=["BookCollectionID"])
+        return self._inputer(proto, exclude_keys=["BookId"])
 
     def _inputer(self, proto, exclude_keys=[]):
         verified = False
@@ -127,7 +127,7 @@ class BCTool:
         else:
             book_collection_id_list = []
             for rec in tres["add_books"]:
-                book_collection_id_list.append(rec["BookCollectionID"])
+                book_collection_id_list.append(rec["BookId"])
             self.result = book_collection_id_list
         return result_message
 
@@ -422,7 +422,7 @@ class BCTool:
         else:
             new_book_collection_id_list = []
             for rec in tres["update_read_dates"]:
-                new_book_collection_id_list.append(rec["BookCollectionID"])
+                new_book_collection_id_list.append(rec["BookId"])
             self.result = new_book_collection_id_list
 
     arb = add_read_books
@@ -443,7 +443,7 @@ class BCTool:
     def add_tags(self, book_collection_id, tags=[]):
         """ Takes 2 arguments.
         Arguments
-            book_collection_id is the BookCollectionID of the target book record
+            book_collection_id is the BookId of the target book record
             tags is a list of tags to add (strings)
         Returns
             bc.result is the book_collection_id

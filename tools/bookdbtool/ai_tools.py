@@ -27,7 +27,7 @@ class OllamaAgent:
                 - api_key: API key for book database write operations
         """
         self.ollama_host = config.get("ai_agent", {}).get("ollama_host", "http://localhost:11434")
-        self.book_db_host = config.get("endpoint", "http://localhost:8083")
+        self.book_db_host = config.get("endpoint", "http://localhost:8084")
         self.model_name = config.get("ai_agent", {}).get("model_name", "gpt-oss")
         self.api_key = config.get("api_key", "")
 

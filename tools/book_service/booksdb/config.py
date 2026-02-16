@@ -13,19 +13,18 @@ app_logger: logging.Logger = logging.getLogger('flask.app')
 
 # Constants
 table_header: list[str] = [
-    "BookCollectionID",
+    "BookId",
     "Title",
     "Author",
     "CopyrightDate",
-    "ISBNNumber",
+    "IsbnNumber",
     "PublisherName",
     "CoverType",
     "Pages",
-    "Category",
-    "Note",
+    "BookNote",
     "Recycled",
     "Location",
-    "ISBNNumber13"
+    "IsbnNumber13"
 ]
 
 locations_sort_order: list[int] = [3, 4, 2, 1, 7, 6, 5]

@@ -1,11 +1,11 @@
 [
   {
-    "BookCollectionID": 100000,
+    "BookId": 100000,
     "ReadDate": "1945-10-19",
     "ReadNote": "The note is here"
   },
   {
-    "BookCollectionID": 100000,
+    "BookId": 100000,
     "ReadDate": "1945-10-19",
     "ReadNote": "The note is here also"
   }

@@ -44,14 +44,14 @@ cp book_service/config/configuration_example.json book_service/config/configurat
 {
   "username": "db_user",
   "password": "db_password",
-  "database": "books",
+  "database": "book_collection",
   "host": "localhost",
   "port": 3306,
   "isbn_com": {
     "url_isbn": "https://api2.isbndb.com/book/{}",
     "key": "your_isbndb_api_key"
   },
-  "endpoint": "http://localhost:8083",
+  "endpoint": "http://localhost:8084",
   "api_key": "your_api_key_here"
 }
 ```
@@ -88,7 +88,7 @@ This project provides three complementary tools for interacting with the book da
 ```
 ┌─────────────────────────────────────────────────────┐
 │           MySQL Books Database                      │
-│  (book collection, books read, tags, estimates)     │
+│  (books, books_read, tags, estimates)                │
 └────────────────┬────────────────────────────────────┘
                  │
           ┌──────┴───────┐
@@ -101,7 +101,7 @@ This project provides three complementary tools for interacting with the book da
 ┌───▼───┐  ┌────▼─────┐  ┌──▼────────┐
 │bookdb │  │REST API   │  │MCP Server │
 │ tool  │  │(Flask)    │  │(FastMCP)  │
-│(REPL) │  │Port 8083  │  │Port 3002  │
+│(REPL) │  │Port 8084  │  │Port 3005  │
 └───┬───┘  └────┬─────┘  └──┬────────┘
     │           │           │
 Terminal    HTTP API    Claude/AI
@@ -113,7 +113,7 @@ Terminal    HTTP API    Claude/AI
 All three tools share:
 - **Database Layer**: `book_service/booksdb/api_util.py` - Common MySQL query utilities
 - **Configuration**: Single `configuration.json` file for all services
-- **Database Schema**: MySQL database with book collection, reading history, and tags
+- **Database Schema**: MySQL database with books, reading history, and tags
 
 ### Directory Structure
 
@@ -154,7 +154,8 @@ tools/
 ├── notebooks/                    # Jupyter notebooks
 ├── Makefile                      # Build and test automation
 ├── pyproject.toml                # Poetry dependencies
-├── schema_booksdb.sql            # Database schema
+├── database/                     # Database schema files
+│   └── schema.sql               # Database schema
 └── README.md                     # This file
 ```
 
@@ -254,7 +255,6 @@ ai.clear_history()
 - Author
 - Title
 - ISBN (ISBN-10 and ISBN-13)
-- Category
 - Tags
 - Date ranges
 - Publisher
@@ -313,7 +313,7 @@ A comprehensive REST API built with Flask for managing book records, reading his
 
 **Version**: 0.16.2
 **Framework**: Flask 3.1.2
-**Port**: 8083
+**Port**: 8084
 **Location**: `book_service/books/`
 
 ### Features
@@ -328,10 +328,10 @@ A comprehensive REST API built with Flask for managing book records, reading his
 
 ### Authentication
 
-All endpoints (except `/favicon.ico`) require authentication via the `x-api-key` header:
+All endpoints (except `/favicon.ico` and `/health`) require authentication via the `x-api-key` header:
 
 ```bash
-curl -H "x-api-key: your_api_key_here" http://localhost:8083/configuration
+curl -H "x-api-key: your_api_key_here" http://localhost:8084/configuration
 ```
 
 ### Installation and Setup
@@ -349,7 +349,7 @@ export BOOKSDB_CONFIG=./config/configuration.json
 poetry run uwsgi --ini books/api.ini
 ```
 
-The API will be available at `http://localhost:8083`
+The API will be available at `http://localhost:8084`
 
 #### Docker Deployment
 
@@ -371,12 +371,14 @@ make run-test-book-service  # Runs on port 9999
 
 | Method | Endpoint | Description | Parameters |
 |--------|----------|-------------|------------|
+| GET | `/health` | Health check (returns 'OK', 200) | None (no authentication required) |
 | GET | `/configuration` | Get API version and configuration | None |
 | GET | `/valid_locations` | List valid book locations | None |
 
 **Example:**
 ```bash
-curl -H "x-api-key: YOUR_KEY" http://localhost:8083/configuration
+curl http://localhost:8084/health
+curl -H "x-api-key: YOUR_KEY" http://localhost:8084/configuration
 ```
 
 ---
@@ -387,28 +389,25 @@ curl -H "x-api-key: YOUR_KEY" http://localhost:8083/configuration
 |--------|----------|-------------|------------|
 | GET | `/recent` | Get recently updated books | None |
 | GET | `/recent/<limit>` | Get N recent books | `limit`: Number of books (default: 10) |
-| GET/POST | `/books_search` | Search books | Query params: Title, Author, ISBNNumber, ISBNNumber13, PublisherName, Category, Location, Recycled, Tags, ReadDate |
-| GET | `/complete_record/<book_id>` | Get complete book record | `book_id`: BookCollectionID |
+| GET/POST | `/books_search` | Search books | Query params: Title, Author, IsbnNumber, IsbnNumber13, PublisherName, Location, Recycled, Tags, ReadDate |
+| GET | `/complete_record/<book_id>` | Get complete book record | `book_id`: BookId |
 | GET | `/complete_record/<book_id>/<adjacent>` | Navigate to next/previous book | `adjacent`: "next" or "prev" |
 | GET | `/complete_records_window/<book_id>/<window>` | Get window of records around book | `window`: Number of records (default: 20) |
+| POST | `/complete_record_window` | Get complete records for a list of BookIds | Body: `{"book_ids": [1,2,3]}` |
 
 **Search Examples:**
 ```bash
 # Search by author
 curl -H "x-api-key: YOUR_KEY" \
-  "http://localhost:8083/books_search?Author=Tolkien"
-
-# Search by multiple criteria
-curl -H "x-api-key: YOUR_KEY" \
-  "http://localhost:8083/books_search?Category=Fiction&Recycled=0"
+  "http://localhost:8084/books_search?Author=Tolkien"
 
 # Get complete book record
 curl -H "x-api-key: YOUR_KEY" \
-  http://localhost:8083/complete_record/1234
+  http://localhost:8084/complete_record/1234
 
 # Navigate to next book
 curl -H "x-api-key: YOUR_KEY" \
-  http://localhost:8083/complete_record/1234/next
+  http://localhost:8084/complete_record/1234/next
 ```
 
 ---
@@ -421,17 +420,17 @@ curl -H "x-api-key: YOUR_KEY" \
 | GET | `/books_read/<target_year>` | Get books read in year | `target_year`: Year (e.g., 2024) |
 | GET | `/summary_books_read_by_year` | Get reading summary for all years | None |
 | GET | `/summary_books_read_by_year/<target_year>` | Get summary for specific year | `target_year`: Year |
-| GET | `/status_read/<book_id>` | Get read status for book | `book_id`: BookCollectionID |
+| GET | `/status_read/<book_id>` | Get read status for book | `book_id`: BookId |
 
 **Examples:**
 ```bash
 # Books read in 2024
 curl -H "x-api-key: YOUR_KEY" \
-  http://localhost:8083/books_read/2024
+  http://localhost:8084/books_read/2024
 
 # Reading summary for all years
 curl -H "x-api-key: YOUR_KEY" \
-  http://localhost:8083/summary_books_read_by_year
+  http://localhost:8084/summary_books_read_by_year
 ```
 
 ---
@@ -442,7 +441,7 @@ curl -H "x-api-key: YOUR_KEY" \
 |--------|----------|-------------|------------|
 | GET | `/tag_counts` | Get tag usage counts | None |
 | GET | `/tag_counts/<tag>` | Get counts for tags starting with prefix | `tag`: Tag prefix |
-| GET | `/tags/<book_id>` | Get all tags for a book | `book_id`: BookCollectionID |
+| GET | `/tags/<book_id>` | Get all tags for a book | `book_id`: BookId |
 | GET | `/tags_search/<match_str>` | Search books by tag | `match_str`: Tag to search for |
 | GET | `/tag_maintenance` | Normalize tags (lowercase, trim) | None |
 | PUT | `/add_tag/<book_id>/<tag>` | Add tag to book | `book_id`, `tag` |
@@ -452,19 +451,19 @@ curl -H "x-api-key: YOUR_KEY" \
 ```bash
 # Add tag to book
 curl -X PUT -H "x-api-key: YOUR_KEY" \
-  http://localhost:8083/add_tag/1234/fiction
+  http://localhost:8084/add_tag/1234/fiction
 
 # Get all tags for book
 curl -H "x-api-key: YOUR_KEY" \
-  http://localhost:8083/tags/1234
+  http://localhost:8084/tags/1234
 
 # Search books by tag
 curl -H "x-api-key: YOUR_KEY" \
-  http://localhost:8083/tags_search/science
+  http://localhost:8084/tags_search/science
 
 # Rename tag
 curl -X PUT -H "x-api-key: YOUR_KEY" \
-  http://localhost:8083/update_tag_value/sci-fi/science-fiction
+  http://localhost:8084/update_tag_value/sci-fi/science-fiction
 ```
 
 ---
@@ -476,12 +475,13 @@ curl -X PUT -H "x-api-key: YOUR_KEY" \
 | POST | `/add_books` | Add new book records | Array of book objects |
 | POST | `/add_read_dates` | Add read dates for books | Array of read date objects |
 | POST | `/books_by_isbn` | Look up and add books by ISBN | `{"isbn_list": ["isbn1", "isbn2"]}` |
-| POST | `/update_book_record` | Update any book field(s) | Book object with BookCollectionID + fields to update |
-| POST | `/update_book_note_status` | Update note/recycled status | `{"BookCollectionID": N, "Note": "...", "Recycled": 0/1}` |
-| POST | `/update_edit_read_note` | Update reading note | `{"BookCollectionID": N, "ReadDate": "YYYY-MM-DD", "ReadNote": "..."}` |
-| POST | `/add_date_page` | Add daily reading progress | `{"RecordID": N, "RecordDate": "YYYY-MM-DD", "Page": N}` |
-| POST | `/add_image` | Add image metadata | `{"BookCollectionID": N, "name": "...", "url": "...", "type": "cover-face"}` |
+| POST | `/update_book_record` | Update any book field(s) | Book object with BookId + fields to update |
+| POST | `/update_book_note_status` | Update note/recycled status | `{"BookId": N, "BookNote": "...", "Recycled": 0/1}` |
+| POST | `/update_edit_read_note` | Update reading note | `{"BookId": N, "ReadDate": "YYYY-MM-DD", "ReadNote": "..."}` |
+| POST | `/add_date_page` | Add daily reading progress | `{"RecordId": N, "RecordDate": "YYYY-MM-DD", "Page": N}` |
+| POST | `/add_image` | Add image metadata | `{"BookId": N, "Name": "...", "Url": "...", "ImageType": "cover-face"}` |
 | POST | `/upload_image` | Upload image file | Multipart form data with `file` field |
+| DELETE | `/delete_book/<book_id>` | Delete a book and all related records (CASCADE) | `book_id`: BookId |
 
 **Add Books Example:**
 ```bash
@@ -491,16 +491,16 @@ curl -X POST -H "Content-Type: application/json" \
     "Title": "The Hobbit",
     "Author": "Tolkien, J.R.R.",
     "CopyrightDate": "1937",
-    "ISBNNumber": "0345339681",
-    "ISBNNumber13": "9780345339683",
+    "IsbnNumber": "0345339681",
+    "IsbnNumber13": "9780345339683",
     "PublisherName": "Del Rey",
     "CoverType": "Soft",
     "Pages": 300,
     "Location": "Main Collection",
-    "Note": "Classic fantasy novel",
+    "BookNote": "Classic fantasy novel",
     "Recycled": 0
   }]' \
-  http://localhost:8083/add_books
+  http://localhost:8084/add_books
 ```
 
 **Add Read Dates Example:**
@@ -508,11 +508,11 @@ curl -X POST -H "Content-Type: application/json" \
 curl -X POST -H "Content-Type: application/json" \
   -H "x-api-key: YOUR_KEY" \
   -d '[{
-    "BookCollectionID": 1234,
+    "BookId": 1234,
     "ReadDate": "2024-01-15",
     "ReadNote": "Great book!"
   }]' \
-  http://localhost:8083/add_read_dates
+  http://localhost:8084/add_read_dates
 ```
 
 **Update Book Record Example:**
@@ -520,11 +520,11 @@ curl -X POST -H "Content-Type: application/json" \
 curl -X POST -H "Content-Type: application/json" \
   -H "x-api-key: YOUR_KEY" \
   -d '{
-    "BookCollectionID": 1234,
-    "Note": "Updated note",
+    "BookId": 1234,
+    "BookNote": "Updated note",
     "Recycled": 1
   }' \
-  http://localhost:8083/update_book_record
+  http://localhost:8084/update_book_record
 ```
 
 ---
@@ -533,8 +533,8 @@ curl -X POST -H "Content-Type: application/json" \
 
 | Method | Endpoint | Description | Parameters |
 |--------|----------|-------------|------------|
-| GET | `/record_set/<book_id>` | Get all reading estimate records | `book_id`: BookCollectionID |
-| GET | `/date_page_records/<record_id>` | Get daily page records | `record_id`: RecordID |
+| GET | `/record_set/<book_id>` | Get all reading estimate records | `book_id`: BookId |
+| GET | `/date_page_records/<record_id>` | Get daily page records | `record_id`: RecordId |
 | PUT | `/add_book_estimate/<book_id>/<last_readable_page>` | Create reading estimate | `book_id`, `last_readable_page` |
 | PUT | `/add_book_estimate/<book_id>/<last_readable_page>/<start_date>` | Create estimate with start date | `book_id`, `last_readable_page`, `start_date` |
 
@@ -542,11 +542,11 @@ curl -X POST -H "Content-Type: application/json" \
 ```bash
 # Create reading estimate
 curl -X PUT -H "x-api-key: YOUR_KEY" \
-  http://localhost:8083/add_book_estimate/1234/350
+  http://localhost:8084/add_book_estimate/1234/350
 
 # Create estimate with custom start date
 curl -X PUT -H "x-api-key: YOUR_KEY" \
-  http://localhost:8083/add_book_estimate/1234/350/2024-01-01
+  http://localhost:8084/add_book_estimate/1234/350/2024-01-01
 ```
 
 ---
@@ -555,7 +555,7 @@ curl -X PUT -H "x-api-key: YOUR_KEY" \
 
 | Method | Endpoint | Description | Parameters |
 |--------|----------|-------------|------------|
-| GET | `/images/<book_id>` | Get all images for book | `book_id`: BookCollectionID |
+| GET | `/images/<book_id>` | Get all images for book | `book_id`: BookId |
 | POST | `/add_image` | Add image metadata | See mutation endpoints above |
 | POST | `/upload_image` | Upload image file | Multipart form data |
 
@@ -563,13 +563,13 @@ curl -X PUT -H "x-api-key: YOUR_KEY" \
 ```bash
 # Get images for book
 curl -H "x-api-key: YOUR_KEY" \
-  http://localhost:8083/images/1234
+  http://localhost:8084/images/1234
 
 # Upload image
 curl -X POST -H "x-api-key: YOUR_KEY" \
   -F "file=@cover.jpg" \
   -F "filename=book_1234_cover.jpg" \
-  http://localhost:8083/upload_image
+  http://localhost:8084/upload_image
 ```
 
 ---
@@ -587,12 +587,12 @@ curl -X POST -H "x-api-key: YOUR_KEY" \
 ```bash
 # Download progress comparison chart
 curl -H "x-api-key: YOUR_KEY" \
-  http://localhost:8083/image/year_progress_comparison.png \
+  http://localhost:8084/image/year_progress_comparison.png \
   -o progress.png
 
 # Get all-time statistics
 curl -H "x-api-key: YOUR_KEY" \
-  http://localhost:8083/image/all_years.png \
+  http://localhost:8084/image/all_years.png \
   -o stats.png
 ```
 
@@ -646,12 +646,12 @@ A Model Context Protocol (MCP) server that exposes the book database to AI model
 
 **Version**: 3.0.0
 **Framework**: FastMCP 0.5.0+
-**Port**: 3002
+**Port**: 3005
 **Location**: `book_service/booksmcp/`
 
 ### Features
 
-- **10 MCP Tools**: Search by title, author, ISBN, publisher, category, location, tags, and read date
+- **9 MCP Tools**: Search by title, author, ISBN, publisher, location, tags, and read date
 - **FastMCP Framework**: Modern, streamable HTTP transport
 - **Claude Integration**: Designed for Claude Desktop and other MCP clients
 - **Health Checks**: Built-in health monitoring
@@ -669,22 +669,21 @@ cd book_service/booksmcp
 docker-compose up -d
 ```
 
-The MCP server will be available at `http://localhost:3002`
+The MCP server will be available at `http://localhost:3005`
 
 ### MCP Tools Available
 
-The server exposes 10 tools for searching books:
+The server exposes 9 tools for searching books:
 
 1. `search_books_by_title` - Search by title
 2. `search_books_by_author` - Search by author
 3. `search_books_by_isbn` - Search by ISBN-10
 4. `search_books_by_isbn13` - Search by ISBN-13
 5. `search_books_by_publisher` - Search by publisher
-6. `search_books_by_category` - Search by category
-7. `search_books_by_location` - Search by physical location
-8. `search_books_by_tags` - Search by tags
-9. `search_books_by_read_date` - Search by read date
-10. `search_tags` - Search for books by tag name
+6. `search_books_by_location` - Search by physical location
+7. `search_books_by_tags` - Search by tags
+8. `search_books_by_read_date` - Search by read date
+9. `search_tags` - Search for books by tag name
 
 ### Endpoints
 
@@ -722,14 +721,14 @@ All tools use a single configuration file: `book_service/config/configuration.js
 {
   "username": "mysql_user",
   "password": "mysql_password",
-  "database": "books",
+  "database": "book_collection",
   "host": "localhost",
   "port": 3306,
   "isbn_com": {
     "url_isbn": "https://api2.isbndb.com/book/{}",
     "key": "your_isbndb_api_key"
   },
-  "endpoint": "http://localhost:8083",
+  "endpoint": "http://localhost:8084",
   "api_key": "your_40_char_api_key_here"
 }
 ```
@@ -740,7 +739,7 @@ All tools use a single configuration file: `book_service/config/configuration.js
 |-------|-------------|----------|
 | `username` | MySQL database username | Yes |
 | `password` | MySQL database password | Yes |
-| `database` | MySQL database name (should be "books") | Yes |
+| `database` | MySQL database name (should be "book_collection") | Yes |
 | `host` | MySQL host (localhost or IP address) | Yes |
 | `port` | MySQL port (default: 3306) | Yes |
 | `isbn_com.url_isbn` | ISBN lookup API URL template | Optional |
@@ -761,7 +760,7 @@ export API_KEY=your_api_key_here
 
 ```bash
 export BOOKDB_CONFIG=/path/to/config/configuration.json
-export PORT=3002
+export PORT=3005
 export HOST=0.0.0.0
 export PYTHONUNBUFFERED=1
 ```
@@ -769,7 +768,7 @@ export PYTHONUNBUFFERED=1
 ### Docker Configuration
 
 In Docker containers, the configuration file is typically mounted at:
-- Book Service: `/books/config/configuration.json`
+- Book Service: `/app/config/configuration.json`
 - MCP Server: `/app/config/configuration.json`
 
 **Note**: When using Docker with host MySQL, use `host.docker.internal` as the host in your configuration.
@@ -780,26 +779,25 @@ In Docker containers, the configuration file is typically mounted at:
 
 ### Overview
 
-The book database uses MySQL 8.0+ with the following tables:
+The book database uses MySQL 8.0+ with the following tables. All tables use the InnoDB engine with utf8mb4 charset.
 
 ### Main Tables
 
-#### 1. **book collection** - Core Book Records
+#### 1. **books** - Core Book Records
 
 Stores all book metadata and collection information.
 
 **Key Fields:**
-- `BookCollectionID` (PRIMARY KEY, AUTO_INCREMENT) - Unique book identifier
+- `BookId` (PRIMARY KEY, AUTO_INCREMENT) - Unique book identifier
 - `Title` (VARCHAR(200)) - Book title (FULLTEXT indexed)
 - `Author` (VARCHAR(200)) - Author name (FULLTEXT indexed)
 - `CopyrightDate` (DATETIME) - Copyright/publication date
-- `ISBNNumber` (VARCHAR(13)) - ISBN-10 number
-- `ISBNNumber13` (VARCHAR(13)) - ISBN-13 number
+- `IsbnNumber` (VARCHAR(13)) - ISBN-10 number
+- `IsbnNumber13` (VARCHAR(13)) - ISBN-13 number
 - `PublisherName` (VARCHAR(50)) - Publisher name
 - `CoverType` (VARCHAR(30)) - Hard, Soft, or Digital
 - `Pages` (SMALLINT) - Page count
-- `Category` (VARCHAR(10)) - Book category/genre
-- `Note` (MEDIUMTEXT) - Notes and comments
+- `BookNote` (MEDIUMTEXT) - Notes and comments
 - `Recycled` (TINYINT(1)) - 0=No, 1=Yes (donated/removed)
 - `Location` (VARCHAR(50)) - Physical location (indexed)
 - `LastUpdate` (TIMESTAMP) - Auto-updated timestamp
@@ -808,72 +806,72 @@ Stores all book metadata and collection information.
 
 **Current Record Count**: ~2,900 books
 
-#### 2. **books read** - Reading History
+#### 2. **books_read** - Reading History
 
 Tracks when books were read and reading notes.
 
 **Key Fields:**
-- `BookCollectionID` (INT UNSIGNED) - Foreign key to book collection
+- `BookId` (INT UNSIGNED) - Foreign key to books
 - `ReadDate` (DATE) - Date book was read/started
 - `ReadNote` (TEXT) - Reading notes and comments
 - `LastUpdate` (TIMESTAMP) - Auto-updated timestamp
 
-**Primary Key**: (BookCollectionID, ReadDate) - Allows tracking multiple readings
+**Primary Key**: (BookId, ReadDate) - Allows tracking multiple readings
 
-#### 3. **tags** & **tag labels** - Book Categorization
+#### 3. **books_tags** & **tag_labels** - Book Categorization
 
-**books tags** - Book-to-tag relationships:
-- `BookID` (VARCHAR(50)) - Book identifier
-- `TagID` (INT) - Tag identifier
+**books_tags** - Book-to-tag relationships:
+- `BookId` (INT) - Book identifier
+- `TagId` (INT) - Tag identifier
 - `LastUpdate` (TIMESTAMP)
 
-**tag labels** - Tag definitions:
-- `TagID` (PRIMARY KEY, AUTO_INCREMENT)
+**tag_labels** - Tag definitions:
+- `TagId` (PRIMARY KEY, AUTO_INCREMENT)
 - `Label` (VARCHAR(50), UNIQUE) - Tag name (lowercase)
 
-Tags provide flexible categorization beyond the single Category field.
+Tags provide flexible categorization for books.
 
-#### 4. **complete date estimates** - Reading Progress
+#### 4. **complete_date_estimates** - Reading Progress
 
 Tracks reading progress and completion estimates for books in progress.
 
 **Key Fields:**
-- `RecordID` (PRIMARY KEY, AUTO_INCREMENT)
-- `BookCollectionID` (BIGINT UNSIGNED) - Book being read
+- `RecordId` (PRIMARY KEY, AUTO_INCREMENT)
+- `BookId` (BIGINT UNSIGNED) - Book being read
 - `StartDate` (DATETIME) - Reading start date
 - `LastReadablePage` (BIGINT) - Total pages in book
 - `EstimateDate` (DATETIME) - Estimate calculation date
 - `EstimatedFinishDate` (DATETIME) - Predicted completion date
 
-#### 5. **daily page records** - Daily Reading Progress
+#### 5. **daily_page_records** - Daily Reading Progress
 
 Records daily page counts for reading estimates.
 
 **Key Fields:**
-- `RecordID` (BIGINT UNSIGNED) - Links to complete date estimates
+- `RecordId` (BIGINT UNSIGNED) - Links to complete date estimates
 - `RecordDate` (DATETIME) - Date of reading
-- `page` (BIGINT) - Page number reached
+- `Page` (BIGINT) - Page number reached
 - `LastUpdate` (TIMESTAMP)
 
-**Primary Key**: (RecordID, RecordDate)
+**Primary Key**: (RecordId, RecordDate)
 
 #### 6. **images** - Book Cover Images
 
 Stores book cover images and other book-related images.
 
 **Key Fields:**
-- `id` (PRIMARY KEY, AUTO_INCREMENT)
-- `BookCollectionID` (INT) - Book identifier
-- `name` (VARCHAR(255)) - Image filename
-- `url` (VARCHAR(255)) - Image URL or path
-- `type` (VARCHAR(64)) - Image type (default: 'cover-face')
+- `ImageId` (PRIMARY KEY, AUTO_INCREMENT)
+- `BookId` (INT) - Book identifier
+- `Name` (VARCHAR(255)) - Image filename
+- `Url` (VARCHAR(255)) - Image URL or path
+- `ImageType` (VARCHAR(64)) - Image type (default: 'cover-face')
 
 ### Schema File
 
-The complete schema is available in `schema_booksdb.sql` and can be used to create the database:
+The complete schema is available in `database/schema.sql` and can be used to create the database:
 
 ```bash
-mysql -u root -p < schema_booksdb.sql
+mysql -u root -p book_collection < database/schema.sql
 ```
 
 ---
@@ -942,8 +940,8 @@ Run services locally without Docker (useful for development and debugging).
 
 | Target | Description | Port |
 |--------|-------------|------|
-| `make run-local-book-service` | Run book service with poetry and uWSGI | 8083 |
-| `make run-local-mcp-service` | Run MCP server with poetry | 3002 |
+| `make run-local-book-service` | Run book service with poetry and uWSGI | 8084 |
+| `make run-local-mcp-service` | Run MCP server with poetry | 3005 |
 
 **Requirements**: Poetry and dependencies must be installed (`make install-deps`)
 
@@ -956,8 +954,8 @@ make run-local-book-service
 make run-local-mcp-service
 
 # Terminal 3: Test
-curl -H "x-api-key: YOUR_KEY" http://localhost:8083/configuration
-curl http://localhost:3002/health
+curl -H "x-api-key: YOUR_KEY" http://localhost:8084/configuration
+curl http://localhost:3005/health
 ```
 
 ---
@@ -968,9 +966,9 @@ Build and run Docker containers specifically for testing (isolated from producti
 
 | Target | Description | Port |
 |--------|-------------|------|
-| `make run-test-all` | Start both test containers | 9999 (book service), 3002 (MCP) |
+| `make run-test-all` | Start both test containers | 9999 (book service), 3005 (MCP) |
 | `make run-test-book-service` | Start book service test container | 9999 |
-| `make run-test-mcp-service` | Start MCP server test container | 3002 |
+| `make run-test-mcp-service` | Start MCP server test container | 3005 |
 | `make stop-test-all` | Stop all test containers | - |
 | `make stop-test-book-service` | Stop book service test container | - |
 | `make stop-test-mcp-service` | Stop MCP server test container | - |
@@ -995,7 +993,7 @@ make test
 make stop-test-all
 ```
 
-**Note**: Book service test container runs on port **9999** (not 8083) to avoid conflicts with production.
+**Note**: Book service test container runs on port **9999** (not 8084) to avoid conflicts with production.
 
 ---
 
@@ -1018,7 +1016,7 @@ Run test suites against Docker containers or locally.
 ```bash
 # Run all integration tests
 make test
-# This: builds test images, starts containers, runs tests against localhost:9999 and localhost:3002
+# This: builds test images, starts containers, runs tests against localhost:9999 and localhost:3005
 
 # Test only book service
 make test-book-service
@@ -1056,6 +1054,7 @@ Maintenance and cleanup tasks.
 | `make logs-mcp-service` | View production MCP server logs (follow mode) |
 | `make info` | Display configuration and status (hostname, registry, image tags, running containers) |
 | `make install-deps` | Install dependencies with Poetry (runs `poetry install --no-root` in book_service) |
+| `make clean-test-records` | Remove test records from the database |
 
 **Examples:**
 
@@ -1208,14 +1207,14 @@ make push-book-service REGISTRY=myregistry.com:5000
 **Base Image**: `python:3.11-slim`
 
 **Key Components**:
-- **Working Directory**: `/books`
+- **Working Directory**: `/app`
 - **Package Manager**: Poetry (installed via pipx)
 - **System Dependencies**: gcc, g++ (for building Python packages)
 - **Python Dependencies**: Installed from `pyproject.toml` (no dev dependencies)
-- **Configuration**: `BOOKSDB_CONFIG` environment variable points to `/books/config/configuration.json`
-- **Uploads Directory**: `/books/uploads` created for file uploads
-- **Port**: 8083 exposed
-- **Entrypoint**: `poetry run uwsgi --ini api.ini`
+- **Configuration**: `BOOKSDB_CONFIG` environment variable points to `/app/config/configuration.json`
+- **Uploads Directory**: `/app/uploads` created for file uploads
+- **Port**: 8084 exposed
+- **Entrypoint**: `poetry run uwsgi --ini books/api.ini`
 
 **Build Command**:
 ```bash
@@ -1236,7 +1235,7 @@ docker build -f book_service/books/Dockerfile -t book-service .
 - **System Dependencies**: gcc, g++ (for building Python packages)
 - **Python Dependencies**: fastmcp, pymysql from `requirements.txt`
 - **Configuration**: `BOOKDB_CONFIG` environment variable
-- **Port**: 3002 exposed
+- **Port**: 3005 exposed
 - **Health Check**: Probes `/health` endpoint every 30s
 - **Entrypoint**: `python -m booksmcp.server`
 
@@ -1261,11 +1260,11 @@ services:
     image: localhost:5000/book-service:latest
     container_name: book-service
     ports:
-      - "8083:8083"
+      - "8084:8084"
     environment:
       - API_KEY=${API_KEY}
     volumes:
-      - /var/www/html/resources/books:/books/uploads
+      - /var/www/html/resources/books:/app/uploads
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -1294,9 +1293,9 @@ services:
     image: localhost:5000/booksmcp-service:latest
     container_name: booksmcp-service
     ports:
-      - "3002:3002"
+      - "3005:3005"
     environment:
-      - PORT=3002
+      - PORT=3005
       - HOST=0.0.0.0
       - PYTHONUNBUFFERED=1
       - BOOKDB_CONFIG=/app/config/configuration.json
@@ -1304,7 +1303,7 @@ services:
       - books-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3005/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -1403,7 +1402,7 @@ make test
 ```
 
 This will:
-1. Build and start test containers (book service on port 9999, MCP on 3002)
+1. Build and start test containers (book service on port 9999, MCP on 3005)
 2. Wait 5 seconds for services to be ready
 3. Run `test_docker_api.py` (REST API tests)
 4. Run `test_booksmcp.py` (MCP server tests)
@@ -1607,7 +1606,7 @@ Add to `book_service/test_books/test_booksmcp.py`:
 def test_my_mcp_tool():
     """Test new MCP tool"""
     response = requests.post(
-        "http://localhost:3002/mcp",
+        "http://localhost:3005/mcp",
         json={
             "jsonrpc": "2.0",
             "id": 1,
@@ -1687,15 +1686,15 @@ Run services locally without Docker for development and debugging.
 ```bash
 # Terminal 1: Book Service
 make run-local-book-service
-# Running on http://localhost:8083
+# Running on http://localhost:8084
 
 # Terminal 2: MCP Server
 make run-local-mcp-service
-# Running on http://localhost:3002
+# Running on http://localhost:3005
 
 # Terminal 3: Test
-curl -H "x-api-key: YOUR_KEY" http://localhost:8083/configuration
-curl http://localhost:3002/health
+curl -H "x-api-key: YOUR_KEY" http://localhost:8084/configuration
+curl http://localhost:3005/health
 ```
 
 **Requirements**:
@@ -1718,7 +1717,7 @@ docker ps
 
 # Services available at:
 # - Book Service: http://localhost:9999
-# - MCP Server: http://localhost:3002
+# - MCP Server: http://localhost:3005
 
 # Run tests
 make test
@@ -1728,8 +1727,8 @@ make stop-test-all
 ```
 
 **Port Mapping**:
-- Book Service: Port **9999** (not 8083) to avoid production conflicts
-- MCP Server: Port **3002** (same as production)
+- Book Service: Port **9999** (not 8084) to avoid production conflicts
+- MCP Server: Port **3005** (same as production)
 
 ---
 
@@ -1767,7 +1766,7 @@ docker-compose pull
 docker-compose up -d
 
 # Verify
-curl -H "x-api-key: $API_KEY" http://localhost:8083/configuration
+curl -H "x-api-key: $API_KEY" http://localhost:8084/configuration
 docker logs -f book-service
 ```
 
@@ -1783,7 +1782,7 @@ docker-compose pull
 docker-compose up -d
 
 # Verify
-curl http://localhost:3002/health
+curl http://localhost:3005/health
 docker logs -f booksmcp-service
 ```
 
@@ -1794,12 +1793,12 @@ docker logs -f booksmcp-service
 docker ps
 
 # Should see:
-# - book-service (port 8083)
-# - booksmcp-service (port 3002)
+# - book-service (port 8084)
+# - booksmcp-service (port 3005)
 
 # Test endpoints
-curl -H "x-api-key: YOUR_KEY" http://localhost:8083/recent
-curl http://localhost:3002/info
+curl -H "x-api-key: YOUR_KEY" http://localhost:8084/recent
+curl http://localhost:3005/info
 ```
 
 ---
@@ -1938,14 +1937,14 @@ make build-book-service
 
 ```bash
 # Book Service - Configuration endpoint (requires API key)
-curl -H "x-api-key: YOUR_KEY" http://localhost:8083/configuration
+curl -H "x-api-key: YOUR_KEY" http://localhost:8084/configuration
 
 # MCP Server - Health check (no auth)
-curl http://localhost:3002/health
+curl http://localhost:3005/health
 # Returns: {"status": "healthy"}
 
 # MCP Server - Info endpoint
-curl http://localhost:3002/info
+curl http://localhost:3005/info
 ```
 
 #### Monitoring Containers
@@ -1997,13 +1996,13 @@ cd bin
 #### Manual Backup
 
 ```bash
-mysqldump -u username -p books > backup_$(date +%Y%m%d).sql
+mysqldump -u username -p book_collection > backup_$(date +%Y%m%d).sql
 ```
 
 #### Restore Database
 
 ```bash
-mysql -u username -p books < backup_20250104.sql
+mysql -u username -p book_collection < backup_20250104.sql
 ```
 
 ---
@@ -2047,7 +2046,7 @@ vim book_service/config/configuration.json
 # Fill in your database credentials and API key
 
 # 4. Verify database connection
-mysql -u your_user -p books -e "SELECT COUNT(*) FROM \`book collection\`;"
+mysql -u your_user -p book_collection -e "SELECT COUNT(*) FROM books;"
 ```
 
 #### Running Services Locally
@@ -2077,7 +2076,7 @@ vim book_service/books/api.py
 make run-local-book-service
 
 # 3. Test manually
-curl -H "x-api-key: YOUR_KEY" http://localhost:8083/your_new_endpoint
+curl -H "x-api-key: YOUR_KEY" http://localhost:8084/your_new_endpoint
 
 # 4. Write tests
 vim book_service/test_books/test_docker_api.py
@@ -2128,10 +2127,10 @@ vim book_service/booksmcp/server.py
 make run-local-mcp-service
 
 # 3. Test health endpoint
-curl http://localhost:3002/health
+curl http://localhost:3005/health
 
 # 4. Test MCP protocol
-curl -X POST http://localhost:3002/mcp \
+curl -X POST http://localhost:3005/mcp \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}'
 
@@ -2199,7 +2198,7 @@ make run-test-all
 docker ps  # Verify running
 
 curl -H "x-api-key: YOUR_KEY" http://localhost:9999/configuration
-curl http://localhost:3002/health
+curl http://localhost:3005/health
 
 # Full test suite
 make test
@@ -2267,8 +2266,8 @@ docker-compose pull
 docker-compose up -d
 
 # 6. Verify deployment
-curl -H "x-api-key: YOUR_KEY" http://localhost:8083/configuration
-curl http://localhost:3002/health
+curl -H "x-api-key: YOUR_KEY" http://localhost:8084/configuration
+curl http://localhost:3005/health
 docker logs -f book-service
 docker logs -f booksmcp-service
 ```
@@ -2293,11 +2292,11 @@ docker-compose up -d
 When modifying the database schema:
 
 ```bash
-# 1. Update schema_booksdb.sql
-vim schema_booksdb.sql
+# 1. Update database/schema.sql
+vim database/schema.sql
 
 # 2. Test on development database
-mysql -u user -p books < schema_booksdb.sql
+mysql -u user -p book_collection < database/schema.sql
 
 # 3. Update API code if needed
 vim book_service/books/api.py
@@ -2411,8 +2410,8 @@ git push origin feature/new-search-endpoint
 
 **Symptoms**:
 ```bash
-curl -H "x-api-key: KEY" http://localhost:8083/configuration
-# curl: (7) Failed to connect to localhost port 8083: Connection refused
+curl -H "x-api-key: KEY" http://localhost:8084/configuration
+# curl: (7) Failed to connect to localhost port 8084: Connection refused
 ```
 
 **Solutions**:
@@ -2433,14 +2432,14 @@ curl -H "x-api-key: KEY" http://localhost:8083/configuration
 3. **Verify port mapping**:
    ```bash
    docker ps | grep book-service
-   # Should show: 0.0.0.0:8083->8083/tcp (or 9999 for test)
+   # Should show: 0.0.0.0:8084->8084/tcp (or 9999 for test)
    ```
 
 4. **Check if port is in use**:
    ```bash
-   lsof -i :8083
+   lsof -i :8084
    # or
-   netstat -tuln | grep 8083
+   netstat -tuln | grep 8084
    ```
 
 5. **Restart service**:
@@ -2456,7 +2455,7 @@ curl -H "x-api-key: KEY" http://localhost:8083/configuration
 
 **Symptoms**:
 ```bash
-curl http://localhost:8083/configuration
+curl http://localhost:8084/configuration
 # Returns: 401 error
 ```
 
@@ -2464,7 +2463,7 @@ curl http://localhost:8083/configuration
 
 1. **Add API key header**:
    ```bash
-   curl -H "x-api-key: your_key_here" http://localhost:8083/configuration
+   curl -H "x-api-key: your_key_here" http://localhost:8084/configuration
    ```
 
 2. **Check API key in configuration**:
@@ -2506,7 +2505,7 @@ pymysql.err.OperationalError: (2003, "Can't connect to MySQL server...")
 
 2. **Verify database credentials**:
    ```bash
-   mysql -u username -p -h host -P 3306 books
+   mysql -u username -p -h host -P 3306 book_collection
    # Should connect successfully
    ```
 
@@ -2622,30 +2621,30 @@ ERROR: failed to solve: process "/bin/sh -c poetry install" did not complete suc
 
 **Symptoms**:
 ```
-Error starting userland proxy: listen tcp 0.0.0.0:8083: bind: address already in use
+Error starting userland proxy: listen tcp 0.0.0.0:8084: bind: address already in use
 ```
 
 **Solutions**:
 
 1. **Find process using port**:
    ```bash
-   lsof -i :8083
+   lsof -i :8084
    # or
-   sudo netstat -tulpn | grep 8083
+   sudo netstat -tulpn | grep 8084
    ```
 
 2. **Stop the process**:
    ```bash
    kill <PID>
    # or
-   docker stop $(docker ps -q --filter "publish=8083")
+   docker stop $(docker ps -q --filter "publish=8084")
    ```
 
 3. **Use different port**:
    ```bash
    # Edit docker-compose.yml
    ports:
-     - "8084:8083"  # Map to different host port
+     - "8085:8084"  # Map to different host port
    ```
 
 ---
@@ -2687,7 +2686,7 @@ FileNotFoundError: [Errno 2] No such file or directory: 'book_service/config/con
 
 **Symptoms**:
 ```bash
-curl http://localhost:3002/health
+curl http://localhost:3005/health
 # curl: (7) Failed to connect...
 ```
 
@@ -2712,7 +2711,7 @@ curl http://localhost:3002/health
 
 4. **Test from inside container**:
    ```bash
-   docker exec -it booksmcp-service curl http://localhost:3002/health
+   docker exec -it booksmcp-service curl http://localhost:3005/health
    ```
 
 5. **Restart service**:
@@ -2727,7 +2726,7 @@ curl http://localhost:3002/health
 
 **Symptoms**:
 ```
-PermissionError: [Errno 13] Permission denied: '/books/uploads/image.jpg'
+PermissionError: [Errno 13] Permission denied: '/app/uploads/image.jpg'
 ```
 
 **Solutions**:
@@ -2825,8 +2824,8 @@ ps aux
 curl http://host.docker.internal:3306
 
 # Check files
-ls -la /books/
-cat /books/config/configuration.json
+ls -la /app/
+cat /app/config/configuration.json
 ```
 
 ---
@@ -2890,7 +2889,7 @@ docker system df
 - **MCP Server Comprehensive Guide**: `book_service/booksmcp/README.md` - 575 lines of detailed MCP server documentation
 - **BookDBTool Tests**: `test/README.md` - Test coverage and running instructions
 - **Example Payloads**: `book_service/example_json_payloads/` - Sample JSON for API testing
-- **Database Schema**: `schema_booksdb.sql` - Complete MySQL schema
+- **Database Schema**: `database/schema.sql` - Complete MySQL schema
 
 ### External Resources
 
@@ -2954,8 +2953,8 @@ make dev-setup                    # Install dependencies
 make info                         # Show configuration
 
 # Local Development
-make run-local-book-service       # Run API locally (port 8083)
-make run-local-mcp-service        # Run MCP locally (port 3002)
+make run-local-book-service       # Run API locally (port 8084)
+make run-local-mcp-service        # Run MCP locally (port 3005)
 poetry run python bin/books.py   # Run REPL
 
 # Testing
@@ -2977,8 +2976,8 @@ make stop-all                     # Stop all containers
 
 | Service | Development | Test | Production |
 |---------|------------|------|------------|
-| Book Service | 8083 | 9999 | 8083 |
-| MCP Server | 3002 | 3002 | 3002 |
+| Book Service | 8084 | 9999 | 8084 |
+| MCP Server | 3005 | 3005 | 3005 |
 
 ### Configuration Files
 
@@ -2987,7 +2986,7 @@ make stop-all                     # Stop all containers
 | `book_service/config/configuration.json` | Main config (create from example) |
 | `pyproject.toml` | Python dependencies |
 | `book_service/booksmcp/requirements.txt` | MCP dependencies |
-| `schema_booksdb.sql` | Database schema |
+| `database/schema.sql` | Database schema |
 
 ---
 
@@ -3052,7 +3051,7 @@ For issues or questions:
 
 ---
 
-**Last Updated**: 2026-01-04
+**Last Updated**: 2026-02-16
 
 This documentation covers all three tools in the Book Database Tools suite. For tool-specific details, see individual README files:
 - MCP Server: `book_service/booksmcp/README.md`

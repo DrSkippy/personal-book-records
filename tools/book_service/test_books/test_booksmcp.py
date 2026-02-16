@@ -7,7 +7,7 @@ when deployed in Docker. It tests both direct HTTP access and MCP protocol
 communication over SSE.
 
 Requirements:
-    - MCP server running on http://localhost:3002
+    - MCP server running on http://localhost:3005 (port 3005)
     - Install: pip install requests mcp
 
 Usage:
@@ -44,7 +44,7 @@ except ImportError:
 class TestHTTPEndpoints(unittest.TestCase):
     """Test the HTTP endpoints directly (no MCP protocol)."""
 
-    BASE_URL = "http://localhost:3002"
+    BASE_URL = "http://localhost:3005"
 
     @classmethod
     def setUpClass(cls):
@@ -110,7 +110,6 @@ class TestHTTPEndpoints(unittest.TestCase):
             "search_books_by_isbn",
             "search_books_by_isbn13",
             "search_books_by_publisher",
-            "search_books_by_category",
             "search_books_by_location",
             "search_books_by_tags",
             "search_books_by_read_date"
@@ -158,9 +157,9 @@ class TestHTTPEndpoints(unittest.TestCase):
 class TestMCPTools(unittest.TestCase):
     """Test MCP tools via the MCP protocol endpoint."""
 
-    BASE_URL = "http://localhost:3002"
+    BASE_URL = "http://localhost:3005"
     server_available = False
-    session: Optional[ClientSession] = None
+    session: Optional[Any] = None
 
     @classmethod
     def setUpClass(cls):
@@ -284,7 +283,7 @@ class TestMCPTools(unittest.TestCase):
             self.assertIn("results", result)
 
             # Validate query
-            self.assertEqual(result["query"]["ISBNNumber"], "0123456789")
+            self.assertEqual(result["query"]["IsbnNumber"], "0123456789")
 
             print(f"  ✓ search_books_by_isbn returned {result['count']} results")
 
@@ -301,7 +300,7 @@ class TestMCPTools(unittest.TestCase):
             self.assertIn("results", result)
 
             # Validate query
-            self.assertEqual(result["query"]["ISBNNumber13"], "9780123456789")
+            self.assertEqual(result["query"]["IsbnNumber13"], "9780123456789")
 
             print(f"  ✓ search_books_by_isbn13 returned {result['count']} results")
 
@@ -324,24 +323,7 @@ class TestMCPTools(unittest.TestCase):
 
         asyncio.run(run_test())
 
-    def test_07_search_books_by_category(self):
-        """Test search_books_by_category tool."""
-        async def run_test():
-            result = await self._call_tool("search_books_by_category", {"category": "Science"})
-
-            self.assertIsNotNone(result)
-            self.assertIn("query", result)
-            self.assertIn("count", result)
-            self.assertIn("results", result)
-
-            # Validate query
-            self.assertEqual(result["query"]["Category"], "Science")
-
-            print(f"  ✓ search_books_by_category returned {result['count']} results")
-
-        asyncio.run(run_test())
-
-    def test_08_search_books_by_location(self):
+    def test_07_search_books_by_location(self):
         """Test search_books_by_location tool."""
         async def run_test():
             result = await self._call_tool("search_books_by_location", {"location": "Office"})
@@ -358,7 +340,7 @@ class TestMCPTools(unittest.TestCase):
 
         asyncio.run(run_test())
 
-    def test_09_search_books_by_tags(self):
+    def test_08_search_books_by_tags(self):
         """Test search_books_by_tags tool."""
         async def run_test():
             result = await self._call_tool("search_books_by_tags", {"tags": "programming"})
@@ -375,7 +357,7 @@ class TestMCPTools(unittest.TestCase):
 
         asyncio.run(run_test())
 
-    def test_10_search_books_by_read_date(self):
+    def test_09_search_books_by_read_date(self):
         """Test search_books_by_read_date tool."""
         async def run_test():
             result = await self._call_tool("search_books_by_read_date", {"read_date": "2024"})
@@ -392,7 +374,7 @@ class TestMCPTools(unittest.TestCase):
 
         asyncio.run(run_test())
 
-    def test_11_empty_search_returns_valid_response(self):
+    def test_10_empty_search_returns_valid_response(self):
         """Test that empty search string returns valid response."""
         async def run_test():
             result = await self._call_tool("search_books_by_title", {"title": "XXXNONEXISTENTXXX"})
@@ -409,7 +391,7 @@ class TestMCPTools(unittest.TestCase):
 
         asyncio.run(run_test())
 
-    def test_12_special_characters_in_search(self):
+    def test_11_special_characters_in_search(self):
         """Test search with special characters."""
         async def run_test():
             # Test with apostrophe (common in titles/authors)
@@ -433,7 +415,7 @@ class TestMCPTools(unittest.TestCase):
 class TestResponseFormat(unittest.TestCase):
     """Test that responses conform to expected format."""
 
-    BASE_URL = "http://localhost:3002"
+    BASE_URL = "http://localhost:3005"
     server_available = False
 
     @classmethod

@@ -44,14 +44,14 @@ class ESTTool:
                 print(f'Error: {tres["error"]}')
             else:
                 tres = tres["add_book_estimate"]
-                print(f'{tres["BookCollectionID"]} started on {tres["StartDate"]}.')
+                print(f'{tres["BookId"]} started on {tres["StartDate"]}.')
         self.list_book_estimates(book_id)
 
     nbe = new_book_estimate
 
     def list_book_estimates(self, book_id):
         q = self.end_point + f"/record_set/{book_id}"
-        q1 = self.end_point + f"/books_search?BookCollectionID={book_id}"
+        q1 = self.end_point + f"/books_search?BookId={book_id}"
         try:
             tr = requests.get(q, headers=self.header)
             tres = tr.json()
@@ -71,10 +71,10 @@ class ESTTool:
                 tres = tres["record_set"]
                 print("*" * DIVIDER_WIDTH)
                 print(f'"{bres[1]}" by {bres[2]} has {bres[7]} pages.\n')
-                for i in range(len(tres["RecordID"])):  # print all records
-                    print(f'  Start date: {tres["RecordID"][i][0]}   Record ID: {tres["RecordID"][i][1]}')
+                for i in range(len(tres["RecordId"])):  # print all records
+                    print(f'  Start date: {tres["RecordId"][i][0]}   Record ID: {tres["RecordId"][i][1]}')
                     print(f'  Estimated Finish: {tres["Estimate"][i][0]}  Earliest: {tres["Estimate"][i][1]}   Latest: {tres["Estimate"][i][2]}')
-                    print(f'  ----------') if len(tres["RecordID"]) > 1 else None
+                    print(f'  ----------') if len(tres["RecordId"]) > 1 else None
                 print("*" * DIVIDER_WIDTH)
             self.result = book_id
 
@@ -85,7 +85,7 @@ class ESTTool:
             date = datetime.datetime.now().strftime(FMT)
         # find record id
         q = self.end_point + f"/add_date_page"
-        payload = {"RecordID": record_id, "RecordDate": date, "Page": page}
+        payload = {"RecordId": record_id, "RecordDate": date, "Page": page}
         try:
             tr = requests.post(q, json=payload, headers=self.header)
             res = tr.json()
@@ -96,7 +96,7 @@ class ESTTool:
                 logging.error(f'Error: {res["error"]}')
             else:
                 res = res["add_date_page"]
-                print(f'{res["RecordID"]} read to page {res["Page"]} on {date}.')
+                print(f'{res["RecordId"]} read to page {res["Page"]} on {date}.')
         self.result = record_id
 
     aps = add_page_date

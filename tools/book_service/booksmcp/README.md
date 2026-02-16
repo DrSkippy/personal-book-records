@@ -5,7 +5,7 @@ A Model Context Protocol (MCP) server that provides book and tag search function
 ## Overview
 
 This MCP server exposes a books database through two main tools:
-- **search_books** - Search books by title, author, ISBN, category, tags, and more
+- **search_books** - Search books by title, author, ISBN, tags, and more
 - **search_tags** - Search books by tag labels
 
 The server uses the latest MCP specifications (2025-03-26) with FastMCP and streamable HTTP transport for efficient, scalable communication.
@@ -60,7 +60,7 @@ Or use Docker (recommended).
 
 2. **Set environment variables:**
    ```bash
-   export PORT=3002
+   export PORT=3005
    export HOST=0.0.0.0
    export BOOKDB_CONFIG=/path/to/config/configuration.json
    ```
@@ -77,7 +77,7 @@ Or use Docker (recommended).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PORT` | `3002` | Server port |
+| `PORT` | `3005` | Server port |
 | `HOST` | `0.0.0.0` | Server host |
 | `BOOKDB_CONFIG` | `/app/config/configuration.json` | Database configuration file path |
 
@@ -89,7 +89,7 @@ The server requires a configuration file at the path specified by `BOOKDB_CONFIG
 {
   "username": "db_user",
   "password": "db_password",
-  "database": "books",
+  "database": "book_collection",
   "host": "localhost",
   "port": 3306
 }
@@ -98,7 +98,7 @@ The server requires a configuration file at the path specified by `BOOKDB_CONFIG
 ### Docker Compose
 
 The `docker-compose.yml` file includes:
-- Port mapping (3002:3002)
+- Port mapping (3005:3005)
 - Health checks
 - Automatic restart policy
 - Network configuration
@@ -136,8 +136,8 @@ The `docker-compose.yml` file includes:
     "tools": [
       {
         "name": "search_books",
-        "description": "Search books by title, author, ISBN, category, tags, etc.",
-        "parameters": ["Title", "Author", "ISBNNumber", "ISBNNumber13", "PublisherName", "Category", "Location", "Tags", "ReadDate"]
+        "description": "Search books by title, author, ISBN, tags, etc.",
+        "parameters": ["Title", "Author", "IsbnNumber", "IsbnNumber13", "PublisherName", "Location", "Tags", "ReadDate"]
       },
       {
         "name": "search_tags",
@@ -157,10 +157,9 @@ Search books by various criteria.
 **Parameters:**
 - `Title` (string, optional) - Book title to search for
 - `Author` (string, optional) - Author name to search for
-- `ISBNNumber` (string, optional) - ISBN-10 number
-- `ISBNNumber13` (string, optional) - ISBN-13 number
+- `IsbnNumber` (string, optional) - ISBN-10 number
+- `IsbnNumber13` (string, optional) - ISBN-13 number
 - `PublisherName` (string, optional) - Publisher name
-- `Category` (string, optional) - Book category
 - `Location` (string, optional) - Book location
 - `Tags` (string, optional) - Tags associated with the book
 - `ReadDate` (string, optional) - Date when the book was read
@@ -176,13 +175,12 @@ Search books by various criteria.
   "count": 5,
   "results": [
     {
-      "BookID": "123",
+      "BookId": "123",
       "Title": "The Lord of the Rings",
       "Author": "J.R.R. Tolkien",
-      "ISBNNumber": "0618574948",
-      "ISBNNumber13": "9780618574940",
+      "IsbnNumber": "0618574948",
+      "IsbnNumber13": "9780618574940",
       "PublisherName": "Houghton Mifflin",
-      "Category": "Fantasy",
       "Location": "Shelf A1",
       "ReadDate": "2024-01-15"
     }
@@ -206,10 +204,10 @@ Search for books by tag labels.
   "count": 12,
   "results": [
     {
-      "BookID": "456",
+      "BookId": "456",
       "Title": "A Brief History of Time",
-      "TagLabel": "history",
-      "TagID": "78"
+      "Tag": "history",
+      "TagId": "78"
     }
   ]
 }
@@ -220,7 +218,7 @@ Search for books by tag labels.
 ### 1. Basic Health Check
 
 ```bash
-curl http://localhost:3002/health
+curl http://localhost:3005/health
 ```
 
 Expected response:
@@ -231,7 +229,7 @@ Expected response:
 ### 2. Server Information
 
 ```bash
-curl http://localhost:3002/info
+curl http://localhost:3005/info
 ```
 
 ### 3. MCP Client Configuration
@@ -242,7 +240,7 @@ Configure your MCP client (like Claude Desktop) with the server URL:
 {
   "mcpServers": {
     "books": {
-      "url": "http://localhost:3002/mcp"
+      "url": "http://localhost:3005/mcp"
     }
   }
 }
@@ -260,7 +258,7 @@ async def test_books_search():
     # This is a conceptual example
     server_params = StdioServerParameters(
         command="http",
-        args=["http://localhost:3002/mcp"]
+        args=["http://localhost:3005/mcp"]
     )
 
     async with stdio_client(server_params) as (read, write):
@@ -286,7 +284,7 @@ Use curl to test the MCP protocol directly:
 
 ```bash
 # Initialize connection
-curl -X POST http://localhost:3002/mcp \
+curl -X POST http://localhost:3005/mcp \
   -H "Content-Type: application/json" \
   -d '{
     "jsonrpc": "2.0",
@@ -302,7 +300,7 @@ curl -X POST http://localhost:3002/mcp \
   }'
 
 # List available tools
-curl -X POST http://localhost:3002/mcp \
+curl -X POST http://localhost:3005/mcp \
   -H "Content-Type: application/json" \
   -d '{
     "jsonrpc": "2.0",
@@ -311,7 +309,7 @@ curl -X POST http://localhost:3002/mcp \
   }'
 
 # Call search_books tool
-curl -X POST http://localhost:3002/mcp \
+curl -X POST http://localhost:3005/mcp \
   -H "Content-Type: application/json" \
   -d '{
     "jsonrpc": "2.0",
@@ -326,7 +324,7 @@ curl -X POST http://localhost:3002/mcp \
   }'
 
 # Call search_tags tool
-curl -X POST http://localhost:3002/mcp \
+curl -X POST http://localhost:3005/mcp \
   -H "Content-Type: application/json" \
   -d '{
     "jsonrpc": "2.0",
@@ -392,20 +390,6 @@ docker-compose logs --tail=100 booksmcp
 }
 ```
 
-### Search by Multiple Criteria
-```json
-{
-  "method": "tools/call",
-  "params": {
-    "name": "search_books",
-    "arguments": {
-      "Author": "asimov",
-      "Category": "science fiction"
-    }
-  }
-}
-```
-
 ### Search by Tags
 ```json
 {
@@ -422,7 +406,7 @@ docker-compose logs --tail=100 booksmcp
 ## Troubleshooting
 
 ### Server won't start
-- Check if port 3002 is already in use: `lsof -i :3002`
+- Check if port 3005 is already in use: `lsof -i :3005`
 - Verify environment variables are set correctly
 - Check Docker logs: `docker-compose logs booksmcp`
 
@@ -433,9 +417,9 @@ docker-compose logs --tail=100 booksmcp
 - For local MySQL, use `host.docker.internal` as host in Docker
 
 ### MCP client connection issues
-- Verify server is running: `curl http://localhost:3002/health`
+- Verify server is running: `curl http://localhost:3005/health`
 - Check firewall settings
-- Ensure client is using correct URL: `http://localhost:3002/mcp`
+- Ensure client is using correct URL: `http://localhost:3005/mcp`
 - Review server logs for connection errors
 
 ### Empty search results
@@ -538,7 +522,7 @@ If upgrading from v1.0.0:
    - New: `/mcp` (GET/POST) - single endpoint
 
 2. **MCP clients need updating:**
-   - Update URL to `http://localhost:3002/mcp`
+   - Update URL to `http://localhost:3005/mcp`
    - Streamable HTTP transport now used
 
 3. **Dependencies changed:**

@@ -23,10 +23,10 @@ class TestBCTool(unittest.TestCase):
         self.assertIsNone(self.bc_tool.result)
 
     def test_column_index_constants(self):
-        self.assertEqual(BCTool.COLUMN_INDEX["BookCollectionID"], 0)
+        self.assertEqual(BCTool.COLUMN_INDEX["BookId"], 0)
         self.assertEqual(BCTool.COLUMN_INDEX["Title"], 1)
         self.assertEqual(BCTool.COLUMN_INDEX["Author"], 2)
-        self.assertIn("Note", BCTool.COLUMN_INDEX)
+        self.assertIn("BookNote", BCTool.COLUMN_INDEX)
 
     def test_row_column_selector(self):
         row = [1, 2, 3, 4, 5]
@@ -65,7 +65,7 @@ class TestBCTool(unittest.TestCase):
         with patch('sys.stdout', new=StringIO()) as fake_out:
             self.bc_tool.columns()
             output = fake_out.getvalue()
-            self.assertIn("BookCollectionID", output)
+            self.assertIn("BookId", output)
             self.assertIn("Title", output)
             self.assertIn("Author", output)
 
@@ -119,7 +119,7 @@ class TestBCTool(unittest.TestCase):
         mock_response = Mock()
         mock_response.json.return_value = {
             "data": [[1, "fiction", "Book 1"], [2, "fiction", "Book 2"]],
-            "header": ["BookCollectionID", "Tag", "Title"]
+            "header": ["BookId", "Tag", "Title"]
         }
         mock_get.return_value = mock_response
 
@@ -226,7 +226,7 @@ class TestBCTool(unittest.TestCase):
     def test_add_books_success(self, mock_post):
         mock_response = Mock()
         mock_response.json.return_value = {
-            "add_books": [{"BookCollectionID": 1}, {"BookCollectionID": 2}]
+            "add_books": [{"BookId": 1}, {"BookId": 2}]
         }
         mock_post.return_value = mock_response
 
@@ -275,7 +275,7 @@ class TestBCTool(unittest.TestCase):
         mock_response = Mock()
         mock_response.json.return_value = {
             "data": [[1, "new_tag", "Book 1"]],
-            "header": ["BookCollectionID", "Tag", "Title"]
+            "header": ["BookId", "Tag", "Title"]
         }
         mock_get.return_value = mock_response
 
@@ -294,7 +294,7 @@ class TestBCTool(unittest.TestCase):
         # _inputer needs: input for ReadDate, input for ReadNote, then 'a' to accept
         with patch('builtins.input', side_effect=["a", "a", "a"]):
             result = self.bc_tool._populate_add_read_date(1)
-            self.assertEqual(result["BookCollectionID"], 1)
+            self.assertEqual(result["BookId"], 1)
             self.assertIn("ReadDate", result)
             self.assertIn("ReadNote", result)
 

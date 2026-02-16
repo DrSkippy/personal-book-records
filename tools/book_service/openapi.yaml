@@ -1,0 +1,1818 @@
+openapi: 3.1.0
+
+info:
+  title: Book Service API
+  version: 0.16.2
+  description: |
+    Comprehensive REST API for personal book collection management.
+
+    Features:
+    - Book catalog management (add, update, search)
+    - Reading history tracking with notes
+    - Tag system for flexible categorization
+    - Reading progress estimation with daily tracking
+    - Image management for book covers
+    - Visualization generation (charts and statistics)
+    - ISBN lookup integration
+
+    All endpoints require API key authentication via the `x-api-key` header.
+
+  contact:
+    name: Book Service API Support
+  license:
+    name: Proprietary
+
+servers:
+  - url: http://localhost:8084
+    description: Local development server
+  - url: http://localhost:9999
+    description: Docker test instance
+
+security:
+  - ApiKeyAuth: []
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
+      description: API key for authentication. Configure in configuration.json or API_KEY environment variable.
+
+  schemas:
+    BookRecord:
+      type: object
+      required:
+        - Title
+        - Author
+        - Location
+      properties:
+        BookId:
+          type: integer
+          readOnly: true
+          description: Auto-generated primary key
+          example: 1234
+        Title:
+          type: string
+          maxLength: 200
+          description: Book title
+          example: "The Hobbit"
+        Author:
+          type: string
+          maxLength: 200
+          description: Author name (typically formatted as "Last, First")
+          example: "Tolkien, J.R.R."
+        CopyrightDate:
+          type: string
+          description: Copyright date in YYYY-MM-DD or YYYY format. Year-only format is automatically converted to YYYY-01-01
+          example: "1937-01-01"
+        IsbnNumber:
+          type: string
+          maxLength: 13
+          description: ISBN-10 number
+          example: "0345339681"
+        IsbnNumber13:
+          type: string
+          maxLength: 13
+          description: ISBN-13 number
+          example: "9780345339683"
+        PublisherName:
+          type: string
+          maxLength: 50
+          description: Publisher name
+          example: "Del Rey"
+        CoverType:
+          type: string
+          maxLength: 30
+          description: Physical cover type
+          enum: [Hard, Soft, Digital]
+          example: "Soft"
+        Pages:
+          type: integer
+          format: int16
+          description: Number of pages
+          example: 300
+        BookNote:
+          type: string
+          description: Personal notes about the book
+          example: "First edition, signed copy"
+        Recycled:
+          type: integer
+          enum: [0, 1]
+          description: Soft delete flag (0=active, 1=removed/donated)
+          default: 0
+          example: 0
+        Location:
+          type: string
+          maxLength: 50
+          description: Physical location of book. Must be from valid_locations list
+          example: "Main Collection"
+        LastUpdate:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Automatic timestamp of last update
+          example: "2024-01-15T10:30:00Z"
+
+    ReadDate:
+      type: object
+      required:
+        - BookId
+        - ReadDate
+      properties:
+        BookId:
+          type: integer
+          description: Foreign key to book collection
+          example: 1234
+        ReadDate:
+          type: string
+          format: date
+          description: Date when book was read (YYYY-MM-DD)
+          example: "2024-01-15"
+        ReadNote:
+          type: string
+          description: Notes about this reading
+          example: "Re-read for book club"
+        LastUpdate:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Automatic timestamp of last update
+
+    Tag:
+      type: object
+      properties:
+        TagId:
+          type: integer
+          readOnly: true
+          description: Auto-generated tag ID
+          example: 42
+        Label:
+          type: string
+          maxLength: 50
+          description: Tag label (automatically converted to lowercase and trimmed)
+          example: "science-fiction"
+
+    Image:
+      type: object
+      required:
+        - BookId
+      properties:
+        ImageId:
+          type: integer
+          readOnly: true
+          description: Auto-generated image ID
+          example: 1
+        BookId:
+          type: integer
+          description: Foreign key to book collection
+          example: 1234
+        Name:
+          type: string
+          maxLength: 255
+          description: Image filename
+          example: "cover.jpg"
+        Url:
+          type: string
+          maxLength: 255
+          description: Image URL (validated for accessibility and content-type)
+          example: "https://example.com/images/cover.jpg"
+        ImageType:
+          type: string
+          maxLength: 64
+          default: "cover-face"
+          description: Image type classification
+          example: "cover-face"
+
+    EstimateRecord:
+      type: object
+      properties:
+        RecordId:
+          type: integer
+          readOnly: true
+          description: Auto-generated record ID
+          example: 75
+        BookId:
+          type: integer
+          description: Foreign key to book collection
+          example: 1234
+        StartDate:
+          type: string
+          format: date-time
+          description: When reading estimate started
+          example: "2024-01-01T00:00:00"
+        LastReadablePage:
+          type: integer
+          description: Total number of readable pages in book
+          example: 300
+        EstimateDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: Date of estimate calculation
+        EstimatedFinishDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: Predicted finish date based on reading pace
+
+    DailyPageRecord:
+      type: object
+      required:
+        - RecordId
+        - RecordDate
+        - Page
+      properties:
+        RecordId:
+          type: integer
+          description: Foreign key to complete date estimates
+          example: 75
+        RecordDate:
+          type: string
+          format: date
+          description: Date of reading progress
+          example: "2024-01-15"
+        Page:
+          type: integer
+          description: Page number reached on this date
+          example: 150
+        LastUpdate:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Automatic timestamp of last update
+
+    StandardResponse:
+      type: object
+      description: Standard response format for query endpoints
+      properties:
+        data:
+          type: array
+          description: Result rows as arrays
+          items:
+            type: array
+            items:
+              oneOf:
+                - type: string
+                - type: integer
+                - type: number
+                - type: null
+        header:
+          type: array
+          description: Column names corresponding to data fields
+          items:
+            type: string
+        error:
+          type: array
+          description: Error messages (optional)
+          items:
+            type: string
+      example:
+        data:
+          - [1234, "The Hobbit", "Tolkien, J.R.R.", "1937-01-01", 300]
+          - [1235, "Foundation", "Asimov, Isaac", "1951-01-01", 255]
+        header: ["BookId", "Title", "Author", "CopyrightDate", "Pages"]
+        error: []
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+          description: Error message(s)
+          example: "Missing required field: BookId"
+
+    ConfigurationResponse:
+      type: object
+      properties:
+        version:
+          type: string
+          description: API version
+          example: "0.16.2"
+        configuration:
+          type: object
+          description: Database configuration (passwords masked)
+          properties:
+            user:
+              type: string
+            db:
+              type: string
+            host:
+              type: string
+            port:
+              type: integer
+            passwd:
+              type: string
+              example: "******"
+        isbn_configuration:
+          type: object
+          description: ISBN lookup configuration (API keys masked)
+          properties:
+            url_isbn:
+              type: string
+            key:
+              type: string
+              example: "******"
+        date:
+          type: string
+          format: date-time
+          description: Current server date/time
+          example: "2024-01-15T10:30"
+
+paths:
+  /favicon.ico:
+    get:
+      summary: Favicon
+      description: Returns 204 No Content for favicon requests
+      security: []
+      responses:
+        '204':
+          description: No Content
+
+  /health:
+    get:
+      summary: Health check
+      description: Returns OK if the service is running
+      security: []
+      tags:
+        - Configuration & Metadata
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "OK"
+
+  /configuration:
+    get:
+      summary: Get API configuration
+      description: Retrieves API version, database configuration, ISBN configuration, and current timestamp. Sensitive values are masked.
+      tags:
+        - Configuration & Metadata
+      responses:
+        '200':
+          description: Configuration retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigurationResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /valid_locations:
+    get:
+      summary: Get valid book locations
+      description: Retrieve list of all valid locations where books can be stored
+      tags:
+        - Configuration & Metadata
+      responses:
+        '200':
+          description: Valid locations retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+              example:
+                data:
+                  - ["Main Collection"]
+                  - ["Bedroom"]
+                  - ["Storage"]
+                header: ["Location"]
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /recent:
+    get:
+      summary: Get recently updated books (default 10)
+      description: Retrieves books with most recent updates, default limit 10
+      tags:
+        - Query Operations
+      responses:
+        '200':
+          description: Recent books retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /recent/{limit}:
+    get:
+      summary: Get N recently updated books
+      description: Retrieves specified number of books with most recent updates
+      tags:
+        - Query Operations
+      parameters:
+        - name: limit
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: Maximum number of books to return
+          example: 20
+      responses:
+        '200':
+          description: Recent books retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /books_search:
+    get:
+      summary: Search books (GET)
+      description: |
+        Search for books using query parameters. Supports multiple filter criteria.
+
+        Supported parameters:
+        - BookId: Exact match
+        - Title: LIKE pattern match
+        - Author: LIKE pattern match
+        - Location: LIKE pattern match
+        - IsbnNumber: Exact match
+        - IsbnNumber13: Exact match
+        - Recycled: Exact match (0 or 1)
+
+        Results ordered by Author, Title
+      tags:
+        - Query Operations
+      parameters:
+        - name: BookId
+          in: query
+          schema:
+            type: integer
+          description: Exact book ID match
+        - name: Title
+          in: query
+          schema:
+            type: string
+          description: Title search (supports % wildcards)
+        - name: Author
+          in: query
+          schema:
+            type: string
+          description: Author search (supports % wildcards)
+        - name: Location
+          in: query
+          schema:
+            type: string
+          description: Location filter
+        - name: IsbnNumber
+          in: query
+          schema:
+            type: string
+          description: ISBN-10 exact match
+        - name: IsbnNumber13
+          in: query
+          schema:
+            type: string
+          description: ISBN-13 exact match
+        - name: Recycled
+          in: query
+          schema:
+            type: integer
+            enum: [0, 1]
+          description: Filter by recycled status
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    post:
+      summary: Search books (POST)
+      description: Same as GET /books_search but using POST method with query parameters
+      tags:
+        - Query Operations
+      parameters:
+        - name: BookId
+          in: query
+          schema:
+            type: integer
+        - name: Title
+          in: query
+          schema:
+            type: string
+        - name: Author
+          in: query
+          schema:
+            type: string
+        - name: Location
+          in: query
+          schema:
+            type: string
+        - name: IsbnNumber
+          in: query
+          schema:
+            type: string
+        - name: IsbnNumber13
+          in: query
+          schema:
+            type: string
+        - name: Recycled
+          in: query
+          schema:
+            type: integer
+            enum: [0, 1]
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /complete_record/{book_id}:
+    get:
+      summary: Get complete book record
+      description: Retrieve complete book record including reads, tags, and images
+      tags:
+        - Query Operations
+      parameters:
+        - name: book_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Book collection ID
+          example: 1234
+      responses:
+        '200':
+          description: Complete book record
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  book:
+                    type: array
+                    description: Book record details
+                    items:
+                      $ref: '#/components/schemas/BookRecord'
+                  reads:
+                    type: array
+                    description: Reading history
+                    items:
+                      type: object
+                      properties:
+                        DateRead:
+                          type: string
+                          format: date
+                        ReadNote:
+                          type: string
+                  tags:
+                    type: array
+                    description: Tag arrays
+                    items:
+                      type: array
+                      items:
+                        type: string
+                  img:
+                    type: array
+                    description: Image URL arrays
+                    items:
+                      type: array
+                      items:
+                        type: string
+              example:
+                book:
+                  - BookId: 1234
+                    Title: "The Hobbit"
+                    Author: "Tolkien, J.R.R."
+                    CopyrightDate: "1937-01-01"
+                    Pages: 300
+                    Location: "Main Collection"
+                    Recycled: 0
+                reads:
+                  - DateRead: "2024-01-15"
+                    ReadNote: "Great book!"
+                tags:
+                  - ["fantasy", "classics"]
+                img:
+                  - ["https://example.com/cover.jpg"]
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /complete_record/{book_id}/{adjacent}:
+    get:
+      summary: Navigate to adjacent book record
+      description: |
+        Retrieve complete book record for next or previous book in collection.
+        Navigation wraps around at collection boundaries.
+      tags:
+        - Query Operations
+      parameters:
+        - name: book_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Current book collection ID
+        - name: adjacent
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [next, prev, previous]
+          description: Navigation direction (next or prev/previous)
+      responses:
+        '200':
+          description: Adjacent book record (same format as /complete_record/{book_id})
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /complete_records_window/{book_id}/{window}:
+    get:
+      summary: Get window of book records
+      description: Retrieve multiple complete book records in a window around the specified book ID
+      tags:
+        - Query Operations
+      parameters:
+        - name: book_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Center book collection ID
+        - name: window
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: Number of records to include in window
+          example: 20
+      responses:
+        '200':
+          description: Array of complete book records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  description: Same format as /complete_record/{book_id}
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /complete_record_window:
+    post:
+      summary: Get complete records by BookId list
+      description: Retrieve complete book records for a list of BookIds
+      tags:
+        - Query Operations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - book_ids
+              properties:
+                book_ids:
+                  type: array
+                  items:
+                    type: integer
+                  description: List of BookIds to retrieve
+            example:
+              book_ids: [1, 2, 3]
+      responses:
+        '200':
+          description: Array of complete book records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /books_read:
+    get:
+      summary: Get all books read
+      description: Retrieve all books that have been read (all years)
+      tags:
+        - Reading History
+      responses:
+        '200':
+          description: Books read across all years
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /books_read/{target_year}:
+    get:
+      summary: Get books read in specific year
+      description: Retrieve books read during a specific year
+      tags:
+        - Reading History
+      parameters:
+        - name: target_year
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Year to filter by (YYYY)
+          example: 2024
+      responses:
+        '200':
+          description: Books read in specified year
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /summary_books_read_by_year:
+    get:
+      summary: Get reading summary for all years
+      description: Retrieve statistical summary of books read grouped by year
+      tags:
+        - Reading History
+      responses:
+        '200':
+          description: Reading statistics for all years
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+              example:
+                data:
+                  - [2024, 45, 12500]
+                  - [2023, 52, 15000]
+                header: ["year", "books read", "pages read"]
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /summary_books_read_by_year/{target_year}:
+    get:
+      summary: Get reading summary for specific year
+      description: Retrieve statistical summary of books read for a specific year
+      tags:
+        - Reading History
+      parameters:
+        - name: target_year
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Year to get summary for
+          example: 2024
+      responses:
+        '200':
+          description: Reading statistics for specified year
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /status_read/{book_id}:
+    get:
+      summary: Get read status for book
+      description: Check if and when a specific book has been read
+      tags:
+        - Reading History
+      parameters:
+        - name: book_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Book collection ID
+          example: 1234
+      responses:
+        '200':
+          description: Read status information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /tags/{book_id}:
+    get:
+      summary: Get tags for book
+      description: Retrieve all tags associated with a specific book
+      tags:
+        - Tag Management
+      parameters:
+        - name: book_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Book collection ID
+          example: 1234
+      responses:
+        '200':
+          description: Tags for the book
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tags:
+                    type: array
+                    items:
+                      type: string
+                  error:
+                    type: array
+                    items:
+                      type: string
+              example:
+                tags: ["science-fiction", "classics", "award-winner"]
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /tag_counts:
+    get:
+      summary: Get all tag counts
+      description: Retrieve count of books for each tag
+      tags:
+        - Tag Management
+      responses:
+        '200':
+          description: Tag usage counts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+              example:
+                data:
+                  - ["science-fiction", 45]
+                  - ["fantasy", 38]
+                  - ["mystery", 22]
+                header: ["tag", "count"]
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /tag_counts/{tag}:
+    get:
+      summary: Get counts for tags with prefix
+      description: Retrieve counts for tags that start with the specified prefix
+      tags:
+        - Tag Management
+      parameters:
+        - name: tag
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Tag prefix to search for
+          example: "sci"
+      responses:
+        '200':
+          description: Matching tag counts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /tags_search/{match_str}:
+    get:
+      summary: Search books by tag
+      description: Find all books that have a tag matching the search string
+      tags:
+        - Tag Management
+      parameters:
+        - name: match_str
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Tag to search for
+          example: "science-fiction"
+      responses:
+        '200':
+          description: Books with matching tag
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /add_tag/{book_id}/{tag}:
+    put:
+      summary: Add tag to book
+      description: Add a new tag to a book. Tag is automatically converted to lowercase and trimmed.
+      tags:
+        - Tag Management
+      parameters:
+        - name: book_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Book collection ID
+          example: 1234
+        - name: tag
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Tag to add (will be normalized to lowercase)
+          example: "Science-Fiction"
+      responses:
+        '200':
+          description: Tag added successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result:
+                    type: string
+                  error:
+                    type: array
+                    items:
+                      type: string
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /update_tag_value/{current}/{updated}:
+    put:
+      summary: Rename tag globally
+      description: |
+        Rename a tag across all books. The updated tag is automatically
+        converted to lowercase and trimmed. This affects all books with the tag.
+      tags:
+        - Tag Management
+      parameters:
+        - name: current
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Current tag name
+          example: "sci-fi"
+        - name: updated
+          in: path
+          required: true
+          schema:
+            type: string
+          description: New tag name (will be normalized)
+          example: "science-fiction"
+      responses:
+        '200':
+          description: Tag renamed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      tag_update:
+                        type: string
+                        example: "sci-fi >> science-fiction"
+                      updated_tags:
+                        type: integer
+                        description: Number of tag labels updated
+                  error:
+                    type: string
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /tag_maintenance:
+    get:
+      summary: Normalize all tags
+      description: |
+        Perform maintenance on tags by converting all to lowercase and trimming whitespace.
+        This is a utility endpoint for cleaning up tag data.
+      tags:
+        - Tag Management
+      responses:
+        '200':
+          description: Tag maintenance completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tag_maintenance:
+                    type: object
+                  error:
+                    type: array
+                    items:
+                      type: string
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /delete_book/{book_id}:
+    delete:
+      summary: Delete a book
+      description: Delete a book and all related records. CASCADE foreign keys automatically remove related reads, tags, images, and estimates.
+      tags:
+        - Mutation Operations
+      parameters:
+        - name: book_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Book ID to delete
+          example: 1234
+      responses:
+        '200':
+          description: Book deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  delete_book:
+                    type: object
+                    properties:
+                      BookId:
+                        type: integer
+                      status:
+                        type: string
+                        example: "deleted"
+                  error:
+                    type: string
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /add_books:
+    post:
+      summary: Add new books
+      description: |
+        Add one or more books to the collection. Accepts an array of book records.
+        Returns the inserted records with their auto-generated BookIds.
+
+        CopyrightDate can be in YYYY or YYYY-MM-DD format. Year-only dates
+        are automatically converted to YYYY-01-01.
+      tags:
+        - Mutation Operations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/BookRecord'
+            example:
+              - Title: "The Hobbit"
+                Author: "Tolkien, J.R.R."
+                CopyrightDate: "1937"
+                IsbnNumber: "0345339681"
+                IsbnNumber13: "9780345339683"
+                PublisherName: "Del Rey"
+                CoverType: "Soft"
+                Pages: 300
+                Location: "Main Collection"
+                BookNote: ""
+                Recycled: 0
+      responses:
+        '200':
+          description: Books added successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  add_books:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/BookRecord'
+                        - type: object
+                          properties:
+                            error:
+                              type: string
+              example:
+                add_books:
+                  - BookId: 1234
+                    Title: "The Hobbit"
+                    Author: "Tolkien, J.R.R."
+                    CopyrightDate: "1937-01-01"
+                    IsbnNumber: "0345339681"
+                    Pages: 300
+                    Location: "Main Collection"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /add_read_dates:
+    post:
+      summary: Add read dates for books
+      description: |
+        Record that one or more books were read on specific dates.
+        Accepts an array of read date records.
+      tags:
+        - Mutation Operations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/ReadDate'
+            example:
+              - BookId: 1234
+                ReadDate: "2024-01-15"
+                ReadNote: "Re-read for book club"
+      responses:
+        '200':
+          description: Read dates added successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  update_read_dates:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ReadDate'
+                  error:
+                    type: array
+                    items:
+                      type: string
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /books_by_isbn:
+    post:
+      summary: Add books by ISBN lookup
+      description: |
+        Look up books by ISBN using ISBNdb.com API and add them to collection.
+        Automatically populates book metadata from ISBN database.
+      tags:
+        - Mutation Operations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - isbn_list
+              properties:
+                isbn_list:
+                  type: array
+                  items:
+                    type: string
+                  description: Array of ISBN numbers (10 or 13 digit)
+            example:
+              isbn_list: ["0060929480", "9780345339683"]
+      responses:
+        '200':
+          description: ISBN lookup results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  book_records:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BookRecord'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /update_book_record:
+    post:
+      summary: Update book record
+      description: |
+        Update any fields of a book record. Only fields present in the request
+        will be updated. BookId is required.
+      tags:
+        - Mutation Operations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/BookRecord'
+                - type: object
+                  required:
+                    - BookId
+            example:
+              BookId: 1234
+              BookNote: "Updated note"
+              Recycled: 0
+      responses:
+        '200':
+          description: Book updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  update_read:
+                    type: array
+                    items:
+                      type: object
+        '400':
+          description: Missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Missing required fields: BookId, and any other field"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /update_book_note_status:
+    post:
+      summary: Update book note and/or recycled status
+      description: |
+        Update just the BookNote and/or Recycled fields of a book record.
+        At least one of BookNote or Recycled must be provided.
+      tags:
+        - Mutation Operations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - BookId
+              properties:
+                BookId:
+                  type: integer
+                BookNote:
+                  type: string
+                Recycled:
+                  type: integer
+                  enum: [0, 1]
+            example:
+              BookId: 1234
+              BookNote: "Donated to library"
+              Recycled: 1
+      responses:
+        '200':
+          description: Book status updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  update_read:
+                    type: array
+        '400':
+          description: Missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Missing required fields: BookId, BookNote OR Recycled"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /update_edit_read_note:
+    post:
+      summary: Update reading note
+      description: Update the note for a specific book reading (BookId + ReadDate combination)
+      tags:
+        - Mutation Operations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - BookId
+                - ReadDate
+                - ReadNote
+              properties:
+                BookId:
+                  type: integer
+                ReadDate:
+                  type: string
+                  format: date
+                ReadNote:
+                  type: string
+            example:
+              BookId: 1234
+              ReadDate: "2024-01-15"
+              ReadNote: "Updated note about this reading"
+      responses:
+        '200':
+          description: Read note updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  update_read:
+                    type: array
+                    items:
+                      type: object
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /record_set/{book_id}:
+    get:
+      summary: Get reading estimate records
+      description: Retrieve all reading estimate records for a book, including completion estimates
+      tags:
+        - Reading Estimates
+      parameters:
+        - name: book_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Book collection ID
+          example: 1234
+      responses:
+        '200':
+          description: Reading estimate records
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  record_set:
+                    type: object
+                    properties:
+                      BookId:
+                        type: integer
+                      RecordId:
+                        type: array
+                        items:
+                          type: array
+                          items:
+                            oneOf:
+                              - type: string
+                              - type: integer
+                      Estimate:
+                        type: array
+                        items:
+                          type: object
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /date_page_records/{record_id}:
+    get:
+      summary: Get daily page records
+      description: Retrieve daily reading progress records for a specific estimate record
+      tags:
+        - Reading Estimates
+      parameters:
+        - name: record_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Estimate record ID
+          example: 75
+      responses:
+        '200':
+          description: Daily page records
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  date_page_records:
+                    type: array
+                    items:
+                      type: array
+                      items:
+                        oneOf:
+                          - type: string
+                          - type: integer
+                      description: "[RecordDate, Page, DayNumber]"
+                  RecordId:
+                    type: integer
+                  error:
+                    type: string
+              example:
+                date_page_records:
+                  - ["2024-01-15", 50, 1]
+                  - ["2024-01-16", 100, 2]
+                  - ["2024-01-17", 150, 3]
+                RecordId: 75
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /add_book_estimate/{book_id}/{last_readable_page}:
+    put:
+      summary: Create reading estimate (current date)
+      description: |
+        Create a new reading estimate record for a book with current date as start date.
+        Returns RecordId that can be used to track daily page progress.
+      tags:
+        - Reading Estimates
+      parameters:
+        - name: book_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Book collection ID
+          example: 1234
+        - name: last_readable_page
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Total number of readable pages in book
+          example: 300
+      responses:
+        '200':
+          description: Estimate created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  add_book_estimate:
+                    type: object
+                    properties:
+                      BookId:
+                        type: string
+                      LastReadablePage:
+                        type: string
+                      StartDate:
+                        type: string
+                  error:
+                    type: string
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /add_book_estimate/{book_id}/{last_readable_page}/{start_date}:
+    put:
+      summary: Create reading estimate (custom start date)
+      description: Create a new reading estimate record for a book with custom start date
+      tags:
+        - Reading Estimates
+      parameters:
+        - name: book_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Book collection ID
+          example: 1234
+        - name: last_readable_page
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Total number of readable pages in book
+          example: 300
+        - name: start_date
+          in: path
+          required: true
+          schema:
+            type: string
+            format: date
+          description: Start date for reading estimate (YYYY-MM-DD)
+          example: "2024-01-01"
+      responses:
+        '200':
+          description: Estimate created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  add_book_estimate:
+                    type: object
+                    properties:
+                      BookId:
+                        type: string
+                      LastReadablePage:
+                        type: string
+                      StartDate:
+                        type: string
+                  error:
+                    type: string
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /add_date_page:
+    post:
+      summary: Add daily reading progress
+      description: Record page progress for a specific date on an existing reading estimate
+      tags:
+        - Reading Estimates
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DailyPageRecord'
+            example:
+              RecordId: 75
+              RecordDate: "2024-01-15"
+              Page: 150
+      responses:
+        '200':
+          description: Page record added successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  add_date_page:
+                    $ref: '#/components/schemas/DailyPageRecord'
+                  error:
+                    type: string
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /images/{book_id}:
+    get:
+      summary: Get images for book
+      description: Retrieve all image metadata for a specific book
+      tags:
+        - Image Management
+      parameters:
+        - name: book_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Book collection ID
+          example: 1234
+      responses:
+        '200':
+          description: Image list retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  BookId:
+                    type: integer
+                  images:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Image'
+                  count:
+                    type: integer
+                  error:
+                    type: array
+                    items:
+                      type: string
+              example:
+                BookId: 1234
+                images:
+                  - ImageId: 1
+                    BookId: 1234
+                    Name: "cover.jpg"
+                    Url: "https://example.com/cover.jpg"
+                    ImageType: "cover-face"
+                count: 1
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /add_image:
+    post:
+      summary: Add image metadata
+      description: |
+        Add image metadata to database. For web URLs (http/https), validates that
+        URL is accessible and returns an image content-type.
+      tags:
+        - Image Management
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Image'
+            example:
+              BookId: 1234
+              Name: "cover.jpg"
+              Url: "https://example.com/images/cover.jpg"
+              ImageType: "cover-face"
+      responses:
+        '200':
+          description: Image added successfully (includes auto-generated ImageId)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  add_image:
+                    $ref: '#/components/schemas/Image'
+                  error:
+                    type: string
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                missing_field:
+                  value:
+                    error: "Missing required field: BookId"
+                url_not_accessible:
+                  value:
+                    error: "Image URL not accessible (status 404): https://example.com/missing.jpg"
+                not_an_image:
+                  value:
+                    error: "URL does not appear to be an image (content-type: text/html)"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /upload_image:
+    post:
+      summary: Upload image file
+      description: |
+        Upload an image file to the server. File is saved to /app/uploads directory
+        with a secure filename. Supports multipart/form-data.
+      tags:
+        - Image Management
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Image file to upload
+                filename:
+                  type: string
+                  description: Optional custom filename (will be sanitized)
+      responses:
+        '200':
+          description: File uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  upload_image:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        example: "success"
+                      filename:
+                        type: string
+                        example: "cover.jpg"
+                      path:
+                        type: string
+                        example: "/app/uploads/cover.jpg"
+        '400':
+          description: Upload error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                no_file:
+                  value:
+                    error: "No file part in the request"
+                no_selection:
+                  value:
+                    error: "No file selected"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          description: Server error during upload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /image/year_progress_comparison.png:
+    get:
+      summary: Get year progress comparison chart (default 15 years)
+      description: |
+        Generate PNG chart comparing reading progress across recent years.
+        Shows cumulative pages read by day of year. Default window is 15 years.
+      tags:
+        - Visualization
+      responses:
+        '200':
+          description: PNG image
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /image/year_progress_comparison.png/{window}:
+    get:
+      summary: Get year progress comparison chart (custom window)
+      description: |
+        Generate PNG chart comparing reading progress across N recent years.
+        Shows cumulative pages read by day of year with current year highlighted.
+      tags:
+        - Visualization
+      parameters:
+        - name: window
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: Number of recent years to include in chart
+          example: 10
+      responses:
+        '200':
+          description: PNG image
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /image/all_years.png:
+    get:
+      summary: Get all-time reading statistics chart (current year)
+      description: |
+        Generate PNG chart with all-time reading statistics.
+        Includes histogram, ranking, and yearly bar chart. Highlights current year.
+      tags:
+        - Visualization
+      responses:
+        '200':
+          description: PNG image (3 subplots)
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /image/all_years.png/{year}:
+    get:
+      summary: Get all-time reading statistics chart (specific year)
+      description: |
+        Generate PNG chart with all-time reading statistics.
+        Includes histogram, ranking, and yearly bar chart. Highlights specified year.
+      tags:
+        - Visualization
+      parameters:
+        - name: year
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Year to highlight in charts
+          example: 2023
+      responses:
+        '200':
+          description: PNG image (3 subplots)
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+components:
+  responses:
+    UnauthorizedError:
+      description: Missing or invalid API key
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "x-api-key missing or incorrect"

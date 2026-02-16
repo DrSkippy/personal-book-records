@@ -1,0 +1,201 @@
+# book_collection database schema
+# Machine-readable schema definition for documentation, code generation, and validation.
+
+database: book_collection
+charset: utf8mb4
+collation: utf8mb4_unicode_ci
+engine: InnoDB
+
+tables:
+
+  books:
+    description: Core book catalog. Each row is a unique physical book in the collection.
+    primary_key: [BookId]
+    indexes:
+      idx_books_title: { columns: [Title] }
+      idx_books_author: { columns: [Author] }
+      idx_books_location: { columns: [Location] }
+    columns:
+      BookId:        { type: INT, nullable: false, auto_increment: true }
+      Title:         { type: VARCHAR(200), nullable: false }
+      Author:        { type: VARCHAR(200), nullable: false }
+      CopyrightDate: { type: DATETIME, nullable: true }
+      IsbnNumber:    { type: VARCHAR(13), nullable: true, description: "ISBN-10" }
+      PublisherName:  { type: VARCHAR(50), nullable: true }
+      CoverType:     { type: VARCHAR(30), nullable: true, description: "e.g. Hard, Soft" }
+      Pages:         { type: SMALLINT, nullable: true }
+      BookNote:      { type: MEDIUMTEXT, nullable: true, description: "Free-form notes" }
+      Recycled:      { type: TINYINT(1), nullable: true, description: "1 = recycled/donated, 0 = kept" }
+      Location:      { type: VARCHAR(50), nullable: false, description: "e.g. Main Collection" }
+      IsbnNumber13:  { type: VARCHAR(13), nullable: true, description: "ISBN-13" }
+      LastUpdate:    { type: TIMESTAMP, nullable: false, default: CURRENT_TIMESTAMP, on_update: CURRENT_TIMESTAMP }
+
+  tag_labels:
+    description: Tag vocabulary. Each label string is unique.
+    primary_key: [TagId]
+    indexes:
+      idx_tag_labels_label: { columns: [Label], unique: true }
+    columns:
+      TagId: { type: INT, nullable: false, auto_increment: true }
+      Label: { type: VARCHAR(50), nullable: true }
+
+  books_read:
+    description: Reading log. A book can have multiple entries (re-reads).
+    primary_key: [BookId, ReadDate]
+    foreign_keys:
+      fk_books_read_book:
+        column: BookId
+        references: { table: books, column: BookId }
+        on_delete: CASCADE
+        on_update: CASCADE
+    columns:
+      BookId:     { type: INT, nullable: false }
+      ReadDate:   { type: DATE, nullable: false }
+      ReadNote:   { type: TEXT, nullable: true }
+      LastUpdate: { type: TIMESTAMP, nullable: false, default: CURRENT_TIMESTAMP, on_update: CURRENT_TIMESTAMP }
+
+  books_tags:
+    description: Many-to-many join table linking books to tags.
+    primary_key: [BookId, TagId]
+    foreign_keys:
+      fk_books_tags_book:
+        column: BookId
+        references: { table: books, column: BookId }
+        on_delete: CASCADE
+        on_update: CASCADE
+      fk_books_tags_tag:
+        column: TagId
+        references: { table: tag_labels, column: TagId }
+        on_delete: CASCADE
+        on_update: CASCADE
+    columns:
+      BookId:     { type: INT, nullable: false }
+      TagId:      { type: INT, nullable: false }
+      LastUpdate: { type: TIMESTAMP, nullable: false, default: CURRENT_TIMESTAMP, on_update: CURRENT_TIMESTAMP }
+
+  complete_date_estimates:
+    description: Reading pace tracking with estimated finish dates.
+    primary_key: [RecordId]
+    foreign_keys:
+      fk_complete_date_estimates_book:
+        column: BookId
+        references: { table: books, column: BookId }
+        on_delete: CASCADE
+        on_update: CASCADE
+    columns:
+      RecordId:           { type: BIGINT UNSIGNED, nullable: false, auto_increment: true }
+      BookId:             { type: INT, nullable: false }
+      StartDate:          { type: DATETIME, nullable: false }
+      LastReadablePage:   { type: BIGINT, nullable: false }
+      EstimateDate:       { type: DATETIME, nullable: true }
+      EstimatedFinishDate: { type: DATETIME, nullable: true }
+
+  daily_page_records:
+    description: Daily reading progress entries tied to an estimate session.
+    primary_key: [RecordDate, RecordId]
+    foreign_keys:
+      fk_daily_page_records_record:
+        column: RecordId
+        references: { table: complete_date_estimates, column: RecordId }
+        on_delete: CASCADE
+        on_update: CASCADE
+    columns:
+      RecordDate: { type: DATETIME, nullable: false }
+      Page:       { type: BIGINT, nullable: false }
+      RecordId:   { type: BIGINT UNSIGNED, nullable: false }
+      LastUpdate: { type: TIMESTAMP, nullable: false, default: CURRENT_TIMESTAMP, on_update: CURRENT_TIMESTAMP }
+
+  images:
+    description: Book cover images and associated metadata.
+    primary_key: [ImageId]
+    foreign_keys:
+      fk_images_book:
+        column: BookId
+        references: { table: books, column: BookId }
+        on_delete: CASCADE
+        on_update: CASCADE
+    columns:
+      ImageId:   { type: INT, nullable: false, auto_increment: true }
+      BookId:    { type: INT, nullable: false }
+      Name:      { type: VARCHAR(255), nullable: true }
+      Url:       { type: VARCHAR(255), nullable: true }
+      ImageType: { type: VARCHAR(64), nullable: true, default: "cover-face" }
+      LastUpdate: { type: TIMESTAMP, nullable: false, default: CURRENT_TIMESTAMP, on_update: CURRENT_TIMESTAMP }
+
+# Relationship summary (for quick reference by tools and code generators)
+relationships:
+  - parent: books
+    child: books_read
+    cardinality: one-to-many
+    join: "books.BookId = books_read.BookId"
+
+  - parent: books
+    child: books_tags
+    cardinality: one-to-many
+    join: "books.BookId = books_tags.BookId"
+
+  - parent: tag_labels
+    child: books_tags
+    cardinality: one-to-many
+    join: "tag_labels.TagId = books_tags.TagId"
+
+  - parent: books
+    child: complete_date_estimates
+    cardinality: one-to-many
+    join: "books.BookId = complete_date_estimates.BookId"
+
+  - parent: complete_date_estimates
+    child: daily_page_records
+    cardinality: one-to-many
+    join: "complete_date_estimates.RecordId = daily_page_records.RecordId"
+
+  - parent: books
+    child: images
+    cardinality: one-to-many
+    join: "books.BookId = images.BookId"
+
+# Mapping from the legacy `books` database (for migration reference)
+legacy_mapping:
+  tables:
+    "book collection": books
+    "books read": books_read
+    "books tags": books_tags
+    "tag labels": tag_labels
+    "complete date estimates": complete_date_estimates
+    "daily page records": daily_page_records
+    "images": images
+    "temp": null  # dropped, not migrated
+
+  columns:
+    books:
+      BookCollectionID: BookId
+      ISBNNumber: IsbnNumber
+      ISBNNumber13: IsbnNumber13
+      Note: BookNote
+      Category: null  # dropped
+
+    books_read:
+      BookCollectionID: BookId
+
+    books_tags:
+      BookID: BookId  # also changed from VARCHAR(50) to INT
+      TagID: TagId
+
+    tag_labels:
+      TagID: TagId
+
+    complete_date_estimates:
+      RecordID: RecordId
+      BookCollectionID: BookId
+
+    daily_page_records:
+      page: Page
+      RecordID: RecordId
+
+    images:
+      id: ImageId
+      BookCollectionID: BookId
+      name: Name
+      url: Url
+      type: ImageType
+      LastUpdated: LastUpdate

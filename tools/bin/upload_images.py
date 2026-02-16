@@ -249,10 +249,10 @@ def add_image_to_book(endpoint, api_key, book_id, filename):
     url_safe_filename = quote(filename, safe='')
 
     data = {
-        "BookCollectionID": book_id,
-        "name": f"{filename} - bulk upload tool - {today}",
-        "url": f"https://resources.drskippy.app/books/{url_safe_filename}",
-        "type": "cover-face"
+        "BookId": book_id,
+        "Name": f"{filename} - bulk upload tool - {today}",
+        "Url": f"https://resources.drskippy.app/books/{url_safe_filename}",
+        "ImageType": "cover-face"
     }
 
     try:

@@ -56,7 +56,7 @@ class TestESTTool(unittest.TestCase):
         put_response = Mock()
         put_response.json.return_value = {
             "add_book_estimate": {
-                "BookCollectionID": book_id,
+                "BookId": book_id,
                 "StartDate": "2024-01-01"
             }
         }
@@ -65,7 +65,7 @@ class TestESTTool(unittest.TestCase):
         get_response_1 = Mock()
         get_response_1.json.return_value = {
             "record_set": {
-                "RecordID": [[datetime.datetime.now().strftime("%Y-%m-%d"), 123]],
+                "RecordId": [[datetime.datetime.now().strftime("%Y-%m-%d"), 123]],
                 "Estimate": [["2024-02-01", "2024-01-25", "2024-02-05"]]
             }
         }
@@ -98,7 +98,7 @@ class TestESTTool(unittest.TestCase):
         get_response_1 = Mock()
         get_response_1.json.return_value = {
             "record_set": {
-                "RecordID": [],
+                "RecordId": [],
                 "Estimate": []
             }
         }
@@ -125,7 +125,7 @@ class TestESTTool(unittest.TestCase):
         record_response = Mock()
         record_response.json.return_value = {
             "record_set": {
-                "RecordID": [["2024-01-01", 123], ["2024-01-15", 124]],
+                "RecordId": [["2024-01-01", 123], ["2024-01-15", 124]],
                 "Estimate": [
                     ["2024-02-01", "2024-01-25", "2024-02-05"],
                     ["2024-02-15", "2024-02-10", "2024-02-20"]
@@ -177,7 +177,7 @@ class TestESTTool(unittest.TestCase):
         record_response = Mock()
         record_response.json.return_value = {
             "record_set": {
-                "RecordID": [],
+                "RecordId": [],
                 "Estimate": []
             }
         }
@@ -208,7 +208,7 @@ class TestESTTool(unittest.TestCase):
         post_response = Mock()
         post_response.json.return_value = {
             "add_date_page": {
-                "RecordID": record_id,
+                "RecordId": record_id,
                 "Page": page,
                 "RecordDate": date
             }
@@ -225,7 +225,7 @@ class TestESTTool(unittest.TestCase):
         self.assertEqual(self.est_tool.result, record_id)
 
         expected_url = f"{self.endpoint}/add_date_page"
-        expected_payload = {"RecordID": record_id, "RecordDate": date, "Page": page}
+        expected_payload = {"RecordId": record_id, "RecordDate": date, "Page": page}
         mock_post.assert_called_once_with(
             expected_url,
             json=expected_payload,
@@ -246,7 +246,7 @@ class TestESTTool(unittest.TestCase):
         post_response = Mock()
         post_response.json.return_value = {
             "add_date_page": {
-                "RecordID": record_id,
+                "RecordId": record_id,
                 "Page": page,
                 "RecordDate": today
             }
@@ -313,7 +313,7 @@ class TestESTToolIntegration(unittest.TestCase):
         put_response = Mock()
         put_response.json.return_value = {
             "add_book_estimate": {
-                "BookCollectionID": 1,
+                "BookId": 1,
                 "StartDate": "2024-01-01"
             }
         }
@@ -322,7 +322,7 @@ class TestESTToolIntegration(unittest.TestCase):
         record_response = Mock()
         record_response.json.return_value = {
             "record_set": {
-                "RecordID": [["2024-01-01", 123]],
+                "RecordId": [["2024-01-01", 123]],
                 "Estimate": [["2024-02-01", "2024-01-25", "2024-02-05"]]
             }
         }
@@ -337,7 +337,7 @@ class TestESTToolIntegration(unittest.TestCase):
         post_response = Mock()
         post_response.json.return_value = {
             "add_date_page": {
-                "RecordID": 123,
+                "RecordId": 123,
                 "Page": 100,
                 "RecordDate": "2024-01-10"
             }

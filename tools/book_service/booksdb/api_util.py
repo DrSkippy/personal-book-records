@@ -29,6 +29,8 @@ from .serialization import (
 # Re-export for backward compatibility - consumers can still use:
 #   from booksdb.api_util import API_KEY, books_conf, etc.
 __all__ = [
+    # Third-party modules used by api.py directly
+    'pymysql', 'datetime',
     # Config exports
     'app_logger', 'table_header', 'locations_sort_order', 'FMT',
     'API_KEY', 'read_json_configuration', 'books_conf', 'isbn_conf',
@@ -42,6 +44,7 @@ __all__ = [
     'books_read_by_year_utility', 'status_read_utility',
     'tags_search_utility', 'books_search_utility', 'book_tags',
     'get_tag_counts', 'add_tag_to_book', 'get_images_for_book',
+    'delete_book', 'get_complete_records_by_ids',
     'daily_page_record_from_db', 'reading_book_data_from_db',
     'update_reading_book_data', 'estimate_completion_dates',
     'calculate_estimates',
@@ -83,7 +86,7 @@ def get_valid_locations():
         cursor = db.cursor()
 
         # Execute the query
-        query = "SELECT DISTINCT Location FROM `book collection` ORDER by Location ASC;"
+        query = "SELECT DISTINCT Location FROM books ORDER by Location ASC;"
         app_logger.debug(query)
         cursor.execute(query)
 
@@ -122,7 +125,7 @@ def get_recently_touched(limit=10):
         A 4‑tuple containing:
 
         * recent_books (list[list]): A list where each element is a list of
-          three items: ``BookCollectionID`` (int), ``LastUpdate`` (str or
+          three items: ``BookId`` (int), ``LastUpdate`` (str or
           None), and ``Title`` (str). ``LastUpdate`` is formatted according
           to the global ``FMT`` constant; titles longer than 43 characters
           are truncated to 40 characters followed by ellipsis.
@@ -131,7 +134,7 @@ def get_recently_touched(limit=10):
           Each row is a tuple of the original column values.
 
         * header (list[str]): A list of column names used for the result
-          set: ``["BookCollectionID", "LastUpdate", "Title"]``.
+          set: ``["BookId", "LastUpdate", "Title"]``.
 
         * error_list (list[str] | None): A list containing a single error
           message if a ``pymysql.Error`` was raised; otherwise ``None``.
@@ -143,7 +146,7 @@ def get_recently_touched(limit=10):
     error_list = None
     db = None
     recent_books = []
-    header = ["BookCollectionID", "LastUpdate", "Title"]
+    header = ["BookId", "LastUpdate", "Title"]
     s = None
 
     try:
@@ -151,25 +154,25 @@ def get_recently_touched(limit=10):
         cursor = db.cursor()
 
         # Execute the query - get most recently touched books from all tables
-        query = ('SELECT abc.BookCollectionID, max(abc.LastUpdate) as LastUpdate, bc.Title FROM\n'
-                 '(       SELECT BookCollectionID, LastUpdate \n'
-                 '        FROM `book collection`\n'
+        query = ('SELECT abc.BookId, max(abc.LastUpdate) as LastUpdate, bc.Title FROM\n'
+                 '(       SELECT BookId, LastUpdate \n'
+                 '        FROM books\n'
                  '        UNION \n'
-                 '        SELECT BookID as BookCollectionID, LastUpdate\n'
-                 '        FROM `books tags`\n'
+                 '        SELECT BookId, LastUpdate\n'
+                 '        FROM books_tags\n'
                  '        UNION\n'
-                 '        SELECT a.BookCollectionID, b.LastUpdate\n'
-                 '        FROM `complete date estimates` a JOIN `daily page records` b ON\n'
-                 '        a.RecordID = b.RecordID\n'
+                 '        SELECT a.BookId, b.LastUpdate\n'
+                 '        FROM complete_date_estimates a JOIN daily_page_records b ON\n'
+                 '        a.RecordId = b.RecordId\n'
                  '        UNION \n'
-                 '        SELECT BookCollectionID, EstimateDate as LastUpdate\n'
-                 '        FROM `complete date estimates`\n'
+                 '        SELECT BookId, EstimateDate as LastUpdate\n'
+                 '        FROM complete_date_estimates\n'
                  '        UNION \n'
-                 '        SELECT BookCollectionID, LastUpdated as LastUpdate\n'
-                 '        FROM `images`\n'
+                 '        SELECT BookId, LastUpdate\n'
+                 '        FROM images\n'
                  ') abc\n'
-                 'JOIN `book collection` bc ON abc.BookCollectionID = bc.BookCollectionID \n'
-                 'GROUP BY abc.BookCollectionID, bc.Title\n'
+                 'JOIN books bc ON abc.BookId = bc.BookId \n'
+                 'GROUP BY abc.BookId, bc.Title\n'
                  'ORDER BY LastUpdate DESC LIMIT %s;\n')
         app_logger.debug(query)
         cursor.execute(query, (limit,))
@@ -202,7 +205,7 @@ def get_next_book_id(current_book_id, direction=1):
     Gets the next book collection ID in the database.
 
     Summary:
-        Retrieves the next BookCollectionID from the `book collection` table in
+        Retrieves the next BookId from the ``books`` table in
         the MySQL database. The function uses the current ID and a direction
         flag to determine whether to look forward or backward. When the search
         reaches the end of the table it wraps around to the first or last
@@ -224,11 +227,11 @@ def get_next_book_id(current_book_id, direction=1):
     db = pymysql.connect(**books_conf)
     # Direction determines comparison operator and sort order (safe - derived from int)
     if direction > 0:
-        query_str = ("SELECT a.BookCollectionID FROM `book collection` as a "
-                     "WHERE a.BookCollectionID > %s ORDER BY a.BookCollectionID ASC LIMIT 1")
+        query_str = ("SELECT a.BookId FROM books as a "
+                     "WHERE a.BookId > %s ORDER BY a.BookId ASC LIMIT 1")
     else:
-        query_str = ("SELECT a.BookCollectionID FROM `book collection` as a "
-                     "WHERE a.BookCollectionID < %s ORDER BY a.BookCollectionID DESC LIMIT 1")
+        query_str = ("SELECT a.BookId FROM books as a "
+                     "WHERE a.BookId < %s ORDER BY a.BookId DESC LIMIT 1")
     app_logger.debug(query_str)
     next_book_id = None
     c = db.cursor()
@@ -245,7 +248,7 @@ def get_next_book_id(current_book_id, direction=1):
                 # get the first record
                 next_book_id = 2
             else:
-                query_str = "SELECT max(a.BookCollectionID) FROM `book collection` as a"
+                query_str = "SELECT max(a.BookId) FROM books as a"
                 c = db.cursor()
                 try:
                     c.execute(query_str)
@@ -301,10 +304,10 @@ def get_book_ids_in_window(book_id, window):
     # Query templates with parameterized book_id and limit
     # Comparison operator and order are safe (hardcoded strings)
     queries = {
-        "le_desc": "SELECT a.BookCollectionID FROM `book collection` as a WHERE a.BookCollectionID <= %s ORDER BY a.BookCollectionID DESC LIMIT %s",
-        "gt_desc": "SELECT a.BookCollectionID FROM `book collection` as a WHERE a.BookCollectionID > %s ORDER BY a.BookCollectionID DESC LIMIT %s",
-        "gt_asc": "SELECT a.BookCollectionID FROM `book collection` as a WHERE a.BookCollectionID > %s ORDER BY a.BookCollectionID ASC LIMIT %s",
-        "le_asc": "SELECT a.BookCollectionID FROM `book collection` as a WHERE a.BookCollectionID <= %s ORDER BY a.BookCollectionID ASC LIMIT %s",
+        "le_desc": "SELECT a.BookId FROM books as a WHERE a.BookId <= %s ORDER BY a.BookId DESC LIMIT %s",
+        "gt_desc": "SELECT a.BookId FROM books as a WHERE a.BookId > %s ORDER BY a.BookId DESC LIMIT %s",
+        "gt_asc": "SELECT a.BookId FROM books as a WHERE a.BookId > %s ORDER BY a.BookId ASC LIMIT %s",
+        "le_asc": "SELECT a.BookId FROM books as a WHERE a.BookId <= %s ORDER BY a.BookId ASC LIMIT %s",
     }
 
     c = db.cursor()
@@ -358,21 +361,21 @@ def get_complete_book_record(book_id):
     """Retrieve complete book record including reads, tags, and images."""
     db = pymysql.connect(**books_conf)
 
-    q_book = ("SELECT a.BookCollectionID, a.Title, a.Author, a.CopyrightDate, "
-              "a.ISBNNumber, a.PublisherName, a.CoverType, a.Pages, "
-              "a.Category, a.Note, a.Recycled, a.Location, a.ISBNNumber13 "
-              "FROM `book collection` as a WHERE a.BookCollectionID = %s")
+    q_book = ("SELECT a.BookId, a.Title, a.Author, a.CopyrightDate, "
+              "a.IsbnNumber, a.PublisherName, a.CoverType, a.Pages, "
+              "a.BookNote, a.Recycled, a.Location, a.IsbnNumber13 "
+              "FROM books as a WHERE a.BookId = %s")
     h_book = table_header
 
-    q_read = "SELECT b.ReadDate, b.ReadNote FROM `books read` as b WHERE b.BookCollectionID = %s"
+    q_read = "SELECT b.ReadDate, b.ReadNote FROM books_read as b WHERE b.BookId = %s"
     h_read = ["DateRead", "ReadNote"]
 
-    q_tags = ("SELECT b.Label FROM `books tags` as a JOIN `tag labels` as b "
-              "ON b.TagID = a.TagID WHERE a.BookID = %s")
+    q_tags = ("SELECT b.Label FROM books_tags as a JOIN tag_labels as b "
+              "ON b.TagId = a.TagId WHERE a.BookId = %s")
     h_tags = ["Tag"]
 
-    q_img = ("SELECT a.url FROM `images` as a "
-             "WHERE a.BookCollectionID = %s AND a.type = 'cover-face'")
+    q_img = ("SELECT a.Url FROM images as a "
+             "WHERE a.BookId = %s AND a.ImageType = 'cover-face'")
     h_img = ["ImageURL"]
 
     result_data = {"book": None, "reads": None, "tags": None, "img": None, "error": []}
@@ -422,7 +425,7 @@ def get_complete_book_record(book_id):
 def update_book_record_by_key(update_dict):
     """
     Updates a book record in the database using the provided dictionary of record
-    values and the corresponding `BookCollectionID`. Key-value pairs in the record
+    values and the corresponding ``BookId``. Key-value pairs in the record
     represent the columns to update and their new values. If an error occurs while
     executing the SQL operation, an error dictionary will be returned.
 
@@ -437,21 +440,21 @@ def update_book_record_by_key(update_dict):
     """
     # Allowed column names for update (whitelist to prevent SQL injection)
     allowed_columns = {
-        "Title", "Author", "CopyrightDate", "ISBNNumber", "ISBNNumber13",
-        "PublisherName", "CoverType", "Pages", "Category", "Note",
+        "Title", "Author", "CopyrightDate", "IsbnNumber", "IsbnNumber13",
+        "PublisherName", "CoverType", "Pages", "BookNote",
         "Recycled", "Location"
     }
 
     db = pymysql.connect(**books_conf)
-    book_collection_id = update_dict.get("BookCollectionID")
+    book_collection_id = update_dict.get("BookId")
     if not book_collection_id:
-        return [{"error": "BookCollectionID is required"}]
+        return [{"error": "BookId is required"}]
 
     # Build SET clause with parameterized values
     set_parts = []
     values = []
     for key, value in update_dict.items():
-        if key == "BookCollectionID":
+        if key == "BookId":
             continue
         if key not in allowed_columns:
             app_logger.warning(f"Ignoring unknown column: {key}")
@@ -463,7 +466,7 @@ def update_book_record_by_key(update_dict):
         return [{"error": "No valid columns to update"}]
 
     values.append(book_collection_id)
-    search_str = f"UPDATE `book collection` SET {', '.join(set_parts)} WHERE BookCollectionID = %s"
+    search_str = f"UPDATE books SET {', '.join(set_parts)} WHERE BookId = %s"
     app_logger.debug(search_str)
 
     results = []
@@ -503,8 +506,8 @@ def summary_books_read_by_year_utility(target_year=None):
     if target_year is not None:
         query = (
             "SELECT YEAR(b.ReadDate) as Year, SUM(a.Pages) as Pages, COUNT(a.Pages) as Books "
-            "FROM `book collection` as a JOIN `books read` as b "
-            "ON a.BookCollectionID = b.BookCollectionID "
+            "FROM books as a JOIN books_read as b "
+            "ON a.BookId = b.BookId "
             "WHERE b.ReadDate is not NULL AND YEAR(b.ReadDate) = %s "
             "GROUP BY Year ORDER BY Year ASC"
         )
@@ -512,8 +515,8 @@ def summary_books_read_by_year_utility(target_year=None):
     else:
         query = (
             "SELECT YEAR(b.ReadDate) as Year, SUM(a.Pages) as Pages, COUNT(a.Pages) as Books "
-            "FROM `book collection` as a JOIN `books read` as b "
-            "ON a.BookCollectionID = b.BookCollectionID "
+            "FROM books as a JOIN books_read as b "
+            "ON a.BookId = b.BookId "
             "WHERE b.ReadDate is not NULL "
             "GROUP BY Year ORDER BY Year ASC"
         )
@@ -541,7 +544,7 @@ def books_read_by_year_utility(target_year=None):
 
     This function connects to a MySQL database using the connection parameters
     defined in ``books_conf``. It builds a SQL query that joins the
-    ``book collection`` table with the ``books read`` table to fetch details for
+    ``books`` table with the ``books_read`` table to fetch details for
     every book that has a non‑null ``ReadDate``.  If ``target_year`` is supplied,
     the query is restricted to entries whose ``ReadDate`` falls within that
     year.  The result set is returned together with a header list that
@@ -586,24 +589,24 @@ def books_read_by_year_utility(target_year=None):
 
     params = ()
     if target_year is not None:
-        search_str = ("SELECT a.BookCollectionID, a.Title, a.Author, a.CopyrightDate, "
-                      "a.ISBNNumber, a.PublisherName, a.CoverType, a.Pages, "
-                      "a.Category, a.Note, a.Recycled, a.Location, a.ISBNNumber13, "
+        search_str = ("SELECT a.BookId, a.Title, a.Author, a.CopyrightDate, "
+                      "a.IsbnNumber, a.PublisherName, a.CoverType, a.Pages, "
+                      "a.BookNote, a.Recycled, a.Location, a.IsbnNumber13, "
                       "b.ReadDate "
-                      "FROM `book collection` as a JOIN `books read` as b "
-                      "ON a.BookCollectionID = b.BookCollectionID "
+                      "FROM books as a JOIN books_read as b "
+                      "ON a.BookId = b.BookId "
                       "WHERE b.ReadDate is not NULL AND YEAR(b.ReadDate) = %s "
-                      "ORDER BY b.ReadDate, a.BookCollectionID ASC")
+                      "ORDER BY b.ReadDate, a.BookId ASC")
         params = (target_year,)
     else:
-        search_str = ("SELECT a.BookCollectionID, a.Title, a.Author, a.CopyrightDate, "
-                      "a.ISBNNumber, a.PublisherName, a.CoverType, a.Pages, "
-                      "a.Category, a.Note, a.Recycled, a.Location, a.ISBNNumber13, "
+        search_str = ("SELECT a.BookId, a.Title, a.Author, a.CopyrightDate, "
+                      "a.IsbnNumber, a.PublisherName, a.CoverType, a.Pages, "
+                      "a.BookNote, a.Recycled, a.Location, a.IsbnNumber13, "
                       "b.ReadDate "
-                      "FROM `book collection` as a JOIN `books read` as b "
-                      "ON a.BookCollectionID = b.BookCollectionID "
+                      "FROM books as a JOIN books_read as b "
+                      "ON a.BookId = b.BookId "
                       "WHERE b.ReadDate is not NULL "
-                      "ORDER BY b.ReadDate, a.BookCollectionID ASC")
+                      "ORDER BY b.ReadDate, a.BookId ASC")
 
     header = table_header + ["ReadDate"]
     app_logger.debug(search_str)
@@ -615,7 +618,7 @@ def books_read_by_year_utility(target_year=None):
     except pymysql.Error as e:
         app_logger.error(e)
         error_list = [str(e)]
-    return s, header, error_list
+    return s, s, header, error_list
 
 
 def status_read_utility(book_id):
@@ -642,12 +645,12 @@ def status_read_utility(book_id):
     """
     error_list = None
     db = pymysql.connect(**books_conf)
-    search_str = ("SELECT BookCollectionID, ReadDate, ReadNote "
-                  "FROM `books read` "
-                  "WHERE BookCollectionID = %s ORDER BY ReadDate ASC")
+    search_str = ("SELECT BookId, ReadDate, ReadNote "
+                  "FROM books_read "
+                  "WHERE BookId = %s ORDER BY ReadDate ASC")
     app_logger.debug(search_str)
     c = db.cursor()
-    header = ["BookCollectionID", "ReadDate", "ReadNote"]
+    header = ["BookId", "ReadDate", "ReadNote"]
     s = None
     try:
         c.execute(search_str, (book_id,))
@@ -677,18 +680,18 @@ def tags_search_utility(match_str):
            (BookID, TagID, Tag).
         2. A duplicate reference to the same list of rows (kept for backward
            compatibility).
-        3. A list of column header names: ['BookCollectionID', 'TagID', 'Tag'].
+        3. A list of column header names: ['BookId', 'TagId', 'Tag'].
         4. Either None if the query succeeded, or a list of error message strings
            collected from a pymysql.Error exception.
     """
     match_str = match_str.lower().strip()
     error_list = None
     db = pymysql.connect(**books_conf)
-    search_str = ("SELECT a.BookID, b.TagID, b.Label as Tag"
-                  " FROM `books tags` a JOIN `tag labels` b ON a.TagID=b.TagID"
+    search_str = ("SELECT a.BookId, b.TagId, b.Label as Tag"
+                  " FROM books_tags a JOIN tag_labels b ON a.TagId=b.TagId"
                   " WHERE b.Label LIKE %s"
                   " ORDER BY b.Label ASC")
-    header = ["BookCollectionID", "TagID", "Tag"]
+    header = ["BookId", "TagId", "Tag"]
     app_logger.debug(search_str)
     c = db.cursor()
     s = None
@@ -705,9 +708,9 @@ def books_search_utility(args):
     """
     This function searches a book collection database for records matching the provided criteria.
 
-    The function builds a SQL query dynamically based on the keys in the `args` dictionary.  Certain keys are treated specially – for example, a key of `"BookCollectionID"` is matched exactly, while `"ReadDate"` is matched using a `LIKE` pattern.  The `"Tags"` key triggers a call to `tags_search_utility`, converting a list of tag identifiers into a tuple used in a sub‑query.  All other keys are compared using a `LIKE` clause.
+    The function builds a SQL query dynamically based on the keys in the `args` dictionary.  Certain keys are treated specially – for example, a key of `"BookId"` is matched exactly, while `"ReadDate"` is matched using a `LIKE` pattern.  The `"Tags"` key triggers a call to `tags_search_utility`, converting a list of tag identifiers into a tuple used in a sub‑query.  All other keys are compared using a `LIKE` clause.
 
-    The query joins the `book collection` table with the `books read` table.  If any conditions are supplied, they are added to a `WHERE` clause; the results are ordered by author and title.  The function logs the final query for debugging purposes.
+    The query joins the ``books`` table with the ``books_read`` table.  If any conditions are supplied, they are added to a `WHERE` clause; the results are ordered by author and title.  The function logs the final query for debugging purposes.
 
     After executing the query, the function fetches all rows and returns them along with a header list and any error information that may have been captured.
 
@@ -717,12 +720,12 @@ def books_search_utility(args):
         A dictionary of search criteria.  Keys correspond to column names in the
         book collection tables.  The following keys are handled specially:
 
-        * ``BookCollectionID`` – exact match on the collection ID.
+        * ``BookId`` – exact match on the book ID.
         * ``ReadDate`` – matched using a ``LIKE`` pattern.
         * ``Tags`` – the value is passed to ``tags_search_utility``; the resulting
-          tag IDs are used to filter the collection IDs.
+          tag IDs are used to filter the book IDs.
         * All other keys – matched using a ``LIKE`` pattern against the column
-          of the same name in the ``book collection`` table.
+          of the same name in the ``books`` table.
 
     Returns
     -------
@@ -757,9 +760,9 @@ def books_search_utility(args):
     """
     # Allowed search columns (whitelist to prevent SQL injection)
     allowed_book_columns = {
-        "BookCollectionID", "Title", "Author", "CopyrightDate", "ISBNNumber",
-        "ISBNNumber13", "PublisherName", "CoverType", "Pages", "Category",
-        "Note", "Recycled", "Location"
+        "BookId", "Title", "Author", "CopyrightDate", "IsbnNumber",
+        "IsbnNumber13", "PublisherName", "CoverType", "Pages",
+        "BookNote", "Recycled", "Location"
     }
 
     error_list = None
@@ -770,8 +773,8 @@ def books_search_utility(args):
 
     for key in args:
         value = args.get(key)
-        if key == "BookCollectionID":
-            where_parts.append("a.BookCollectionID = %s")
+        if key == "BookId":
+            where_parts.append("a.BookId = %s")
             params.append(value)
         elif key == "ReadDate":
             where_parts.append("b.ReadDate LIKE %s")
@@ -782,23 +785,23 @@ def books_search_utility(args):
             if tag_results:
                 book_ids = [int(x[0]) for x in tag_results]
                 placeholders = ", ".join(["%s"] * len(book_ids))
-                where_parts.append(f"a.BookCollectionID IN ({placeholders})")
+                where_parts.append(f"a.BookId IN ({placeholders})")
                 params.extend(book_ids)
             else:
                 # No matching tags - force no results
-                where_parts.append("a.BookCollectionID IN (0)")
+                where_parts.append("a.BookId IN (0)")
         elif key in allowed_book_columns:
             where_parts.append(f"a.`{key}` LIKE %s")
             params.append(f"%{value}%")
         else:
             app_logger.warning(f"Ignoring unknown search column: {key}")
 
-    search_str = ("SELECT a.BookCollectionID, a.Title, a.Author, a.CopyrightDate, "
-                  "a.ISBNNumber, a.PublisherName, a.CoverType, a.Pages, "
-                  "a.Category, a.Note, a.Recycled, a.Location, a.ISBNNumber13, "
+    search_str = ("SELECT a.BookId, a.Title, a.Author, a.CopyrightDate, "
+                  "a.IsbnNumber, a.PublisherName, a.CoverType, a.Pages, "
+                  "a.BookNote, a.Recycled, a.Location, a.IsbnNumber13, "
                   "b.ReadDate "
-                  "FROM `book collection` as a LEFT JOIN `books read` as b "
-                  "ON a.BookCollectionID = b.BookCollectionID")
+                  "FROM books as a LEFT JOIN books_read as b "
+                  "ON a.BookId = b.BookId")
     if where_parts:
         search_str += " WHERE " + " AND ".join(where_parts)
     search_str += " ORDER BY a.Author, a.Title ASC"
@@ -842,8 +845,8 @@ def book_tags(book_id):
     s = None
     db = pymysql.connect(**books_conf)
     search_str = "SELECT a.Label as Tag"
-    search_str += " FROM `tag labels` a JOIN `books tags` b ON a.TagID = b.TagID"
-    search_str += " WHERE b.BookID = %s ORDER BY Tag"
+    search_str += " FROM tag_labels a JOIN books_tags b ON a.TagId = b.TagId"
+    search_str += " WHERE b.BookId = %s ORDER BY Tag"
     app_logger.debug(search_str)
     c = db.cursor()
     try:
@@ -854,7 +857,7 @@ def book_tags(book_id):
     else:
         s = c.fetchall()
         tag_list = [x[0].strip() for x in s]
-        rdata = {"BookID": book_id, "tag_list": tag_list}
+        rdata = {"BookId": book_id, "tag_list": tag_list}
     return rdata, error_list
 
 
@@ -877,8 +880,8 @@ def get_tag_counts(tag_prefix=None):
         3. error_list - List of error messages or None if successful
     """
     db = pymysql.connect(**books_conf)
-    search_str = "SELECT a.Label as Tag, COUNT(b.TagID) as Count"
-    search_str += " FROM `tag labels` a JOIN `books tags` b ON a.TagID = b.TagID"
+    search_str = "SELECT a.Label as Tag, COUNT(b.TagId) as Count"
+    search_str += " FROM tag_labels a JOIN books_tags b ON a.TagId = b.TagId"
     params = ()
     if tag_prefix is not None:
         search_str += " WHERE Label LIKE %s"
@@ -907,7 +910,7 @@ def add_tag_to_book(book_id, tag):
     Parameters
     ----------
     book_id : int
-        The BookCollectionID of the book to tag.
+        The BookId of the book to tag.
     tag : str
         The tag label to add (will be lowercased).
 
@@ -926,11 +929,11 @@ def add_tag_to_book(book_id, tag):
     with db:
         with db.cursor() as c:
             try:
-                c.execute('INSERT IGNORE INTO `tag labels` SET Label=%s', (tag,))
-                c.execute('SELECT TagID FROM `tag labels` WHERE Label=%s', (tag,))
+                c.execute('INSERT IGNORE INTO tag_labels SET Label=%s', (tag,))
+                c.execute('SELECT TagId FROM tag_labels WHERE Label=%s', (tag,))
                 tag_id = c.fetchone()[0]
-                c.execute('INSERT INTO `books tags` (BookID, TagID) VALUES (%s, %s)', (book_id, tag_id))
-                result_data = {"BookID": book_id, "Tag": tag, "TagID": tag_id}
+                c.execute('INSERT INTO books_tags (BookId, TagId) VALUES (%s, %s)', (book_id, tag_id))
+                result_data = {"BookId": book_id, "Tag": tag, "TagId": tag_id}
             except pymysql.Error as e:
                 app_logger.error(e)
                 error_list = [str(e)]
@@ -946,22 +949,22 @@ def add_tag_to_book(book_id, tag):
 
 def get_images_for_book(book_id):
     """
-    Retrieve all image records for a given BookCollectionID.
+    Retrieve all image records for a given BookId.
 
     Parameters
     ----------
     book_id : int
-        The BookCollectionID to fetch images for.
+        The BookId to fetch images for.
 
     Returns
     -------
     tuple
         A tuple containing:
-        1. A list of image dictionaries with keys: id, BookCollectionID, name, url, type
+        1. A list of image dictionaries with keys: ImageId, BookId, Name, Url, ImageType
         2. A list of error messages or None if successful
     """
     db = pymysql.connect(**books_conf)
-    search_str = "SELECT id, BookCollectionID, name, url, type FROM `images` WHERE BookCollectionID = %s"
+    search_str = "SELECT ImageId, BookId, Name, Url, ImageType FROM images WHERE BookId = %s"
     images = []
     error_list = None
 
@@ -973,11 +976,11 @@ def get_images_for_book(book_id):
 
                 for row in results:
                     images.append({
-                        "id": row[0],
-                        "BookCollectionID": row[1],
-                        "name": row[2],
-                        "url": row[3],
-                        "type": row[4]
+                        "ImageId": row[0],
+                        "BookId": row[1],
+                        "Name": row[2],
+                        "Url": row[3],
+                        "ImageType": row[4]
                     })
             except pymysql.Error as e:
                 app_logger.error(e)
@@ -987,18 +990,55 @@ def get_images_for_book(book_id):
 
 
 ##########################################################################
+# DELETE BOOK
+##########################################################################
+
+
+def delete_book(book_id: int) -> dict:
+    """Delete a book and all related records (CASCADE handles children)."""
+    db = pymysql.connect(**books_conf)
+    result = {}
+    with db:
+        with db.cursor() as c:
+            try:
+                c.execute("DELETE FROM books WHERE BookId = %s", (book_id,))
+                if c.rowcount == 0:
+                    result = {"error": f"No book found with BookId {book_id}"}
+                else:
+                    result = {"deleted": True, "BookId": book_id}
+            except pymysql.Error as e:
+                app_logger.error(e)
+                result = {"error": str(e)}
+        db.commit()
+    return result
+
+
+##########################################################################
+# BATCH COMPLETE RECORDS
+##########################################################################
+
+
+def get_complete_records_by_ids(book_ids: list[int]) -> list[dict]:
+    """Get complete book records for a list of BookIds."""
+    results = []
+    for book_id in book_ids:
+        results.append(get_complete_book_record(book_id))
+    return results
+
+
+##########################################################################
 # READING ESTIMATES
 ##########################################################################
 
 
-def daily_page_record_from_db(RecordID):
+def daily_page_record_from_db(record_id):
     """
-    Fetches daily page records for a specified RecordID from the database.
+    Fetches daily page records for a specified RecordId from the database.
 
     Adds a day number column to each record, indicating the number of days since the first record.
 
     Parameters:
-    RecordID (int): The ID for which daily page records are to be fetched.
+    record_id (int): The RecordId for which daily page records are to be fetched.
 
     Returns:
     tuple: A tuple containing (data, error_list) where data is the modified list
@@ -1013,10 +1053,10 @@ def daily_page_record_from_db(RecordID):
         db = pymysql.connect(**books_conf)
         with db.cursor() as cur:
             # Execute the query to fetch daily page records
-            q = ("SELECT a.RecordDate, a.page FROM `daily page records` a "
-                 "WHERE a.RecordID = %s ORDER BY a.RecordDate ASC")
+            q = ("SELECT a.RecordDate, a.Page FROM daily_page_records a "
+                 "WHERE a.RecordId = %s ORDER BY a.RecordDate ASC")
             app_logger.debug(q)
-            cur.execute(q, (RecordID,))
+            cur.execute(q, (record_id,))
             rows = cur.fetchall()
 
             # Check if any rows were returned
@@ -1036,14 +1076,12 @@ def daily_page_record_from_db(RecordID):
     return data, error_list
 
 
-def reading_book_data_from_db(RecordID):
+def reading_book_data_from_db(record_id):
     """
-    Fetches book data for a specified RecordID from the database.
-
-    Excludes the BookCollectionID and RecordID from the returned data.
+    Fetches book data for a specified RecordId from the database.
 
     Parameters:
-    RecordID (int): The ID for which book data is to be fetched.
+    record_id (int): The RecordId for which book data is to be fetched.
 
     Returns:
     tuple: A tuple containing (rows, error_list) where rows is the list of book
@@ -1057,9 +1095,9 @@ def reading_book_data_from_db(RecordID):
         db = pymysql.connect(**books_conf)
         with db.cursor() as cur:
             # Execute the query to fetch book data
-            q = 'SELECT StartDate, LastReadablePage FROM `complete date estimates` WHERE RecordID = %s'
+            q = 'SELECT StartDate, LastReadablePage FROM complete_date_estimates WHERE RecordId = %s'
             app_logger.debug(q)
-            cur.execute(q, (RecordID,))
+            cur.execute(q, (record_id,))
             rows = cur.fetchall()
     except pymysql.MySQLError as e:
         # Handle database errors
@@ -1079,7 +1117,7 @@ def update_reading_book_data(record_id, date_range):
         with db.cursor() as c:
             try:
                 c.execute(
-                    "UPDATE `complete date estimates` SET EstimateDate = %s, EstimatedFinishDate = %s WHERE RecordID = %s",
+                    "UPDATE complete_date_estimates SET EstimateDate = %s, EstimatedFinishDate = %s WHERE RecordId = %s",
                     (datetime.datetime.now(), date_range[0], record_id))
             except pymysql.Error as e:
                 app_logger.error(e)

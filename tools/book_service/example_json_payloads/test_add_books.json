@@ -3,26 +3,26 @@
     "Title": "Delete Me Now",
     "Author": "Tester, N A",
     "CopyrightDate": "1999-01-01",
-    "ISBNNumber": "1234",
-    "ISBNNumber13": "1234",
+    "IsbnNumber": "1234",
+    "IsbnNumber13": "1234",
     "PublisherName": "Printerman",
     "CoverType": "Hard",
     "Pages": "7",
     "Location": "Main Collection",
-    "Note": "Initial Note",
+    "BookNote": "Initial Note",
     "Recycled": 0
   },
   {
     "Title": "Really Delete Me Now",
     "Author": "Tester, N A",
     "CopyrightDate": "1999-01-01",
-    "ISBNNumber": "1234-2",
-    "ISBNNumber13": "1234-2",
+    "IsbnNumber": "1234-2",
+    "IsbnNumber13": "1234-2",
     "PublisherName": "Printerman",
     "CoverType": "Hard",
     "Pages": "7",
     "Location": "Main Collection",
-    "Note": "Initial Note",
+    "BookNote": "Initial Note",
     "Recycled": 0
   }
 ]

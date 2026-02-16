@@ -7,13 +7,13 @@ class Endpoint:
         "Title": "",
         "Author": "",
         "CopyrightDate": "2000-01-01",
-        "ISBNNumber": "",
-        "ISBNNumber13": "",
+        "IsbnNumber": "",
+        "IsbnNumber13": "",
         "PublisherName": "",
         "CoverType": "Digital, Hard, Soft",
         "Pages": 0,
         "Location": "Main Collection, DOWNLOAD, Oversized, Pets, Woodwork, Reference, Birding",
-        "Note": "",
+        "BookNote": "",
         "Recycled": "0=No or 1=Yes"
     }
 
@@ -46,8 +46,8 @@ class Endpoint:
         proto = self.COLLECTION_DB_DICT.copy()
         proto["Title"] = isbn_dict["book"]["title"]
         proto["Author"] = isbn_dict["book"]["authors"][0]
-        proto["ISBNNumber"] = isbn_dict["book"]["isbn"]
-        proto["ISBNNumber13"] = isbn_dict["book"]["isbn13"]
+        proto["IsbnNumber"] = isbn_dict["book"]["isbn"]
+        proto["IsbnNumber13"] = isbn_dict["book"]["isbn13"]
         try:
             proto["PublisherName"] = isbn_dict["book"]["publisher"]
         except KeyError:

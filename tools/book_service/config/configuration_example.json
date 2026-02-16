@@ -8,6 +8,6 @@
     "url_isbn": "https://api2.isbndb.com/book/{}",
     "key": "<your key>"
   },
-  "endpoint": "http://192.168.127.13:8083",
+  "endpoint": "http://192.168.127.13:8084",
   "api_key": "your local api key for book service api"
 }

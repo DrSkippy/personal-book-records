@@ -12,15 +12,14 @@ This server provides tools to search the Hendrickson Book Collection:
 3. search_books_by_isbn - Search books by ISBN-10
 4. search_books_by_isbn13 - Search books by ISBN-13
 5. search_books_by_publisher - Search books by publisher name
-6. search_books_by_category - Search books by category
-7. search_books_by_location - Search books by physical location
-8. search_books_by_tags - Search books by associated tags
-9. search_books_by_read_date - Search books by read date
-10. search_tags - Search books by tag labels
+6. search_books_by_location - Search books by physical location
+7. search_books_by_tags - Search books by associated tags
+8. search_books_by_read_date - Search books by read date
+9. search_tags - Search books by tag labels
 
 All tools return book information including: title, author, tags, book notes, and reading notes.
 
-The server runs on port 3002 and uses streamable HTTP for MCP communication.
+The server runs on port 3005 and uses streamable HTTP for MCP communication.
 """
 
 import json
@@ -46,7 +45,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Create FastMCP server with streamable HTTP support
-port = int(os.getenv("PORT", "3002"))
+port = int(os.getenv("PORT", "3005"))
 host = os.getenv("HOST", "0.0.0.0")
 mcp = FastMCP(
     "booksmcp-service",
@@ -192,7 +191,7 @@ def search_books_by_isbn(isbn: str) -> str:
     - Read date, the date Scott last read this book
 
     Technical details:
-    - Performs exact or partial matching against the ISBNNumber field
+    - Performs exact or partial matching against the IsbnNumber field
     - ISBN-10 format (10-digit number)
     - Use search_books_by_isbn13 for ISBN-13 searches
 
@@ -203,7 +202,7 @@ def search_books_by_isbn(isbn: str) -> str:
         JSON string with count and array of matching books with full details
     """
     logger.info(f"Search books by ISBN: {isbn}")
-    return _execute_book_search({"ISBNNumber": isbn})
+    return _execute_book_search({"IsbnNumber": isbn})
 
 
 # ============================================================================
@@ -223,7 +222,7 @@ def search_books_by_isbn13(isbn13: str) -> str:
     - Read date, the date Scott last read this book
 
     Technical details:
-    - Performs exact or partial matching against the ISBNNumber13 field
+    - Performs exact or partial matching against the IsbnNumber13 field
     - ISBN-13 format (13-digit number)
     - Use search_books_by_isbn for ISBN-10 searches
 
@@ -234,7 +233,7 @@ def search_books_by_isbn13(isbn13: str) -> str:
         JSON string with count and array of matching books with full details
     """
     logger.info(f"Search books by ISBN-13: {isbn13}")
-    return _execute_book_search({"ISBNNumber13": isbn13})
+    return _execute_book_search({"IsbnNumber13": isbn13})
 
 
 # ============================================================================
@@ -266,37 +265,6 @@ def search_books_by_publisher(publisher: str) -> str:
     """
     logger.info(f"Search books by publisher: {publisher}")
     return _execute_book_search({"PublisherName": publisher})
-
-
-# ============================================================================
-# MCP Tool: Search Books by Category
-# ============================================================================
-
-@mcp.tool()
-def search_books_by_category(category: str) -> str:
-    """
-    Search the Hendrickson Book Collection by category.
-
-    Returns book information for each book matched, including:
-    - Title
-    - Author
-    - Tags
-    - Book notes
-    - Read date, the date Scott last read this book
-
-    Technical details:
-    - Performs partial string matching against the Category field
-    - Case-insensitive search
-    - Categories represent subject classifications or genres
-
-    Args:
-        category: Category name or partial name to search for
-
-    Returns:
-        JSON string with count and array of matching books with full details
-    """
-    logger.info(f"Search books by category: {category}")
-    return _execute_book_search({"Category": category})
 
 
 # ============================================================================
@@ -437,11 +405,6 @@ async def server_info(request: Request) -> dict[str, Any]:
                 "parameters": ["publisher"]
             },
             {
-                "name": "search_books_by_category",
-                "description": "Search books by category",
-                "parameters": ["category"]
-            },
-            {
                 "name": "search_books_by_location",
                 "description": "Search books by physical location",
                 "parameters": ["location"]
@@ -461,8 +424,7 @@ async def server_info(request: Request) -> dict[str, Any]:
             "book_by_title": {"tool": "search_books_by_title", "arguments": {"title": "lewis"}},
             "book_by_author": {"tool": "search_books_by_author", "arguments": {"author": "tolkien"}},
             "book_by_isbn": {"tool": "search_books_by_isbn", "arguments": {"isbn": "0123456789"}},
-            "book_by_tags": {"tool": "search_books_by_tags", "arguments": {"tags": "science"}},
-            "book_by_category": {"tool": "search_books_by_category", "arguments": {"category": "fiction"}}
+            "book_by_tags": {"tool": "search_books_by_tags", "arguments": {"tags": "science"}}
         }
     })
 
@@ -496,7 +458,6 @@ def main():
     logger.info("  search_books_by_isbn      - Search books by ISBN-10")
     logger.info("  search_books_by_isbn13    - Search books by ISBN-13")
     logger.info("  search_books_by_publisher - Search books by publisher")
-    logger.info("  search_books_by_category  - Search books by category")
     logger.info("  search_books_by_location  - Search books by location")
     logger.info("  search_books_by_tags      - Search books by tags")
     logger.info("  search_books_by_read_date - Search books by read date")

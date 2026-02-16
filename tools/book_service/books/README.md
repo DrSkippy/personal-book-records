@@ -6,7 +6,7 @@ Flask-based REST API for managing and querying the book collection database.
 
 - **Version**: 0.16.2
 - **Framework**: Flask 3.1.2
-- **Port**: 8083
+- **Port**: 8084
 - **Authentication**: API key via `x-api-key` header
 - **Endpoints**: 50+ endpoints for books, reading history, tags, and visualizations
 
@@ -22,7 +22,7 @@ cd book_service/books
 docker-compose up -d
 
 # Test
-curl -H "x-api-key: YOUR_KEY" http://localhost:8083/configuration
+curl -H "x-api-key: YOUR_KEY" http://localhost:8084/configuration
 ```
 
 ## Key Features
@@ -69,10 +69,10 @@ The API uses `../config/configuration.json`:
 {
   "username": "mysql_user",
   "password": "mysql_password",
-  "database": "books",
+  "database": "book_collection",
   "host": "localhost",
   "port": 3306,
-  "endpoint": "http://localhost:8083",
+  "endpoint": "http://localhost:8084",
   "api_key": "your_api_key_here"
 }
 ```
@@ -102,7 +102,7 @@ See `../../README.md#testing` for detailed testing documentation.
 docker build -f ./books/Dockerfile . -t book-test
 
 # Run on port 9999
-docker run -p 127.0.0.1:9999:8083 book-test
+docker run -p 127.0.0.1:9999:8084 book-test
 
 # Test
 curl -H "x-api-key: YOUR_KEY" http://localhost:9999/valid_locations
@@ -121,7 +121,7 @@ export API_KEY=your_key_here
 docker-compose up -d
 
 # Verify
-curl -H "x-api-key: $API_KEY" http://localhost:8083/configuration
+curl -H "x-api-key: $API_KEY" http://localhost:8084/configuration
 ```
 
 See `../../README.md#deployment` for comprehensive deployment documentation including:
@@ -135,9 +135,9 @@ See `../../README.md#deployment` for comprehensive deployment documentation incl
 
 ### Dockerfile
 - Base: `python:3.11-slim`
-- Working directory: `/books`
-- Port: 8083
-- Entrypoint: `poetry run uwsgi --ini api.ini`
+- Working directory: `/app`
+- Port: 8084
+- Entrypoint: `poetry run uwsgi --ini books/api.ini`
 
 ### docker-compose.yml
 ```yaml
@@ -146,11 +146,11 @@ services:
     image: localhost:5000/book-service:latest
     container_name: book-service
     ports:
-      - "8083:8083"
+      - "8084:8084"
     environment:
       - API_KEY=${API_KEY}
     volumes:
-      - /var/www/html/resources/books:/books/uploads
+      - /var/www/html/resources/books:/app/uploads
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -163,6 +163,7 @@ For the complete endpoint reference with examples, see `../../README.md#tool-2-r
 ### Configuration
 - GET `/configuration` - API version and settings
 - GET `/valid_locations` - Valid book locations
+- GET `/health` - Health check
 
 ### Books
 - GET/POST `/books_search` - Search books
@@ -170,6 +171,8 @@ For the complete endpoint reference with examples, see `../../README.md#tool-2-r
 - GET `/complete_record/<book_id>` - Complete book details
 - POST `/add_books` - Add new books
 - POST `/update_book_record` - Update book fields
+- DELETE `/delete_book/<book_id>` - Delete a book
+- POST `/complete_record_window` - Get records by BookId list
 
 ### Reading History
 - GET `/books_read/<year>` - Books read in year

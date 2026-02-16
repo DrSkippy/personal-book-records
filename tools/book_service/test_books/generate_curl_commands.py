@@ -2,7 +2,7 @@ import json
 import subprocess
 import random
 
-cleanup = ["""DELETE FROM `complete date estimates` WHERE LastReadablePage=15000\;"""]
+cleanup = ["""DELETE FROM complete_date_estimates WHERE LastReadablePage=15000\;"""]
 
 def generate_curl_commands():
 

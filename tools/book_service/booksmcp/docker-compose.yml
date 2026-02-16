@@ -3,10 +3,10 @@ services:
     image: localhost:5000/booksmcp-service:latest
     container_name: booksmcp-service
     ports:
-      - 3002:3002
+      - 3005:3005
     environment:
       - PYTHONUNBUFFERED=1
-      - PORT=3002
+      - PORT=3005
       - HOST=0.0.0.0
       - BOOKDB_CONFIG=/app/config/configuration.json
     restart: unless-stopped
@@ -18,7 +18,7 @@ services:
         - python
         - -c
         - import urllib.request;
-          urllib.request.urlopen('http://localhost:3002/health')
+          urllib.request.urlopen('http://localhost:3005/health')
       interval: 30s
       timeout: 10s
       retries: 3
