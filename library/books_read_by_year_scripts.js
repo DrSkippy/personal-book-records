@@ -38,7 +38,7 @@ $(document).ready(function () {
                     "<td>" + obj[i][2] + "</td>" +
                     "<td>" + obj[i][3] + "</td>" +
                     "<td>" + obj[i][7] + "</td>" +
-                    "<td>" + obj[i][13] + "</td></tr>";
+                    "<td>" + obj[i][12] + "</td></tr>";
                 $("#mytable-sorted").append(tr);
             }
         });

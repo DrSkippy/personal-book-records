@@ -93,7 +93,7 @@ form.addEventListener('submit', function(event) {
     xhr.onreadystatechange = function () {
         if (this.readyState == 4 && this.status == 200) {
             console.log(xhr.responseText);
-            var book_id = JSON.parse(xhr.responseText).add_books[0].BookCollectionID;
+            var book_id = JSON.parse(xhr.responseText).add_books[0].BookId;
             alert("Entry added successfully!\n ID=" + book_id);
             // window.location.href = "../index.php";
             window.location.href = "./books_detail.html?bookid=" + book_id.toString();

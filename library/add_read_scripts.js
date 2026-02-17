@@ -32,7 +32,7 @@ form.addEventListener('submit', function(event) {
     var xhr = new XMLHttpRequest();
     var url = baseApiUrl + "/add_read_dates";
     console.log(url);
-    params = '[{"BookCollectionID":' + book_id + ',"ReadDate":"'  + date + '","ReadNote":'  + note + '}]';
+    params = '[{"BookId":' + book_id + ',"ReadDate":"'  + date + '","ReadNote":'  + note + '}]';
     console.log(params);
     xhr.open("POST", url, true);
     xhr.setRequestHeader("Content-type", "application/json; charset=UTF-8");

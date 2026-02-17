@@ -1,4 +1,4 @@
-__version__ = '0.16.2'
+__version__ = '0.17.0'
 
 import functools
 import json
@@ -119,8 +119,13 @@ def json_response(data, status=200):
     Response
         A Flask Response object with JSON content and headers.
     """
-    rdata = json.dumps(data)
-    return Response(response=rdata, status=status, headers=resp_header(rdata))
+    try:
+        rdata = json.dumps(data)
+        return Response(response=rdata, status=status, headers=resp_header(rdata))
+    except (TypeError, ValueError) as e:
+        app.logger.error(f"JSON serialization error: {e}")
+        error_data = json.dumps({"error": "Failed to serialize response data", "details": str(e)})
+        return Response(response=error_data, status=500, headers=resp_header(error_data))
 
 
 def json_string_response(json_str, status=200):
@@ -637,6 +642,14 @@ def complete_record_window(book_id, window=20):
     return json_response(window_list)
 
 
+@app.route('/complete_record_window', methods=['POST'])
+@require_app_key
+def complete_record_window_by_ids():
+    data = request.get_json()
+    book_ids = data.get("book_ids", [])
+    results = get_complete_records_by_ids(book_ids)
+    return json_response(results)
+
 @app.route('/complete_record/<book_id>')
 @app.route('/complete_record/<book_id>/<adjacent>')
 @require_app_key
@@ -697,18 +710,6 @@ def delete_book_endpoint(book_id):
         return json_response(result, status=404)
     return json_response(result)
 
-
-##########################################################################
-# COMPLETE RECORD WINDOW BY IDS
-##########################################################################
-
-@app.route('/complete_record_window', methods=['POST'])
-@require_app_key
-def complete_record_window_by_ids():
-    data = request.get_json()
-    book_ids = data.get("book_ids", [])
-    results = get_complete_records_by_ids(book_ids)
-    return json_response(results)
 
 
 ##########################################################################

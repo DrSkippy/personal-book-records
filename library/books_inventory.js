@@ -23,7 +23,7 @@ $(document).ready(function () {
                 "<td>" + obj[i][2] + "</td>" +
                 "<td>" + obj[i][3] + "</td>" +
                 "<td>" + obj[i][6] + "</td>" +
-                "<td>" + obj[i][13] + "</td>" +
+                "<td>" + obj[i][12] + "</td>" +
                 "<td><input onclick=\"changeCheckStatus(this, " + parseInt(obj[i][0]) + 
 		")\" type=\"checkbox\" id=\"recycled\" name=\"recycled\"" + checkedString + "></td></tr>";
             $("#mytable").append(tr);

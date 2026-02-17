@@ -13,7 +13,7 @@ $(document).ready(function () {
     }
 
     if (urlParams.has("bookid") && urlParams.get("bookid").trim() != "") {
-        url += "BookCollectionID=" + urlParams.get("bookid").trim();
+        url += "BookId=" + urlParams.get("bookid").trim();
         params_continue_flag = true;
     }
 
@@ -43,7 +43,7 @@ $(document).ready(function () {
                 "<td>" + obj[i][2] + "</td>" +
                 "<td>" + obj[i][3] + "</td>" +
                 "<td>" + obj[i][7] + "</td>" +
-                "<td>" + obj[i][13] + "</td></tr>";
+                "<td>" + obj[i][12] + "</td></tr>";
             $("#mytable").append(tr);
         }
     });

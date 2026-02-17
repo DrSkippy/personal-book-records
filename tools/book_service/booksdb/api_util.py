@@ -418,6 +418,14 @@ def get_complete_book_record(book_id):
     return result_data
 
 
+def get_complete_records_by_ids(book_ids: list[int]) -> list[dict]:
+    """Get complete book records for a list of BookIds."""
+    results = []
+    for book_id in book_ids:
+        results.append(get_complete_book_record(book_id))
+    return results
+
+
 ##########################################################################
 # UPDATE BOOKS
 ##########################################################################
@@ -1012,18 +1020,6 @@ def delete_book(book_id: int) -> dict:
         db.commit()
     return result
 
-
-##########################################################################
-# BATCH COMPLETE RECORDS
-##########################################################################
-
-
-def get_complete_records_by_ids(book_ids: list[int]) -> list[dict]:
-    """Get complete book records for a list of BookIds."""
-    results = []
-    for book_id in book_ids:
-        results.append(get_complete_book_record(book_id))
-    return results
 
 
 ##########################################################################

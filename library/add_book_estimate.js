@@ -29,7 +29,7 @@ form.addEventListener('submit', function(event) {
             if ("error" in resp) {
                 alert("Error: " + resp.error);
             } else {
-                var book_id = resp.add_book_estimate.BookCollectionID;
+                var book_id = resp.add_book_estimate.BookId;
                 alert("Entry added successfully!\n Book ID=" + book_id);
             }
             window.location.href = "./books_detail.html?bookid=" + book_id.toString();

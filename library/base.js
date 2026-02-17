@@ -2,7 +2,7 @@ const apiKey = '77f13a1915fafe230754fe61669dcc0a5a1c79a3'; // FIRST LINE: Replac
 const baseApiUrl = 'https://book-service.drskippy.app'
 const resourceUrl = 'https://resources.drskippy.app/books';
 const baseApiPath = '/';
-var bookCollectionID = 102;
+var BookId = 102;
 const apiHeaders = {
     'x-api-key': apiKey
 }
@@ -30,14 +30,15 @@ function topnavbar() {
 }
 
 function setval(bcid) {
-    bookCollectionID = bcid;
-    const urlId = baseApiUrl + "/books_search?BookCollectionID=" + bookCollectionID;
-    const urlTag = baseApiUrl + "/tags/" + bookCollectionID;
-    const urlRead = baseApiUrl + "/status_read/" + bookCollectionID;
-    const urlListRecords = baseApiUrl + "/record_set/" + bookCollectionID;
-    const urlImages = baseApiUrl + "/images/" + bookCollectionID;
+    BookId = bcid;
+    const urlId = baseApiUrl + "/books_search?BookId=" + BookId;
+    const urlTag = baseApiUrl + "/tags/" + BookId;
+    const urlRead = baseApiUrl + "/status_read/" + BookId;
+    const urlListRecords = baseApiUrl + "/record_set/" + BookId;
+    const urlImages = baseApiUrl + "/images/" + BookId;
     $.getJSON(urlId, function (data) {
         var obj = data['data'];
+        // console.log('Book data:', obj);
         var trOne = "<tr id='replace-me-one'>" +
             "<td>" + obj[0][0] + "</td>" +
             "<td>" + obj[0][1] + "</td>" +
@@ -46,12 +47,12 @@ function setval(bcid) {
             "<td>" + obj[0][5] + "</td>" +
             "<td>" + obj[0][6] + "</td>" +
             "<td>" + obj[0][7] + "</td>" +
+            "<td>" + obj[0][9] + "</td>" +
             "<td>" + obj[0][10] + "</td>" +
-            "<td>" + obj[0][11] + "</td>" +
             "<td>" + obj[0][4] + "</td>" +
+            "<td>" + obj[0][11] + "</td>" +
             "<td>" + obj[0][12] + "</td>" +
-            "<td>" + obj[0][13] + "</td>" +
-            "<td>" + obj[0][9] + "</td></tr>";
+            "<td>" + obj[0][8] + "</td></tr>";
         $("#replace-me-one").replaceWith(trOne);
     });
     $.getJSON(urlTag, function (data) {
@@ -60,7 +61,7 @@ function setval(bcid) {
             "<td>Tags:</td><td class='tags' colspan=6>" + tag_links_list(obj) + "</td>" +
             "   <td colspan=6><form name=\"add_tag\" action=\"" + baseApiPath + 'js_reports/add_tags.html\">' +
             "   <label for=\"lname\">Add Tag List:&nbsp; </label>" +
-            "   <input type=\"hidden\" id=\"book_id\" name=\"book_id\" value=\"" + data["BookID"] + "\">" +
+            "   <input type=\"hidden\" id=\"book_id\" name=\"book_id\" value=\"" + data["BookId"] + "\">" +
             "   <input type=\"text\" id=\"tag_string\" name=\"tag_string\">" +
             "   <input type=\"submit\" value=\"submit\">\n" +
             "   </form></td></tr>";
@@ -68,10 +69,10 @@ function setval(bcid) {
     });
     $.getJSON(urlRead, function (data) {
         const obj = data['data'];
-        console.log(obj);
+        // console.log(obj);
         let trThree = "<tr id='replace-me-three'>" +
             '<td><a href=\"' + baseApiPath + 'js_reports/add_read.html?book_id=' +
-            bookCollectionID + "\">Add</a> Read:</td>" +
+            BookId + "\">Add</a> Read:</td>" +
             "<td colspan=12>" +
             "<table id='readtable' class=\"styled-inner-table\">\n" +
             "<thead>\n" +
@@ -90,18 +91,18 @@ function setval(bcid) {
     });
     $.getJSON(urlListRecords, function (data) {
         const obj = data['record_set'];
-        const recordList = obj["RecordID"];
+        const recordList = obj["RecordId"];
         const estList = obj["Estimate"];
-        console.log(recordList);
+        console.log(obj);
         let trFour = "<tr id='replace-me-four'>" +
             '<td><a href=\"' + baseApiPath + 'js_reports/add_book_estimate.html?book_id=' +
-            bookCollectionID + "\">Add</a> Book Estimate</td>" +
+            BookId + "\">Add</a> Book Estimate</td>" +
             "<td colspan=12>" +
             "<table id='readtable' class=\"styled-inner-table\">\n" +
             "<thead>\n" +
             "<tr>\n" +
             "<th>Start Date</th>\n" +
-            "<th>RecrodID</th>\n" +
+            "<th>Record ID</th>\n" +
             "<th>Estimated Finish</th>\n" +
             "<th>Shortest Finish</th>\n" +
             "<th>Longest Finish</th>\n" +
@@ -113,7 +114,7 @@ function setval(bcid) {
             console.log(estList[i]);
             trFour += "<tr><td>" + recordList[i][0].substring(0, 11) + "</td><td>";
             trFour += '<a href=\"' + baseApiPath + 'js_reports/add_date_pages.html?record_id=' +
-                recordList[i][1] + "&book_id=" + bookCollectionID + "\">Add pages to " + recordList[i][1] + "</a>";
+                recordList[i][1] + "&book_id=" + BookId + "\">Add pages to " + recordList[i][1] + "</a>";
             trFour += "</td><td>" + estList[i][0] + "</td>" +
                 "<td>" + estList[i][1] + "</td><td>" + estList[i][2] + "</td></tr>";
         }
@@ -124,29 +125,30 @@ function setval(bcid) {
         }, 'slow'); // 'slow' can be replaced with a duration in milliseconds, e.g., 1000
     });
     $.getJSON(urlImages, function (data) {
+        console.log(data);
         const obj = data['images'];
         var imageRow = "";
         if (obj.length > 0) {
             imageRow += "<tr id='replace-me-five'><td colspan='10'><table>";
             for (var i = 0; i < obj.length; i++) {
-                const imgUrl = obj[i]['url'];
+                const imgUrl = obj[i]['Url'];
                 imageRow += "<tr>" +
                     "<td>Image: " + i + " </td>" +
                     "<td><img src=\"" + imgUrl + "\" class=\"detail-image\"></td>" +
                     "<td>URL: <a href=\"" + imgUrl + "\" target=\"_blank\">" + imgUrl + " </a></br>" +
-                    "Name: " + obj[i]['name'] + "</br>" +
-                    "Type: " + obj[i]['type'] + "</br>" +
+                    "Name: " + obj[i]['Name'] + "</br>" +
+                    "Type: " + obj[i]['ImageType'] + "</br>" +
                     "</td></tr>"
             }
             imageRow += "</table></td><td colspan=3><input type=\"file\" id=\"fileInput\">" +
-                "<button onclick=\"uploadFiles(bookCollectionID)\">Upload Image</button></td></tr>";
+                "<button onclick=\"uploadFiles(BookId)\">Upload Image</button></td></tr>";
         } else {
             imgUrl = "No url available";
             imageRow = "<tr id='replace-me-five'>" +
                 "<td colspan=2>(No image available)</td>" +
                 "<td colspan=8>URL: " + imgUrl + "</td>" +
                 "<td colspan=3><input type=\"file\" id=\"fileInput\">" +
-                "<button onclick=\"uploadFiles(bookCollectionID)\">Upload Image</button></td></tr>";
+                "<button onclick=\"uploadFiles(BookId)\">Upload Image</button></td></tr>";
         }
         $("#replace-me-five").replaceWith(imageRow);
     });
@@ -196,11 +198,11 @@ function uploadFiles(booKCollectionID) {
             .then(data => {
                 console.log('Upload successful:', data);
                 let payload = JSON.stringify({
-                    "BookCollectionID": booKCollectionID,
+                    "BookId": booKCollectionID,
                     "name": "Uploaded through books app " + new Date().toJSON().slice(0, 10),
                     "url": resourceUrl + "/" + data.upload_image.filename
                 });
-                console.log('BookCollectionID:', payload);
+                console.log('BookId:', payload);
                 fetch(baseApiUrl + '/add_image', {
                     method: 'POST',
                     body: payload,

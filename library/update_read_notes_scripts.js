@@ -36,7 +36,7 @@ function populateFields() {
         readReadNote = obj[idArraySubIndex][2];
     });
 
-    var urlBook = baseApiUrl + "/books_search?BookCollectionID=" + bookCollectionID;
+    var urlBook = baseApiUrl + "/books_search?BookId=" + bookCollectionID;
     $.getJSON(urlBook, function (data) {
         var obj = data['data'];
         bookTitle = obj[0][1];
@@ -97,12 +97,12 @@ function update_note() {
     bookNote = document.getElementById("bookNoteValue").value
 
     const dataRead = JSON.stringify({
-        "BookCollectionID": bookCollectionID,
+        "BookId": bookCollectionID,
         "ReadDate": readDate,
         "ReadNote": readNote
     });
     const dataBook = JSON.stringify({
-        "BookCollectionID": bookCollectionID,
+        "BookId": bookCollectionID,
         "Note": bookNote
     });
     console.log(dataRead);
