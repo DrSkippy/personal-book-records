@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: Book Service API
-  version: 0.16.2
+  version: 0.17.0
   description: |
     Comprehensive REST API for personal book collection management.
 
@@ -292,7 +292,7 @@ components:
         version:
           type: string
           description: API version
-          example: "0.16.2"
+          example: "0.17.0"
         configuration:
           type: object
           description: Database configuration (passwords masked)
@@ -1058,6 +1058,12 @@ paths:
                         example: "deleted"
                   error:
                     type: string
+        '404':
+          description: Book not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
 
@@ -1688,7 +1694,7 @@ paths:
                         example: "cover.jpg"
                       path:
                         type: string
-                        example: "/app/uploads/cover.jpg"
+                        example: "/books/uploads/cover.jpg"
         '400':
           description: Upload error
           content:

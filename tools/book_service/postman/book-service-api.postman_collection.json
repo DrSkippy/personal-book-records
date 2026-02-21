@@ -1,9 +1,9 @@
 {
   "info": {
     "name": "Book Service API",
-    "description": "Comprehensive REST API for personal book collection management (v0.16.2)",
+    "description": "Comprehensive REST API for personal book collection management (v0.17.0)",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "_postman_id": "book-service-api-v0.16.2"
+    "_postman_id": "book-service-api-v0.17.0"
   },
   "auth": {
     "type": "apikey",
@@ -49,6 +49,20 @@
               "path": ["valid_locations"]
             },
             "description": "Get list of valid book storage locations"
+          },
+          "response": []
+        },
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            },
+            "description": "Returns OK if the service is running (no auth required)"
           },
           "response": []
         }
@@ -161,6 +175,29 @@
               "host": ["{{base_url}}"],
               "path": ["complete_records_window", "1234", "20"]
             }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Complete Records by BookId List",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"book_ids\": [1, 2, 3]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/complete_record_window",
+              "host": ["{{base_url}}"],
+              "path": ["complete_record_window"]
+            },
+            "description": "Retrieve complete book records for an explicit list of BookIds"
           },
           "response": []
         }
@@ -464,6 +501,20 @@
               "host": ["{{base_url}}"],
               "path": ["update_edit_read_note"]
             }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Book",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/delete_book/1234",
+              "host": ["{{base_url}}"],
+              "path": ["delete_book", "1234"]
+            },
+            "description": "Delete a book and all related records (CASCADE). Returns 404 if book not found."
           },
           "response": []
         }
