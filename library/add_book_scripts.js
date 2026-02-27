@@ -38,10 +38,10 @@ window.addEventListener('DOMContentLoaded', function() {
                 // Set values
                 document.forms["add"]["author"].value = isbn.Author;
                 document.forms["add"]["title"].value = isbn.Title;
-                document.forms["add"]["isbnnumber"].value = isbn.ISBNNumber;
-                document.forms["add"]["isbnnumber13"].value = isbn.ISBNNumber13;
+                document.forms["add"]["isbnnumber"].value = isbn.IsbnNumber;
+                document.forms["add"]["isbnnumber13"].value = isbn.IsbnNumber13;
                 document.forms["add"]["publishername"].value = isbn.PublisherName;
-                document.forms["add"]["note"].value = isbn.Note;
+                document.forms["add"]["note"].value = isbn.BookNote;
                 document.forms["add"]["pages"].value = isbn.Pages;
                 document.forms["add"]["copyrightdate"].value = isbn.CopyrightDate;
             }
@@ -82,8 +82,8 @@ form.addEventListener('submit', function(event) {
     var xhr = new XMLHttpRequest();
     var url = baseApiUrl + "/add_books";
     console.log(url);
-    params = '[{"Author":"' + author + '","Title":"'  + title + '","ISBNNumber":"'  + isbnnumber + '","ISBNNumber13":"'  +
-        isbnnumber13 + '","PublisherName":"'  + publishername + '","Note":"'  + note + '","CoverType":"'  + covertype +
+    params = '[{"Author":"' + author + '","Title":"'  + title + '","IsbnNumber":"'  + isbnnumber + '","IsbnNumber13":"'  +
+        isbnnumber13 + '","PublisherName":"'  + publishername + '","BookNote":"'  + note + '","CoverType":"'  + covertype +
         '","Recycled":"'  + recycled + '","Location":"'  + location + '","Pages":"'  + pages + '","CopyrightDate":"'  +
         copyrightdate + '"}]';
     console.log(params);
