@@ -199,8 +199,8 @@ function uploadFiles(booKCollectionID) {
                 console.log('Upload successful:', data);
                 let payload = JSON.stringify({
                     "BookId": booKCollectionID,
-                    "name": "Uploaded through books app " + new Date().toJSON().slice(0, 10),
-                    "url": resourceUrl + "/" + data.upload_image.filename
+                    "Name": "Uploaded through books app " + new Date().toJSON().slice(0, 10),
+                    "Url": resourceUrl + "/" + data.upload_image.filename
                 });
                 console.log('BookId:', payload);
                 fetch(baseApiUrl + '/add_image', {
