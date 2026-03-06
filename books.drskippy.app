@@ -5,6 +5,14 @@ server {
     root /var/www/html/personal-book-records/book-records-react/dist;
     index index.html;
 
+    # Ollama reverse proxy — browser can't reach 192.168.1.90 directly
+    location /ollama/ {
+        proxy_pass http://192.168.1.90:11434/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_read_timeout 120s;
+    }
+
     # SPA routing — all paths fall back to index.html
     location / {
         try_files $uri $uri/ /index.html;

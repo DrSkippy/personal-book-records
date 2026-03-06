@@ -50,6 +50,7 @@ const tools = [
           IsbnNumber: { type: 'string', description: 'ISBN-10' },
           IsbnNumber13: { type: 'string', description: 'ISBN-13' },
           BookId: { type: 'number', description: 'Exact book ID' },
+          BookNote: { type: 'string', description: 'Search within book notes/annotations (partial match supported)' },
         },
         required: [],
       },
