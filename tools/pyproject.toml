@@ -47,6 +47,7 @@ urllib3 = "^2.6.2"
 uwsgi = "^2.0.31"
 werkzeug = "^3.1.4"
 zipp = "^3.23.0"
+rich = "^14.3.3"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.0.2"

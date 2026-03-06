@@ -33,7 +33,7 @@ class TestESTTool(unittest.TestCase):
             output = fake_out.getvalue()
             self.assertIn("2.0.0", output)
             self.assertIn(self.endpoint, output)
-            self.assertIn("Book Records and Reading Database", output)
+            self.assertIn("Estimate Tools", output)
 
     @patch('bookdbtool.estimate_tools.requests.get')
     def test_version_request_exception(self, mock_get):
@@ -80,7 +80,7 @@ class TestESTTool(unittest.TestCase):
         with patch('sys.stdout', new=StringIO()) as fake_out:
             self.est_tool.new_book_estimate(book_id, total_pages)
             output = fake_out.getvalue()
-            self.assertIn("started on", output)
+            self.assertIn("Started:", output)
 
         expected_url = f"{self.endpoint}/add_book_estimate/{book_id}/{total_pages}"
         mock_put.assert_called_once_with(expected_url, headers=self.est_tool.header)
@@ -145,8 +145,8 @@ class TestESTTool(unittest.TestCase):
             output = fake_out.getvalue()
             self.assertIn("Test Book", output)
             self.assertIn("Test Author", output)
-            self.assertIn("Start date:", output)
-            self.assertIn("Estimated Finish:", output)
+            self.assertIn("Start Date", output)
+            self.assertIn("Est. Finish", output)
 
         # Result is set to book_id, not RecordID
         self.assertEqual(self.est_tool.result, book_id)
@@ -269,9 +269,10 @@ class TestESTTool(unittest.TestCase):
         post_response.json.return_value = {"error": "Invalid page number"}
         mock_post.return_value = post_response
 
-        with patch('bookdbtool.estimate_tools.logging.error') as mock_log:
+        with patch('sys.stdout', new=StringIO()) as fake_out:
             self.est_tool.add_page_date(record_id, page, date)
-            mock_log.assert_called_once()
+            output = fake_out.getvalue()
+            self.assertIn("Error:", output)
 
     @patch('bookdbtool.estimate_tools.requests.post')
     def test_add_page_date_request_exception(self, mock_post):
@@ -294,10 +295,6 @@ class TestESTToolConstants(unittest.TestCase):
     def test_fmt_constant(self):
         from bookdbtool.estimate_tools import FMT
         self.assertEqual(FMT, "%Y-%m-%d")
-
-    def test_divider_width_constant(self):
-        from bookdbtool.estimate_tools import DIVIDER_WIDTH
-        self.assertEqual(DIVIDER_WIDTH, 72)
 
 
 class TestESTToolIntegration(unittest.TestCase):

@@ -1,4 +1,4 @@
-__version__ = '0.6.0'
+__version__ = '0.7.0'
 
 import datetime
 import logging
@@ -9,10 +9,34 @@ pp = pprint.PrettyPrinter(indent=3)
 
 import pandas as pd
 import requests
-from columnar import columnar
+from rich.console import Console
+from rich.table import Table
+from rich.style import Style
+from rich.text import Text
+
+# Rich console for output
+console = Console()
 
 
 class BCTool:
+    """
+    Book Collection Tool - Interface for searching, browsing, and managing books.
+
+    This class provides methods to interact with the book collection database API,
+    including searching for books, viewing details, managing tags, and tracking
+    reading history.
+
+    Attributes:
+        result: Stores the result of the last operation (typically a DataFrame or ID).
+        end_point: The API endpoint URL.
+
+    Example:
+        >>> bc = BCTool("http://localhost:8084", "your-api-key")
+        >>> bc.bs(Title="hobbit")  # Search by title
+        >>> bc.book(123)           # View book details
+        >>> bc.bry(2024)           # Books read in 2024
+    """
+
     COLUMN_INDEX = {
         "BookId": 0,
         "Title": 1,
@@ -47,6 +71,30 @@ class BCTool:
     LINES_TO_ROWS = 1.3
     DIVIDER_WIDTH = 50
 
+    # Column styling for rich tables
+    COLUMN_STYLES = {
+        "BookId": "cyan bold",
+        "Title": "green",
+        "Author": "yellow",
+        "CopyrightDate": "dim",
+        "IsbnNumber": "dim",
+        "IsbnNumber13": "dim",
+        "PublisherName": "dim",
+        "CoverType": "magenta",
+        "Pages": "blue bold",
+        "BookNote": "white",
+        "Recycled": "red",
+        "Location": "cyan",
+        "ReadDate": "green bold",
+        "TagId": "cyan bold",
+        "Tag": "yellow",
+        "Label": "yellow",
+        "Count": "blue bold",
+        "year": "cyan bold",
+        "books read": "green bold",
+        "pages read": "blue bold",
+    }
+
     def __init__(self, endpoint, api_key):
         # File path contortions so notebook uses the same config as REPL command line
         self.end_point = endpoint
@@ -68,20 +116,40 @@ class BCTool:
             self.page_size = int(page_size / self.LINES_TO_ROWS)
         else:
             self.page_size = 10000
+
+        selected_headers = self._row_column_selector(header, indexes)
+
         try:
             i = 0
             while i < len(data):
                 d = len(data) - i if len(data) - i < self.page_size else self.page_size
-                print(columnar(self._column_selector(data[i:i + d], indexes),
-                               self._row_column_selector(header, indexes),
-                               terminal_width=self.terminal_width,
-                               no_borders=True))
+                page_data = self._column_selector(data[i:i + d], indexes)
+
+                table = Table(
+                    show_header=True,
+                    header_style="bold magenta",
+                    border_style="blue",
+                    row_styles=["", "dim"],
+                    expand=False,
+                    width=min(self.terminal_width, 200),
+                )
+
+                for col_name in selected_headers:
+                    style = self.COLUMN_STYLES.get(col_name, "white")
+                    table.add_column(col_name, style=style, overflow="fold")
+
+                for row in page_data:
+                    table.add_row(*[str(cell) if cell is not None else "" for cell in row])
+
+                console.print(table)
+
                 i += d
-                a = input("Return to continue; q to quit...") if i < len(data) else ""
-                if a.startswith("q"):
-                    break
+                if i < len(data):
+                    a = input("Return to continue; q to quit...")
+                    if a.startswith("q"):
+                        break
         except TypeError as e:
-            print("No data")
+            console.print("[red]No data[/red]")
 
     def _populate_new_book_record(self):
         proto = self.COLLECTION_DB_DICT.copy()
@@ -132,7 +200,16 @@ class BCTool:
         return result_message
 
     def version(self):
-        """ Retrieve the back end version. """
+        """
+        Display version information for the API and REPL.
+
+        Shows a formatted table with the API endpoint, API version, and REPL version.
+
+        Alias: ver()
+
+        Example:
+            >>> bc.ver()
+        """
         q = self.end_point + "/configuration"
         try:
             r = requests.get(q, headers=self.header)
@@ -140,19 +217,35 @@ class BCTool:
         except requests.RequestException as e:
             logging.error(e)
         else:
-            print("*" * self.DIVIDER_WIDTH)
-            print("        Book Records and Reading Database")
-            print("*" * self.DIVIDER_WIDTH)
-            print("Endpoint:         {}".format(self.end_point))
-            print("Endpoint Version: {}".format(res["version"]))
-            print("Repl Version:     {}".format(__version__))
-            print("*" * self.DIVIDER_WIDTH)
+            table = Table(
+                show_header=False,
+                border_style="blue",
+                title="[bold magenta]Book Records and Reading Database[/bold magenta]",
+                title_justify="center",
+            )
+            table.add_column("Key", style="cyan")
+            table.add_column("Value", style="green")
+            table.add_row("Endpoint", self.end_point)
+            table.add_row("API Version", res["version"])
+            table.add_row("REPL Version", __version__)
+            console.print(table)
 
     ver = version
 
     def columns(self):
         """
-        Show the book collection database columns.
+        Display all searchable database column names.
+
+        Lists the column names that can be used as search parameters in books_search().
+
+        Alias: col()
+
+        Example:
+            >>> bc.col()
+            BookId
+            Title
+            Author
+            ...
         """
         print("\n".join(list(self.COLUMN_INDEX.keys())))
 
@@ -160,9 +253,20 @@ class BCTool:
 
     def tag_counts(self, tag=None, pagination=True):
         """
-        Arguments
-            tag: String for which you want a tag count. Required.
-            pagination: True or False. Default is True to paginate the results according to the screen size.
+        Display tag usage statistics showing how many books have each tag.
+
+        Args:
+            tag: Optional string to filter tags (partial match). If None, shows all tags.
+            pagination: If True (default), paginate output to fit screen.
+
+        Result:
+            bc.result contains a DataFrame with tag names and counts.
+
+        Alias: tc()
+
+        Example:
+            >>> bc.tc()              # Show all tag counts
+            >>> bc.tc("sci")         # Show tags containing "sci"
         """
         q = self.end_point + "/tag_counts"
         if tag is not None:
@@ -180,12 +284,26 @@ class BCTool:
 
     def books_search(self, **query):
         """
-        Arguments
-            query is optional, use named variables for columns you wish to match.
-                E.g. bc.book_search(Title="two cities", Author="Dickens")
+        Search for books by any combination of column values.
 
-        Use bc.columns() to see a list of columns.
-        bc.result is a Pandas DataFrame.
+        Args:
+            **query: Keyword arguments where keys are column names and values are
+                     search terms (partial match supported).
+
+        Result:
+            bc.result contains a DataFrame with matching books.
+
+        Alias: bs()
+
+        Available columns: BookId, Title, Author, CopyrightDate, IsbnNumber,
+                          PublisherName, CoverType, Pages, BookNote, Recycled,
+                          Location, IsbnNumber13, Tags
+
+        Example:
+            >>> bc.bs(Title="hobbit")                    # Search by title
+            >>> bc.bs(Author="tolkien")                  # Search by author
+            >>> bc.bs(Title="ring", Author="tolkien")    # Multiple criteria
+            >>> bc.bs(Tags="fantasy")                    # Search by tag
         """
         q = self.end_point + "/books_search?"
         first = True
@@ -208,12 +326,21 @@ class BCTool:
 
     def tags_search(self, match_str, pagination=True, output=True):
         """
-        Arguments
-            match_str is string that partially aor fully matches a tag in the database.
-            pagination: True or False. Default is True to paginate the results according to the screen size.
-        Returns
-            List of tags matching match_str.
-            bc.result is a list of book collection ids for books with matching tag.
+        Search for books by tag name.
+
+        Args:
+            match_str: Tag name to search for (partial match supported).
+            pagination: If True (default), paginate output to fit screen.
+            output: If True (default), display results. Set False to only populate result.
+
+        Result:
+            bc.result contains a set of BookIds for books with matching tags.
+
+        Alias: ts()
+
+        Example:
+            >>> bc.ts("fiction")         # Find books tagged with "fiction"
+            >>> bc.ts("sci", output=False)  # Get IDs without display
         """
         q = self.end_point + f"/tags_search/{match_str}"
         try:
@@ -230,12 +357,20 @@ class BCTool:
 
     def book(self, book_collection_id, pagination=True):
         """
-        Argument
-            book_collection_id for the book you wish to retrieve. Required.
-            pagination: True or False. Default is True to paginate the results according to the screen size.Takes 1 argument.
-        Returns
-            Book records with tag list and read status.
-            bc.result is a book collection id.
+        Display complete details for a single book.
+
+        Shows book metadata, associated tags, and reading history (dates read).
+
+        Args:
+            book_collection_id: The BookId of the book to retrieve (integer).
+            pagination: If True (default), paginate output to fit screen.
+
+        Result:
+            bc.result contains the BookId.
+
+        Example:
+            >>> bc.book(1234)
+            >>> bc.book(bc.result)  # View book from previous search
         """
         try:
             book_collection_id = int(book_collection_id)
@@ -250,20 +385,35 @@ class BCTool:
             logging.error(e)
         else:
             self._show_table(res["book"]["data"], res["book"]["header"], [0, 1, 2, 3, 4], pagination)
-            print("  TAGS:\n")
-            print("    " + "\n    ".join(res["tags"]["data"][0]))
+            if res["tags"]["data"] and len(res["tags"]["data"][0]) > 0:
+                tags = res["tags"]["data"][0]
+                console.print("\n[bold cyan]TAGS:[/bold cyan]")
+                tag_text = "  ".join([f"[yellow]{tag}[/yellow]" for tag in tags])
+                console.print(f"  {tag_text}\n")
             if res["reads"]["data"] and len(res["reads"]["data"][0]) > 0:
+                console.print("[bold cyan]READ DATES:[/bold cyan]")
                 self._show_table(res["reads"]["data"], res["reads"]["header"], [0, 1], pagination)
             self.result = book_collection_id
 
     def books_read_by_year_with_summary(self, year=None, pagination=True):
         """
-        Arguments
-            year is the 4 digit year of for which you want a summary. Options, blank returns all books read.
-            pagination: True or False. Default is True to paginate the results according to the screen size.Takes 1 argument.
-        Returns
-            table of books for each year with a yearly summary.
-            bc.result is a list of Pandas DataFrames.
+        Display books read with yearly summary statistics inline.
+
+        Shows all books read, grouped by year, with total books and pages
+        displayed after each year's entries.
+
+        Args:
+            year: Optional 4-digit year to filter. If None, shows all years.
+            pagination: If True (default), paginate output to fit screen.
+
+        Result:
+            bc.result contains a list of DataFrames, one per year.
+
+        Alias: brys()
+
+        Example:
+            >>> bc.brys()        # All years with summaries
+            >>> bc.brys(2024)    # Just 2024 with summary
         """
         self.result = []
         q = self.end_point + "/summary_books_read_by_year"
@@ -279,7 +429,7 @@ class BCTool:
             for year, pages, books in res["data"]:
                 q = self.end_point + f"/books_read/{year}"
                 try:
-                    tr = requests.get(q)
+                    tr = requests.get(q, headers=self.header)
                     tres = tr.json()
                 except requests.RequestException as e:
                     logging.error(e)
@@ -299,12 +449,20 @@ class BCTool:
 
     def books_read_by_year(self, year=None, pagination=True):
         """
-        Arguments
-            year is the 4 digit year of for which you want a list. Options, blank returns all books read.
-            pagination: True or False. Default is True to paginate the results according to the screen size.Takes 1 argument.
-        Returns
-            table of books for years.
-            bc.result is a Pandas DataFrame.
+        Display books read in a given year or all years.
+
+        Args:
+            year: Optional 4-digit year to filter. If None, shows all years.
+            pagination: If True (default), paginate output to fit screen.
+
+        Result:
+            bc.result contains a DataFrame with all matching books.
+
+        Alias: bry()
+
+        Example:
+            >>> bc.bry()         # All books ever read
+            >>> bc.bry(2024)     # Books read in 2024
         """
         q = self.end_point + "/books_read"
         if year is not None:
@@ -322,13 +480,22 @@ class BCTool:
 
     def summary_books_read_by_year(self, year=None, show=True, pagination=True):
         """
-        Arguments
-            year is the 4 digit year of for which you want a list. Options, blank returns all books read.
-            show=False will put results in bc.result, but will not print the list
-            pagination: True or False. Default is True to paginate the results according to the screen size.Takes 1 argument.
-        Returns
-            table of books for years.
-            bc.result is a Pandas DataFrame.
+        Display yearly reading statistics (books count and pages count per year).
+
+        Args:
+            year: Optional 4-digit year to filter. If None, shows all years.
+            show: If True (default), display results. Set False to only populate result.
+            pagination: If True (default), paginate output to fit screen.
+
+        Result:
+            bc.result contains a DataFrame with columns: year, books read, pages read.
+
+        Alias: sbry()
+
+        Example:
+            >>> bc.sbry()                  # Summary for all years
+            >>> bc.sbry(2024)              # Just 2024 stats
+            >>> bc.sbry(show=False)        # Get data without display
         """
         q = self.end_point + "/summary_books_read_by_year"
         if year is not None:
@@ -346,32 +513,73 @@ class BCTool:
 
     def year_rank(self, df=None, pages=True):
         """
-        Arguments
-            df is a Pandas Dataframe with summary information (see summary_books_read_by_year). Optional.
-            pages=True sort by pages read per year; False gives sort by books read per year.
-        Returns
-            table of books for years.
-            bc.result is a Pandas DataFrame.
+        Rank years by reading volume (pages or books).
+
+        Displays a ranked table showing which years had the most reading activity.
+
+        Args:
+            df: Optional DataFrame from summary_books_read_by_year(). If None,
+                fetches fresh data automatically.
+            pages: If True (default), rank by pages read. If False, rank by books read.
+
+        Result:
+            bc.result contains a DataFrame sorted by the chosen metric.
+
+        Example:
+            >>> bc.year_rank()              # Rank by pages (default)
+            >>> bc.year_rank(pages=False)   # Rank by book count
         """
         if df is None:
             self.summary_books_read_by_year(show=False)
             df = self.result
         if pages:
             df = df.sort_values("pages read", ascending=False)
+            sort_label = "Pages Read"
         else:
             df = df.sort_values("books read", ascending=False)
+            sort_label = "Books Read"
         df.reset_index(inplace=True, drop=True)
-        print("\n", df)
+
+        table = Table(
+            show_header=True,
+            header_style="bold magenta",
+            border_style="blue",
+            title=f"[bold]Year Rankings by {sort_label}[/bold]",
+            row_styles=["", "dim"],
+        )
+        table.add_column("Rank", style="cyan bold", justify="right")
+        table.add_column("Year", style="cyan bold", justify="center")
+        table.add_column("Books Read", style="green bold", justify="right")
+        table.add_column("Pages Read", style="blue bold", justify="right")
+
+        for idx, row in df.iterrows():
+            table.add_row(
+                str(idx + 1),
+                str(int(row["year"])),
+                str(int(row["books read"])),
+                str(int(row["pages read"]))
+            )
+
+        console.print(table)
         self.result = df
 
     def add_books(self, n=1):
         """
-        Creates records interactively and adds to the collection.
-        Arguments
-            n is the number of books to add to the collection.
-        Returns
-            None or error
-            bc.result is list of book_collection_ids added.
+        Interactively add new books to the collection.
+
+        Prompts for each field (Title, Author, etc.) and allows editing before saving.
+
+        Args:
+            n: Number of books to add (default 1).
+
+        Result:
+            bc.result contains a list of BookIds for newly added books.
+
+        Alias: ab()
+
+        Example:
+            >>> bc.ab()      # Add one book
+            >>> bc.ab(3)     # Add three books
         """
         res = None
         records = [self._populate_new_book_record() for i in range(n)]
@@ -382,12 +590,21 @@ class BCTool:
 
     def add_books_by_isbn(self, book_isbn_list):
         """
-        Creates records from isbn lookup and adds to the collection.
-        Arguments
-            List of isbns (strings) of the books you wish to add to the collection. Required.
-        Returns
-            None or error
-            bc.result is list of ids added.
+        Add books by looking up ISBN numbers.
+
+        Fetches book metadata from ISBN database and allows editing before saving.
+
+        Args:
+            book_isbn_list: List of ISBN strings (ISBN-10 or ISBN-13).
+
+        Result:
+            bc.result contains the last book record added.
+
+        Alias: abi()
+
+        Example:
+            >>> bc.abi(["9780547928227"])
+            >>> bc.abi(["0060929480", "9780140449136"])
         """
         q = self.end_point + "/books_by_isbn"
         payload = {"isbn_list": book_isbn_list}
@@ -410,8 +627,23 @@ class BCTool:
     abi = add_books_by_isbn
 
     def add_read_books(self, book_collection_id_list):
-        """ Takes 1 argument.
-        Update records for BookCollectionIds in list provided. """
+        """
+        Mark books as read with the current date.
+
+        Prompts for read date and optional notes for each book.
+
+        Args:
+            book_collection_id_list: List of BookIds to mark as read.
+
+        Result:
+            bc.result contains a list of BookIds that were updated.
+
+        Alias: arb()
+
+        Example:
+            >>> bc.arb([1234])           # Mark one book as read
+            >>> bc.arb([123, 456, 789])  # Mark multiple books
+        """
         records = [self._populate_add_read_date(id) for id in book_collection_id_list]
         q = self.end_point + "/add_read_dates"
         try:
@@ -427,26 +659,55 @@ class BCTool:
 
     arb = add_read_books
 
-    def update_tag_value(self, tag_value, new_tag_value, pagination=True):
-        """ Takes 2 arguments,
-        current value of tag and new value of tag """
+    def update_tag_value(self, tag_value, new_tag_value):
+        """
+        Rename a tag globally across all books.
+
+        Changes all occurrences of a tag to a new value.
+
+        Args:
+            tag_value: Current tag name to replace.
+            new_tag_value: New tag name.
+
+        Result:
+            bc.result contains the API response with update count.
+
+        Example:
+            >>> bc.update_tag_value("scifi", "sci-fi")
+            >>> bc.update_tag_value("favourites", "favorites")
+        """
         q = self.end_point + f"/update_tag_value/{tag_value}/{new_tag_value}"
         try:
-            r = requests.get(q, headers=self.header)
+            r = requests.put(q, headers=self.header)
             res = r.json()
         except requests.RequestException as e:
             logging.error(e)
         else:
-            self._show_table(res["data"], res["header"], [0, 1, 2], pagination)
-            self.result = pd.DataFrame(res['data'], columns=res["header"])
+            if "error" in res:
+                console.print(f"[red]Error:[/red] {res['error']}")
+            else:
+                data = res["data"]
+                console.print(f"[green]Updated:[/green] [yellow]{data['tag_update']}[/yellow] ([cyan]{data['updated_tags']}[/cyan] tags)")
+            self.result = res
 
     def add_tags(self, book_collection_id, tags=[]):
-        """ Takes 2 arguments.
-        Arguments
-            book_collection_id is the BookId of the target book record
-            tags is a list of tags to add (strings)
-        Returns
-            bc.result is the book_collection_id
+        """
+        Add one or more tags to a book.
+
+        Tags are automatically normalized (lowercase, trimmed).
+
+        Args:
+            book_collection_id: The BookId to add tags to (integer).
+            tags: List of tag strings to add.
+
+        Result:
+            bc.result contains the BookId.
+
+        Alias: at()
+
+        Example:
+            >>> bc.at(1234, ["fiction", "classic"])
+            >>> bc.at(1234, ["favorite"])
         """
         assert isinstance(book_collection_id, int), "Requires in integer Book ID"
         q = self.end_point + f"/add_tag/{book_collection_id}/" + "{}"
@@ -463,9 +724,9 @@ class BCTool:
                 logging.error(e)
                 result["error"].append(e)
         else:
-            print("Added {} tags to book with id={}".format(len(result["data"]), book_collection_id))
+            console.print(f"[green]Added[/green] [cyan]{len(result['data'])}[/cyan] tags to book with id=[bold]{book_collection_id}[/bold]")
             if len(result["error"]) > 0:
-                print(" with errors={}".format(", ".join(result["error"])))
+                console.print(f"[red]Errors:[/red] {', '.join(str(e) for e in result['error'])}")
             self.result = book_collection_id
 
     at = add_tags

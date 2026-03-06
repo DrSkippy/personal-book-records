@@ -270,18 +270,17 @@ class TestBCTool(unittest.TestCase):
         with self.assertRaises(AssertionError):
             self.bc_tool.add_tags("not_an_int", tags=["fiction"])
 
-    @patch('bookdbtool.book_db_tools.requests.get')
-    def test_update_tag_value_success(self, mock_get):
+    @patch('bookdbtool.book_db_tools.requests.put')
+    def test_update_tag_value_success(self, mock_put):
         mock_response = Mock()
         mock_response.json.return_value = {
-            "data": [[1, "new_tag", "Book 1"]],
-            "header": ["BookId", "Tag", "Title"]
+            "data": {"tag_update": "old_tag >> new_tag", "updated_tags": 3}
         }
-        mock_get.return_value = mock_response
+        mock_put.return_value = mock_response
 
-        with patch.object(self.bc_tool, '_show_table'):
-            self.bc_tool.update_tag_value("old_tag", "new_tag", pagination=False)
-            self.assertIsInstance(self.bc_tool.result, pd.DataFrame)
+        self.bc_tool.update_tag_value("old_tag", "new_tag")
+        self.assertIsInstance(self.bc_tool.result, dict)
+        self.assertIn("data", self.bc_tool.result)
 
     def test_inputer_basic(self):
         proto = {"Title": "Test", "Author": "Author"}

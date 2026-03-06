@@ -1,8 +1,31 @@
+"""
+Visualization Tools - Charts and graphs for reading statistics.
+
+These functions create matplotlib visualizations for analyzing reading patterns.
+They work with DataFrames from the BCTool methods.
+"""
+
 import pandas as pd
 import matplotlib.pyplot as plt
 
 
 def running_total_comparison(df1, window=15):
+    """
+    Plot cumulative pages read by day-of-year for multiple years.
+
+    Creates a line chart comparing reading progress across years, showing
+    how many total pages were read by each day of the year. The current
+    year is highlighted with a thicker line.
+
+    Args:
+        df1: DataFrame from bc.bry() containing ReadDate and Pages columns.
+        window: Number of recent years to display (default 15).
+
+    Example:
+        >>> bc.bry()  # Get all books read
+        >>> from bookdbtool.visualization_tools import running_total_comparison
+        >>> running_total_comparison(bc.result, window=10)
+    """
     df1["read_date"] = pd.to_datetime(df1["ReadDate"])
     df1 = df1.set_index("ReadDate")
     df1.index = pd.to_datetime(df1.index)
@@ -27,6 +50,26 @@ def running_total_comparison(df1, window=15):
 
 
 def yearly_comparisons(df, current_year=2020):
+    """
+    Display multiple charts comparing yearly reading statistics.
+
+    Creates three visualizations:
+        1. Histogram of pages read per year (with current year marked)
+        2. Bar chart of pages by rank (best year first)
+        3. Bar chart of pages by year chronologically
+
+    Args:
+        df: DataFrame from bc.sbry() with columns: year, pages read, rank.
+            Must include a 'rank' column (add with df["rank"] = df["pages read"].rank()).
+        current_year: Year to highlight in red on the charts.
+
+    Example:
+        >>> bc.sbry()  # Get summary data
+        >>> df = bc.result.copy()
+        >>> df["rank"] = df["pages read"].rank(ascending=False)
+        >>> from bookdbtool.visualization_tools import yearly_comparisons
+        >>> yearly_comparisons(df, current_year=2024)
+    """
     now = df.loc[df.year == current_year]
     fig_size = [12, 6]
     ax = df.hist("pages read", bins=14, color="darkblue", figsize=fig_size)

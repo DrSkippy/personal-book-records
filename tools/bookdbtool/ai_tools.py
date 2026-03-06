@@ -10,7 +10,25 @@ import requests
 
 class OllamaAgent:
     """
-    An interactive chat agent for querying a book database using Ollama LLM with tool calling.
+    AI Assistant - Natural language interface for querying your book collection.
+
+    Uses Ollama LLM with tool calling to search books, view tags, and add tags
+    through conversational queries.
+
+    The AI can:
+        - Search books by author, title, or tags
+        - View tags for specific books
+        - Add tags to books (requires confirmation)
+
+    Attributes:
+        reply: The last response from the AI model.
+        conversation_history: List of all messages in the current conversation.
+
+    Example:
+        >>> ai = OllamaAgent(config)
+        >>> ai.chat("What books do I have by Tolkien?")
+        >>> ai.chat("Add the tag 'fantasy' to book 123")
+        >>> ai.clear_history()  # Start fresh conversation
     """
 
     DIVIDER_WIDTH = 50
@@ -158,7 +176,17 @@ class OllamaAgent:
         return cls(config)
 
     def version(self):
-        """ Retrieve the back end version. """
+        """
+        Display version and configuration information.
+
+        Shows the book database endpoint, API version, Ollama endpoint,
+        model name, and AI tool version.
+
+        Alias: ver() (via ai.ver)
+
+        Example:
+            >>> ai.version()
+        """
         q = self.book_db_host + "/configuration"
         try:
             r = requests.get(q, headers={"x-api-key": self.api_key})
@@ -183,6 +211,7 @@ class OllamaAgent:
             response = requests.get(
                 f"{self.book_db_host}/books_search",
                 params={"Author": author},
+                headers={"x-api-key": self.api_key},
                 timeout=10
             )
             response.raise_for_status()
@@ -196,6 +225,7 @@ class OllamaAgent:
             response = requests.get(
                 f"{self.book_db_host}/books_search",
                 params={"Title": title},
+                headers={"x-api-key": self.api_key},
                 timeout=10
             )
             response.raise_for_status()
@@ -209,6 +239,7 @@ class OllamaAgent:
             response = requests.get(
                 f"{self.book_db_host}/books_search",
                 params={"Tags": tags},
+                headers={"x-api-key": self.api_key},
                 timeout=10
             )
             response.raise_for_status()
@@ -221,6 +252,7 @@ class OllamaAgent:
         try:
             response = requests.get(
                 f"{self.book_db_host}/tags/{book_id}",
+                headers={"x-api-key": self.api_key},
                 timeout=10
             )
             response.raise_for_status()
@@ -291,11 +323,22 @@ class OllamaAgent:
 
     def chat(self, prompt: str) -> None:
         """
-        Interactive chat function that sends a prompt to the Ollama model
-        and displays the streaming response.
+        Send a natural language query to the AI assistant.
+
+        The AI can search your book collection, view book details, and manage tags.
+        Conversation history is maintained for follow-up questions.
 
         Args:
-            prompt: The user's message/question
+            prompt: Your question or request in natural language.
+
+        Attributes set:
+            ai.reply: Contains the full response object from the AI.
+
+        Example:
+            >>> ai.chat("What science fiction books do I have?")
+            >>> ai.chat("Which of those are by Isaac Asimov?")
+            >>> ai.chat("Add the tag 'classic' to book 456")
+            >>> ai.chat("What tags does book 123 have?")
         """
         # Add user message to conversation history
         self.conversation_history.append({
@@ -378,18 +421,44 @@ class OllamaAgent:
             })
 
     def clear_history(self) -> None:
-        """Clear the conversation history."""
+        """
+        Clear the conversation history and start fresh.
+
+        Use this to reset context when starting a new topic or if the AI
+        seems confused by previous conversation.
+
+        Example:
+            >>> ai.clear_history()
+            Conversation history cleared.
+        """
         self.conversation_history = []
         print("Conversation history cleared.")
 
     def show_history(self) -> None:
-        """Display the current conversation history."""
+        """
+        Display the full conversation history as JSON.
+
+        Shows all messages exchanged in the current session, including
+        user prompts, AI responses, and tool calls.
+
+        Example:
+            >>> ai.show_history()
+        """
         # Convert any Message objects to dicts before serializing
         serializable_history = [self._message_to_dict(msg) for msg in self.conversation_history]
         print(json.dumps(serializable_history, indent=2))
 
     def show_reply(self) -> None:
-        """Display the last reply in formatted JSON."""
+        """
+        Display the last AI response in detailed JSON format.
+
+        Useful for debugging or seeing the full response structure
+        including any tool calls that were made.
+
+        Example:
+            >>> ai.chat("Find books by Tolkien")
+            >>> ai.show_reply()  # See detailed response
+        """
         if self.reply:
             # Handle nested Message objects in the reply
             serializable_reply = dict(self.reply)
