@@ -12,36 +12,56 @@ from bookdbtool.ai_tools import OllamaAgent
 
 class TestOllamaAgent(unittest.TestCase):
 
-    def setUp(self):
+    @patch('bookdbtool.ai_tools.ollama.Client')
+    @patch('bookdbtool.ai_tools.requests.Session')
+    def setUp(self, mock_session_class, mock_client_class):
+        self.mock_session = Mock()
+        mock_session_class.return_value = self.mock_session
+
+        self.mock_client = Mock()
+        mock_client_class.return_value = self.mock_client
+
         self.config = {
             "ai_agent": {
                 "model_name": "test-model",
-                "ollama_host": "http://localhost:11434"
+                "ollama_host": "http://localhost:11434",
+                "timeout": 15,
+                "max_history": 100
             },
             "endpoint": "http://localhost:8084",
             "api_key": "test-api-key"
         }
         self.agent = OllamaAgent(self.config)
 
-    def test_init(self):
-        self.assertEqual(self.agent.ollama_host, "http://localhost:11434")
-        self.assertEqual(self.agent.book_db_host, "http://localhost:8084")
-        self.assertEqual(self.agent.model_name, "test-model")
-        self.assertEqual(self.agent.api_key, "test-api-key")
-        self.assertIsNone(self.agent.reply)
-        self.assertEqual(self.agent.conversation_history, [])
+    @patch('bookdbtool.ai_tools.ollama.Client')
+    @patch('bookdbtool.ai_tools.requests.Session')
+    def test_init(self, mock_session_class, mock_client_class):
+        agent = OllamaAgent(self.config)
+        self.assertEqual(agent.ollama_host, "http://localhost:11434")
+        self.assertEqual(agent.book_db_host, "http://localhost:8084")
+        self.assertEqual(agent.model_name, "test-model")
+        self.assertEqual(agent.api_key, "test-api-key")
+        self.assertEqual(agent.timeout, 15)
+        self.assertEqual(agent.max_history, 100)
+        self.assertIsNone(agent.reply)
+        self.assertEqual(agent.conversation_history, [])
 
-    def test_init_defaults(self):
+    @patch('bookdbtool.ai_tools.ollama.Client')
+    @patch('bookdbtool.ai_tools.requests.Session')
+    def test_init_defaults(self, mock_session_class, mock_client_class):
         minimal_config = {}
         agent = OllamaAgent(minimal_config)
         self.assertEqual(agent.ollama_host, "http://localhost:11434")
         self.assertEqual(agent.book_db_host, "http://localhost:8084")
         self.assertEqual(agent.model_name, "gpt-oss")
         self.assertEqual(agent.api_key, "")
+        self.assertEqual(agent.timeout, 10)
+        self.assertEqual(agent.max_history, 50)
 
     def test_tools_structure(self):
-        self.assertEqual(len(self.agent.tools), 5)
-        tool_names = [tool["function"]["name"] for tool in self.agent.tools]
+        # TOOLS is now a class variable
+        self.assertEqual(len(OllamaAgent.TOOLS), 5)
+        tool_names = [tool["function"]["name"] for tool in OllamaAgent.TOOLS]
         self.assertIn("search_books_by_author", tool_names)
         self.assertIn("search_books_by_title", tool_names)
         self.assertIn("search_books_by_tags", tool_names)
@@ -56,9 +76,11 @@ class TestOllamaAgent(unittest.TestCase):
             self.agent.search_books_by_author
         )
 
+    @patch('bookdbtool.ai_tools.ollama.Client')
+    @patch('bookdbtool.ai_tools.requests.Session')
     @patch('bookdbtool.ai_tools.Path')
     @patch('builtins.open', new_callable=unittest.mock.mock_open, read_data='{"endpoint": "http://test.com"}')
-    def test_from_config_file_success(self, mock_open, mock_path):
+    def test_from_config_file_success(self, mock_open, mock_path, mock_session, mock_client):
         mock_path.return_value.exists.return_value = True
 
         agent = OllamaAgent.from_config_file("config.json")
@@ -71,11 +93,10 @@ class TestOllamaAgent(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             OllamaAgent.from_config_file("missing.json")
 
-    @patch('bookdbtool.ai_tools.requests.get')
-    def test_version_success(self, mock_get):
+    def test_version_success(self):
         mock_response = Mock()
         mock_response.json.return_value = {"version": "1.5.0"}
-        mock_get.return_value = mock_response
+        self.mock_session.get.return_value = mock_response
 
         with patch('sys.stdout', new=StringIO()) as fake_out:
             self.agent.version()
@@ -85,100 +106,91 @@ class TestOllamaAgent(unittest.TestCase):
             self.assertIn("http://localhost:11434", output)
             self.assertIn("test-model", output)
 
-    @patch('bookdbtool.ai_tools.requests.get')
-    def test_search_books_by_author_success(self, mock_get):
+    def test_search_books_by_author_success(self):
         mock_response = Mock()
         mock_response.json.return_value = {
             "data": [[1, "Book 1", "Test Author", 2020]],
             "header": ["ID", "Title", "Author", "Year"]
         }
-        mock_get.return_value = mock_response
+        self.mock_session.get.return_value = mock_response
 
         result = self.agent.search_books_by_author("Test Author")
         self.assertIn("data", result)
         self.assertEqual(len(result["data"]), 1)
-        mock_get.assert_called_once()
+        self.mock_session.get.assert_called_once()
 
-    @patch('bookdbtool.ai_tools.requests.get')
-    def test_search_books_by_author_error(self, mock_get):
-        mock_get.side_effect = Exception("Network error")
+    def test_search_books_by_author_error(self):
+        self.mock_session.get.side_effect = Exception("Network error")
 
         result = self.agent.search_books_by_author("Test Author")
         self.assertIn("error", result)
         self.assertEqual(result["error"], "Network error")
 
-    @patch('bookdbtool.ai_tools.requests.get')
-    def test_search_books_by_title_success(self, mock_get):
+    def test_search_books_by_title_success(self):
         mock_response = Mock()
         mock_response.json.return_value = {
             "data": [[1, "Test Book", "Author", 2020]],
             "header": ["ID", "Title", "Author", "Year"]
         }
-        mock_get.return_value = mock_response
+        self.mock_session.get.return_value = mock_response
 
         result = self.agent.search_books_by_title("Test Book")
         self.assertIn("data", result)
-        mock_get.assert_called_once()
-        call_args = mock_get.call_args
+        self.mock_session.get.assert_called_once()
+        call_args = self.mock_session.get.call_args
         self.assertIn("Title", call_args[1]["params"])
 
-    @patch('bookdbtool.ai_tools.requests.get')
-    def test_search_books_by_tags_success(self, mock_get):
+    def test_search_books_by_tags_success(self):
         mock_response = Mock()
         mock_response.json.return_value = {
             "data": [[1, "Book 1", "Author", 2020]],
             "header": ["ID", "Title", "Author", "Year"]
         }
-        mock_get.return_value = mock_response
+        self.mock_session.get.return_value = mock_response
 
         result = self.agent.search_books_by_tags("fiction")
         self.assertIn("data", result)
-        call_args = mock_get.call_args
+        call_args = self.mock_session.get.call_args
         self.assertIn("Tags", call_args[1]["params"])
 
-    @patch('bookdbtool.ai_tools.requests.get')
-    def test_get_book_tags_success(self, mock_get):
+    def test_get_book_tags_success(self):
         mock_response = Mock()
         mock_response.json.return_value = {"tag_list": ["fiction", "classic"]}
-        mock_get.return_value = mock_response
+        self.mock_session.get.return_value = mock_response
 
         result = self.agent.get_book_tags(1)
         self.assertIn("tag_list", result)
         self.assertEqual(len(result["tag_list"]), 2)
 
-    @patch('bookdbtool.ai_tools.requests.get')
-    def test_get_book_tags_error(self, mock_get):
-        mock_get.side_effect = Exception("Connection error")
+    def test_get_book_tags_error(self):
+        self.mock_session.get.side_effect = Exception("Connection error")
 
         result = self.agent.get_book_tags(1)
         self.assertIn("error", result)
 
-    @patch('bookdbtool.ai_tools.requests.put')
-    def test_add_tag_to_book_success(self, mock_put):
+    def test_add_tag_to_book_success(self):
         mock_response = Mock()
         mock_response.raise_for_status = Mock()
-        mock_put.return_value = mock_response
+        self.mock_session.put.return_value = mock_response
 
         result = self.agent.add_tag_to_book(1, "fiction")
         self.assertTrue(result["success"])
         self.assertEqual(result["book_id"], 1)
         self.assertEqual(result["tag"], "fiction")
 
-    @patch('bookdbtool.ai_tools.requests.put')
-    def test_add_tag_to_book_http_error(self, mock_put):
+    def test_add_tag_to_book_http_error(self):
         from requests.exceptions import HTTPError
         mock_response = Mock()
         mock_response.status_code = 404
         mock_response.raise_for_status.side_effect = HTTPError(response=mock_response)
-        mock_put.return_value = mock_response
+        self.mock_session.put.return_value = mock_response
 
         result = self.agent.add_tag_to_book(1, "fiction")
         self.assertFalse(result["success"])
         self.assertIn("error", result)
 
-    @patch('bookdbtool.ai_tools.requests.put')
-    def test_add_tag_to_book_general_error(self, mock_put):
-        mock_put.side_effect = Exception("Network error")
+    def test_add_tag_to_book_general_error(self):
+        self.mock_session.put.side_effect = Exception("Network error")
 
         result = self.agent.add_tag_to_book(1, "fiction")
         self.assertFalse(result["success"])
@@ -219,18 +231,25 @@ class TestOllamaAgent(unittest.TestCase):
         self.assertEqual(result["role"], "assistant")
         self.assertEqual(result["content"], "Hello")
 
-    @patch('bookdbtool.ai_tools.ollama.Client')
-    def test_chat_without_tool_calls(self, mock_client_class):
-        mock_client = Mock()
-        mock_client_class.return_value = mock_client
+    def test_trim_history(self):
+        self.agent.max_history = 5
+        # Add more than max_history entries
+        for i in range(10):
+            self.agent.conversation_history.append({"role": "user", "content": f"msg{i}"})
 
+        self.agent._trim_history()
+        self.assertEqual(len(self.agent.conversation_history), 5)
+        # Should keep the most recent messages
+        self.assertEqual(self.agent.conversation_history[0]["content"], "msg5")
+
+    def test_chat_without_tool_calls(self):
         mock_response = {
             "message": {
                 "role": "assistant",
                 "content": "Hello! How can I help you?"
             }
         }
-        mock_client.chat.return_value = mock_response
+        self.mock_client.chat.return_value = mock_response
 
         with patch('sys.stdout', new=StringIO()) as fake_out:
             self.agent.chat("Hello")
@@ -241,11 +260,7 @@ class TestOllamaAgent(unittest.TestCase):
         self.assertEqual(self.agent.conversation_history[0]["role"], "user")
         self.assertEqual(self.agent.conversation_history[1]["role"], "assistant")
 
-    @patch('bookdbtool.ai_tools.ollama.Client')
-    def test_chat_with_tool_calls(self, mock_client_class):
-        mock_client = Mock()
-        mock_client_class.return_value = mock_client
-
+    def test_chat_with_tool_calls(self):
         # Create a mock for the search function and patch it in available_functions
         mock_search = Mock()
         mock_search.return_value = {"data": [[1, "Book", "Author"]], "header": ["ID", "Title", "Author"]}
@@ -271,7 +286,7 @@ class TestOllamaAgent(unittest.TestCase):
             {"message": {"content": "books by Tolkien."}}
         ]
 
-        mock_client.chat.side_effect = [initial_response, iter(final_chunks)]
+        self.mock_client.chat.side_effect = [initial_response, iter(final_chunks)]
 
         with patch('sys.stdout', new=StringIO()) as fake_out:
             self.agent.chat("Find books by Tolkien")
@@ -333,8 +348,14 @@ class TestOllamaAgent(unittest.TestCase):
 class TestOllamaAgentIntegration(unittest.TestCase):
 
     @patch('bookdbtool.ai_tools.ollama.Client')
-    @patch('bookdbtool.ai_tools.requests.get')
-    def test_full_chat_flow(self, mock_get, mock_client_class):
+    @patch('bookdbtool.ai_tools.requests.Session')
+    def test_full_chat_flow(self, mock_session_class, mock_client_class):
+        mock_session = Mock()
+        mock_session_class.return_value = mock_session
+
+        mock_client = Mock()
+        mock_client_class.return_value = mock_client
+
         config = {
             "ai_agent": {"model_name": "test", "ollama_host": "http://localhost:11434"},
             "endpoint": "http://localhost:8084",
@@ -342,15 +363,12 @@ class TestOllamaAgentIntegration(unittest.TestCase):
         }
         agent = OllamaAgent(config)
 
-        mock_client = Mock()
-        mock_client_class.return_value = mock_client
-
         mock_get_response = Mock()
         mock_get_response.json.return_value = {
             "data": [[1, "The Hobbit", "Tolkien"]],
             "header": ["ID", "Title", "Author"]
         }
-        mock_get.return_value = mock_get_response
+        mock_session.get.return_value = mock_get_response
 
         initial_response = {
             "message": {
