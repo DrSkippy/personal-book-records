@@ -86,6 +86,7 @@ export default function Carousel() {
   const [isLoading, setIsLoading] = useState(true);
   const minIdRef = useRef<number>(Infinity);
   const maxIdRef = useRef<number>(-Infinity);
+  const bookIdSetRef = useRef<Set<number>>(new Set());
 
   const slidesPerView = useRef(3);
 
@@ -109,6 +110,7 @@ export default function Carousel() {
         const ids = parsed.map((p) => p.book.BookId);
         minIdRef.current = Math.min(...ids);
         maxIdRef.current = Math.max(...ids);
+        bookIdSetRef.current = new Set(ids);
         // Find the index of the target book
         const targetIdx = parsed.findIndex((p) => p.book.BookId === safeBookId);
         setCurrentIndex(targetIdx >= 0 ? targetIdx : Math.floor(parsed.length / 2));
@@ -122,7 +124,8 @@ export default function Carousel() {
     try {
       const record = await getCompleteRecordAdjacent(minIdRef.current, 'prev');
       const parsed = parseCompleteRecord(record);
-      if (parsed.book) {
+      if (parsed.book && !bookIdSetRef.current.has(parsed.book.BookId)) {
+        bookIdSetRef.current.add(parsed.book.BookId);
         minIdRef.current = parsed.book.BookId;
         setSlides((prev) => [parsed, ...prev]);
         setCurrentIndex((idx) => idx + 1);
@@ -135,7 +138,8 @@ export default function Carousel() {
     try {
       const record = await getCompleteRecordAdjacent(maxIdRef.current, 'next');
       const parsed = parseCompleteRecord(record);
-      if (parsed.book) {
+      if (parsed.book && !bookIdSetRef.current.has(parsed.book.BookId)) {
+        bookIdSetRef.current.add(parsed.book.BookId);
         maxIdRef.current = parsed.book.BookId;
         setSlides((prev) => [...prev, parsed]);
       }
