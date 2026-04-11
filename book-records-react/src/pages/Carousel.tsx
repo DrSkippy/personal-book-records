@@ -49,11 +49,11 @@ function BookSlide({ item, onNavigate }: { item: CarouselBook; onNavigate: (id: 
         <p className="text-slate"><span className="font-medium">ID:</span> {book.BookId}</p>
         {book.IsbnNumber && <p className="text-slate"><span className="font-medium">ISBN:</span> {book.IsbnNumber}</p>}
         {book.PublisherName && <p className="text-slate"><span className="font-medium">Publisher:</span> {book.PublisherName}</p>}
-        {book.BookNote && <p className="text-slate text-xs italic mt-2">{book.BookNote.slice(0, 100)}{book.BookNote.length > 100 ? '...' : ''}</p>}
+        {book.BookNote && <p className="text-slate text-xs italic mt-2 whitespace-pre-line">{book.BookNote.slice(0, 100)}{book.BookNote.length > 100 ? '...' : ''}</p>}
         {lastRead && (
           <p className="text-slate text-xs">
             <span className="font-medium">Read:</span> {formatDisplay(lastRead.DateRead)}
-            {lastRead.ReadNote && <span className="block italic">{lastRead.ReadNote.slice(0, 80)}</span>}
+            {lastRead.ReadNote && <span className="block italic whitespace-pre-line">{lastRead.ReadNote.slice(0, 80)}</span>}
           </p>
         )}
         {tags.length > 0 && (
@@ -128,13 +128,12 @@ export default function Carousel() {
         bookIdSetRef.current.add(parsed.book.BookId);
         minIdRef.current = parsed.book.BookId;
         setSlides((prev) => [parsed, ...prev]);
-        setCurrentIndex((idx) => idx + 1);
       }
     } catch {}
   };
 
-  const fetchNext = async () => {
-    if (maxIdRef.current === -Infinity) return;
+  const fetchNext = async (): Promise<boolean> => {
+    if (maxIdRef.current === -Infinity) return false;
     try {
       const record = await getCompleteRecordAdjacent(maxIdRef.current, 'next');
       const parsed = parseCompleteRecord(record);
@@ -142,8 +141,10 @@ export default function Carousel() {
         bookIdSetRef.current.add(parsed.book.BookId);
         maxIdRef.current = parsed.book.BookId;
         setSlides((prev) => [...prev, parsed]);
+        return true;
       }
     } catch {}
+    return false;
   };
 
   const handlePrev = () => {
@@ -154,12 +155,13 @@ export default function Carousel() {
     }
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     const spv = slidesPerView.current;
     if (currentIndex + spv < slides.length) {
       setCurrentIndex(currentIndex + 1);
     } else {
-      fetchNext().then(() => setCurrentIndex((idx) => Math.min(idx + 1, slides.length - 1)));
+      const fetched = await fetchNext();
+      if (fetched) setCurrentIndex((idx) => idx + 1);
     }
   };
 

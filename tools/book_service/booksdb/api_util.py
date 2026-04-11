@@ -242,12 +242,13 @@ def get_next_book_id(current_book_id, direction=1):
         return next_book_id
     else:
         s = c.fetchall()
-        # If no results, wrap around
+        # If no results, we are at a boundary
         if len(s) == 0:
             if direction > 0:
-                # get the first record
-                next_book_id = 2
+                # At the end of the collection — do not wrap forward
+                next_book_id = None
             else:
+                # At the start of the collection — wrap backward to the last book
                 query_str = "SELECT max(a.BookId) FROM books as a"
                 c = db.cursor()
                 try:
@@ -323,34 +324,31 @@ def get_book_ids_in_window(book_id, window):
     except pymysql.Error as e:
         app_logger.error(e)
 
-    if len(book_id_list) < bottom_half_window:
-        # Make a ring of ideas - get some from the end of book records
-        deficit = bottom_half_window - len(book_id_list)
-        try:
-            c.execute(queries["gt_desc"], (book_id, deficit))
-            s = c.fetchall()
-            for row in s:
-                book_id_list.insert(0, row[0])
-        except pymysql.Error as e:
-            app_logger.error(e)
+    # If fewer books exist below the anchor, expand the top half to compensate
+    below_deficit = bottom_half_window - len(book_id_list)
+    effective_top = top_half_window + below_deficit
 
     # now get the top half - window after book_id
     try:
-        c.execute(queries["gt_asc"], (book_id, top_half_window))
+        c.execute(queries["gt_asc"], (book_id, effective_top))
         s = c.fetchall()
         for row in s:
             book_id_list.append(row[0])
     except pymysql.Error as e:
         app_logger.error(e)
 
+    # If fewer books exist above the anchor, expand the bottom half to compensate
     if len(book_id_list) < window:
-        # Make a ring of ideas - get some from the start of book records
-        deficit = window - len(book_id_list)
+        above_deficit = window - len(book_id_list)
         try:
-            c.execute(queries["le_asc"], (book_id, deficit))
+            c.execute(queries["le_desc"], (book_id, bottom_half_window + above_deficit))
             s = c.fetchall()
-            for row in s:
-                book_id_list.append(row[0])
+            new_below = [row[0] for row in s]
+            new_below.reverse()
+            # Prepend only IDs not already in the list
+            existing = set(book_id_list)
+            extra = [bid for bid in new_below if bid not in existing]
+            book_id_list = extra + book_id_list
         except pymysql.Error as e:
             app_logger.error(e)
 

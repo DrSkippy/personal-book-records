@@ -214,7 +214,7 @@ export default function BookDetail() {
                   {reads.map((r, i) => (
                     <tr key={i} className={i % 2 === 0 ? 'bg-accent-light' : ''}>
                       <td className="px-3 py-2 text-sm">{formatDisplay(r.DateRead)}</td>
-                      <td className="px-3 py-2 text-sm">{r.ReadNote || ''}</td>
+                      <td className="px-3 py-2 text-sm whitespace-pre-line">{r.ReadNote || ''}</td>
                     </tr>
                   ))}
                 </tbody>

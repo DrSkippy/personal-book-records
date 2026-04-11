@@ -7,6 +7,7 @@ export const VALID_LOCATIONS = [
   'Woodwork',
   'Reference',
   'Birding',
+  'DOWNLOAD',
 ] as const;
 
 export const COVER_TYPES = ['Hard', 'Soft', 'Digital'] as const;

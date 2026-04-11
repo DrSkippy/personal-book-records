@@ -12,7 +12,7 @@ interface BookFormProps {
 }
 
 export default function BookForm({ defaultValues, onSubmit, isSubmitting, submitLabel = 'Save', onCancel }: BookFormProps) {
-  const { register, handleSubmit, formState: { errors } } = useForm<BookFormValues>({
+  const { register, handleSubmit, watch, formState: { errors } } = useForm<BookFormValues>({
     resolver: zodResolver(bookSchema) as Resolver<BookFormValues>,
     defaultValues: {
       Recycled: 0,
@@ -20,6 +20,12 @@ export default function BookForm({ defaultValues, onSubmit, isSubmitting, submit
       ...defaultValues,
     },
   });
+
+  const coverType = watch('CoverType');
+  const isDigital = coverType === 'Digital';
+  const availableLocations = VALID_LOCATIONS.filter((loc) =>
+    isDigital ? loc === 'DOWNLOAD' : loc !== 'DOWNLOAD'
+  );
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="bg-surface rounded-md p-8 space-y-4">
@@ -57,7 +63,7 @@ export default function BookForm({ defaultValues, onSubmit, isSubmitting, submit
         <div>
           <label className="block text-sm font-medium text-slate mb-1">Location *</label>
           <select {...register('Location')} className="w-full px-3 py-2 border border-gray-300 rounded text-sm bg-white">
-            {VALID_LOCATIONS.map((loc) => <option key={loc} value={loc}>{loc}</option>)}
+            {availableLocations.map((loc) => <option key={loc} value={loc}>{loc}</option>)}
           </select>
           {errors.Location && <p className="text-red-500 text-xs mt-1">{errors.Location.message}</p>}
         </div>

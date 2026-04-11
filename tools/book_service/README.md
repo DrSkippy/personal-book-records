@@ -11,7 +11,7 @@ The `book_service` directory provides:
 - 50+ endpoints for managing books, reading history, and tags
 - Authentication via `x-api-key` header
 - Visualization and image management
-- Version: 0.16.2
+- Version: 0.18.0
 
 ### 2. **MCP Server** (`booksmcp/`)
 - Model Context Protocol server for AI integration (Port 3005)
@@ -251,11 +251,19 @@ Both services share the same database layer and configuration:
 
 ## Version Information
 
-- REST API: v0.16.2
+- REST API: v0.18.0
 - MCP Server: v3.0.0
 - Python: 3.11+
 - Flask: 3.1.2
 - FastMCP: 0.5.0+
+
+## Changelog
+
+### v0.18.0
+- **Carousel — right boundary fix**: `get_next_book_id` no longer wraps forward at the end of the collection; returns `None` so the API returns `{}` and the frontend stops advancing
+- **Carousel — backward wrap preserved**: navigating left past the first book wraps to the last book via `SELECT max(BookId)`
+- **Carousel — window fix**: `get_book_ids_in_window` no longer ring-wraps when the anchor is near the start/end of the collection; deficit books are filled from the opposite side of the anchor, keeping `minIdRef`/`maxIdRef` contiguous
+- **API guard**: `/complete_record/<id>/<adjacent>` returns `{}` instead of passing `None` to `get_complete_book_record` when no adjacent book exists
 
 ---
 

@@ -26,9 +26,10 @@ export default function NavigationBar() {
         <NavLink to="/year/all" className={navLinkClass}>Books Read — All</NavLink>
         <NavLink to="/inventory" className={navLinkClass}>Inventory</NavLink>
         <NavLink to="/ai-chat" className={navLinkClass}>AI Chat</NavLink>
-        {version && (
-          <span className="ml-auto text-sm opacity-75 px-4">(API v{version})</span>
-        )}
+        <span className="ml-auto flex gap-3 text-sm opacity-75 px-4">
+          <span>UI v{__APP_VERSION__}</span>
+          {version && <span>API v{version}</span>}
+        </span>
       </div>
     </nav>
   );

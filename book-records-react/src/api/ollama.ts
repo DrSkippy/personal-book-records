@@ -6,6 +6,11 @@ import { getEstimates } from './estimates';
 
 const ollamaClient = axios.create({
   baseURL: import.meta.env.VITE_OLLAMA_BASE_URL,
+  headers: {
+    ...(import.meta.env.VITE_OLLAMA_API_KEY
+      ? { Authorization: `Bearer ${import.meta.env.VITE_OLLAMA_API_KEY}` }
+      : {}),
+  },
 });
 
 export interface OllamaMessage {

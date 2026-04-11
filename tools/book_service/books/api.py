@@ -1,4 +1,4 @@
-__version__ = '0.17.0'
+__version__ = '0.18.0'
 
 import functools
 import json
@@ -689,9 +689,13 @@ def complete_record(book_id, adjacent=None):
         return json_response(get_complete_book_record(book_id))
     elif adjacent.lower() == "next":
         next_id = get_next_book_id(book_id, 1)
+        if next_id is None:
+            return json_response({})
         return json_response(get_complete_book_record(next_id))
     elif adjacent.lower().startswith("prev"):
         previous_id = get_next_book_id(book_id, -1)
+        if previous_id is None:
+            return json_response({})
         return json_response(get_complete_book_record(previous_id))
     else:
         app.logger.error(f"Invalid adjacent parameter: {adjacent}")

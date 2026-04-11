@@ -1,73 +1,42 @@
-# React + TypeScript + Vite
+# Book Records — React Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React/Vite/TypeScript SPA for the personal book collection. Connects to the Flask book-service REST API.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- Vite + React 19 + TypeScript
+- Tailwind CSS
+- TanStack Query
+- React Hook Form + Zod
+- Recharts
+- Axios
 
-## React Compiler
+## Setup
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+cp .env.local.example .env.local   # fill in values
+npm run dev                         # dev server (localhost:5173)
+npm run build                       # production build → dist/
+npm run lint
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Environment Variables (`.env.local`)
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+| Variable | Description |
+|---|---|
+| `VITE_API_BASE_URL` | Book service REST API base URL |
+| `VITE_API_KEY` | API key (`x-api-key` header) |
+| `VITE_RESOURCE_BASE_URL` | Static resources base URL (images) |
+| `VITE_OLLAMA_BASE_URL` | Ollama/LM-compatible chat API base URL |
+| `VITE_OLLAMA_MODEL` | Model name (e.g. `openai/gpt-oss-20b`) |
+| `VITE_OLLAMA_API_KEY` | Bearer token for AI chat API |
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Changelog
+
+### v0.1.0
+- **Carousel fixes**: corrected right-boundary infinite scroll (no longer collapses to 1 slide at end of collection); backward navigation wraps to last book; removed ring-buffer corruption of `maxIdRef`; single left-arrow click now immediately shows newly loaded book
+- **Add Book form**: location dropdown filters to `DOWNLOAD` only when Cover Type is `Digital`; `DOWNLOAD` added as a valid location
+- **Notes display**: `\n` characters in `BookNote` and `ReadNote` now render as line breaks everywhere notes are displayed read-only
+- **Navigation bar**: UI version displayed alongside API version
+- **AI Chat**: Bearer token authentication support (`VITE_OLLAMA_API_KEY`); updated to `openai/gpt-oss-20b` model
