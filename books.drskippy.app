@@ -7,7 +7,7 @@ server {
 
     # Ollama reverse proxy — browser can't reach 192.168.1.90 directly
     location /ollama/ {
-        proxy_pass http://192.168.1.90:11434/;
+        proxy_pass http://192.168.1.91:1234/;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_read_timeout 120s;
