@@ -1,9 +1,8 @@
 -- book_collection database schema
--- Generated from the books database refactor migration.
--- This file can recreate the empty schema from scratch.
+-- Run this once to create the database and all tables from scratch.
 --
 -- Usage:
---   mysql -u scott -h localhost -p$SQLPWD < schema.sql
+--   mysql -u <user> -h <host> -p < schema.sql
 
 CREATE DATABASE IF NOT EXISTS `book_collection`
   CHARACTER SET utf8mb4
