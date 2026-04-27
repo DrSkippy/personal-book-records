@@ -1,10 +1,7 @@
 services:
 
   book-service:
-    build:
-      context: ./tools
-      dockerfile: book_service/books/Dockerfile
-    image: book-service:local
+    image: localhost:5000/book-service:latest
     container_name: book-service
     restart: unless-stopped
     ports:
@@ -19,10 +16,7 @@ services:
       - "host.docker.internal:host-gateway"
 
   booksmcp:
-    build:
-      context: ./tools/book_service
-      dockerfile: booksmcp/Dockerfile
-    image: booksmcp-service:local
+    image: localhost:5000/booksmcp-service:latest
     container_name: booksmcp-service
     restart: unless-stopped
     ports:
