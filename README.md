@@ -73,26 +73,16 @@ Output goes to `book-records-react/dist/`.
 
 ### Step 4 — Configure nginx
 
-Three site configs are provided. Copy and enable whichever apply to your host:
+One site config handles everything on port 83: the React SPA, REST API (`/api/`), MCP server (`/mcp/`), and Ollama proxy (`/ollama/`).
 
 ```bash
-# Frontend (port 83) — serves React dist/, proxies /ollama/ to LM Studio
 sudo cp books.drskippy.app /etc/nginx/sites-available/books.drskippy.app
 sudo ln -sf /etc/nginx/sites-available/books.drskippy.app \
             /etc/nginx/sites-enabled/books.drskippy.app
-
-# REST API proxy (port 84) — proxies to book-service container on 8084
-sudo cp book-service.drskippy.app /etc/nginx/sites-available/book-service.drskippy.app
-sudo ln -sf /etc/nginx/sites-available/book-service.drskippy.app \
-            /etc/nginx/sites-enabled/book-service.drskippy.app
-
-# MCP server proxy (port 86) — proxies to booksmcp container on 3005
-sudo cp booksmcp.lambda-dual.home.lan /etc/nginx/sites-available/booksmcp.lambda-dual.home.lan
-sudo ln -sf /etc/nginx/sites-available/booksmcp.lambda-dual.home.lan \
-            /etc/nginx/sites-enabled/booksmcp.lambda-dual.home.lan
-
 sudo nginx -t && sudo systemctl reload nginx
 ```
+
+Set `VITE_API_BASE_URL=https://books.drskippy.app/api` in `.env.local` (or `http://localhost:83/api` for local-only access).
 
 ---
 

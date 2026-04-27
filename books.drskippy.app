@@ -5,7 +5,26 @@ server {
     root /var/www/html/personal-book-records/book-records-react/dist;
     index index.html;
 
-    # Ollama reverse proxy — browser can't reach 192.168.1.90 directly
+    # REST API — strips /api/ prefix, forwards to book-service container
+    location /api/ {
+        proxy_pass http://localhost:8084/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_pass_header Authorization;
+    }
+
+    # MCP server — strips /mcp/ prefix, forwards to booksmcp container
+    location /mcp/ {
+        proxy_pass http://localhost:3005/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_cache off;
+    }
+
+    # Ollama/LM Studio — browser can't reach 192.168.1.91 directly
     location /ollama/ {
         proxy_pass http://192.168.1.91:1234/;
         proxy_set_header Host $host;
@@ -30,8 +49,7 @@ server {
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
-    # Cloudflare Zero Trust tunnel: cloudflared runs at 192.168.1.172 on this
-    # network. CF-Connecting-IP carries the real client IP.
+    # Cloudflare Zero Trust tunnel: cloudflared runs at 192.168.1.172
     real_ip_header CF-Connecting-IP;
     set_real_ip_from 192.168.1.172;
 
