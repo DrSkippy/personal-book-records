@@ -9,6 +9,9 @@ import { toObjects } from '../lib/utils';
 import type { Book, YearlySummary } from '../types';
 import { Search, Plus } from 'lucide-react';
 
+type SortCol = 'year' | 'pages read' | 'books read';
+type SortDir = 'asc' | 'desc';
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { data: recentData, isLoading: recentLoading, error: recentError, refetch: refetchRecent } = useRecentBooks(20);
@@ -18,6 +21,20 @@ export default function Dashboard() {
   const [title, setTitle] = useState('');
   const [tags, setTags] = useState('');
   const [isbn, setIsbn] = useState('');
+  const [sortCol, setSortCol] = useState<SortCol>('year');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+
+  const handleSort = (col: SortCol) => {
+    if (col === sortCol) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortCol(col);
+      setSortDir('desc');
+    }
+  };
+
+  const sortIndicator = (col: SortCol) =>
+    sortCol === col ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
 
   const recentBooks = recentData ? toObjects<Book>(recentData) : [];
   const yearlySummary = summaryData ? toObjects<YearlySummary>(summaryData) : [];
@@ -165,13 +182,24 @@ export default function Dashboard() {
             <table className="w-full border-separate border-spacing-0">
               <thead>
                 <tr className="bg-primary text-white">
-                  <th className="px-3 py-3 text-left text-sm font-semibold">Year</th>
-                  <th className="px-3 py-3 text-left text-sm font-semibold">Pages</th>
-                  <th className="px-3 py-3 text-left text-sm font-semibold">Books</th>
+                  {(['year', 'pages read', 'books read'] as SortCol[]).map((col) => (
+                    <th
+                      key={col}
+                      onClick={() => handleSort(col)}
+                      className="px-3 py-3 text-left text-sm font-semibold cursor-pointer select-none hover:bg-primary/80"
+                    >
+                      {col === 'year' ? 'Year' : col === 'pages read' ? 'Pages' : 'Books'}
+                      {sortIndicator(col)}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {[...yearlySummary].sort((a, b) => b.year - a.year).map((row, i) => (
+                {[...yearlySummary].sort((a, b) => {
+                  const av = a[sortCol] ?? 0;
+                  const bv = b[sortCol] ?? 0;
+                  return sortDir === 'asc' ? (av as number) - (bv as number) : (bv as number) - (av as number);
+                }).map((row, i) => (
                   <tr key={row.year} className={i % 2 === 0 ? 'bg-accent-light' : 'bg-white'}>
                     <td className="px-3 py-2.5 text-sm">
                       <button
