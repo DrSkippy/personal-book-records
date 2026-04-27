@@ -1,0 +1,45 @@
+services:
+
+  book-service:
+    build:
+      context: ./tools
+      dockerfile: book_service/books/Dockerfile
+    image: book-service:local
+    container_name: book-service
+    restart: unless-stopped
+    ports:
+      - "8084:8084"
+    environment:
+      - API_KEY=${API_KEY}
+      - BOOKDB_CONFIG=/app/config/configuration.json
+    volumes:
+      - ./tools/book_service/config/configuration.json:/app/config/configuration.json:ro
+      - /var/www/html/resources/books:/books/uploads
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  booksmcp:
+    build:
+      context: ./tools/book_service
+      dockerfile: booksmcp/Dockerfile
+    image: booksmcp-service:local
+    container_name: booksmcp-service
+    restart: unless-stopped
+    ports:
+      - "3005:3005"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PORT=3005
+      - HOST=0.0.0.0
+      - BOOKDB_CONFIG=/app/config/configuration.json
+    volumes:
+      - ./tools/book_service/config/configuration.json:/app/config/configuration.json:ro
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:3005/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

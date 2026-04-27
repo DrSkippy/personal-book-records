@@ -3,7 +3,12 @@ FROM node:lts-alpine AS build-site
 WORKDIR /app
 COPY ./package*.json ./
 RUN npm ci
-COPY .env.local .env.local
+ARG VITE_API_BASE_URL
+ARG VITE_API_KEY
+ARG VITE_RESOURCE_BASE_URL
+ARG VITE_OLLAMA_BASE_URL
+ARG VITE_OLLAMA_MODEL
+ARG VITE_OLLAMA_API_KEY
 COPY . .
 RUN npm run build
 
