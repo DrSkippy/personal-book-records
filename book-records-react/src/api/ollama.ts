@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { searchBooks, getCompleteRecord, getRecentBooks } from './books';
 import { getBooksRead, getYearlySummary } from './reads';
-import { getTagsForBook, searchByTag, getTagCounts } from './tags';
+import { getTagsForBook, searchByTag, getTagCounts, addTag } from './tags';
 import { getEstimates } from './estimates';
 
 const ollamaClient = axios.create({
@@ -173,6 +173,21 @@ const tools = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'add_tag_to_book',
+      description: 'Add a tag to a specific book. Creates the tag label if it does not already exist.',
+      parameters: {
+        type: 'object',
+        properties: {
+          bookId: { type: 'number', description: 'The BookId of the book to tag' },
+          tag: { type: 'string', description: 'The tag label to add (will be lowercased)' },
+        },
+        required: ['bookId', 'tag'],
+      },
+    },
+  },
 ];
 
 export async function executeTool(name: string, args: Record<string, unknown>): Promise<string> {
@@ -205,6 +220,9 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
         break;
       case 'get_reading_estimates':
         result = await getEstimates(args.bookId as number);
+        break;
+      case 'add_tag_to_book':
+        result = await addTag(args.bookId as number, args.tag as string);
         break;
       default:
         return JSON.stringify({ error: `Unknown tool: ${name}` });

@@ -488,15 +488,14 @@ def update_book_record_by_key(update_dict):
 
     results = []
     try:
-        with db:
-            with db.cursor() as c:
-                try:
-                    c.execute(search_str, tuple(values))
-                    results.append(update_dict)
-                except pymysql.Error as e:
-                    app_logger.error(e)
-                    results.append({"error": str(e)})
-            db.commit()
+        with db.cursor() as c:
+            try:
+                c.execute(search_str, tuple(values))
+                results.append(update_dict)
+            except pymysql.Error as e:
+                app_logger.error(e)
+                results.append({"error": str(e)})
+        db.commit()
     finally:
         db.close()
     return results
@@ -962,19 +961,18 @@ def add_tag_to_book(book_id, tag):
     result_data = None
     error_list = None
     try:
-        with db:
-            with db.cursor() as c:
-                try:
-                    c.execute('INSERT IGNORE INTO tag_labels SET Label=%s', (tag,))
-                    c.execute('SELECT TagId FROM tag_labels WHERE Label=%s', (tag,))
-                    tag_id = c.fetchone()[0]
-                    c.execute('INSERT INTO books_tags (BookId, TagId) VALUES (%s, %s)', (book_id, tag_id))
-                    result_data = {"BookId": book_id, "Tag": tag, "TagId": tag_id}
-                except pymysql.Error as e:
-                    app_logger.error(e)
-                    error_list = [str(e)]
-                    result_data = {"error": str(e)}
-            db.commit()
+        with db.cursor() as c:
+            try:
+                c.execute('INSERT IGNORE INTO tag_labels SET Label=%s', (tag,))
+                c.execute('SELECT TagId FROM tag_labels WHERE Label=%s', (tag,))
+                tag_id = c.fetchone()[0]
+                c.execute('INSERT INTO books_tags (BookId, TagId) VALUES (%s, %s)', (book_id, tag_id))
+                result_data = {"BookId": book_id, "Tag": tag, "TagId": tag_id}
+            except pymysql.Error as e:
+                app_logger.error(e)
+                error_list = [str(e)]
+                result_data = {"error": str(e)}
+        db.commit()
     finally:
         db.close()
     return result_data, error_list
@@ -1007,23 +1005,22 @@ def get_images_for_book(book_id):
     error_list = None
 
     try:
-        with db:
-            with db.cursor() as c:
-                try:
-                    c.execute(search_str, (book_id,))
-                    results = c.fetchall()
+        with db.cursor() as c:
+            try:
+                c.execute(search_str, (book_id,))
+                results = c.fetchall()
 
-                    for row in results:
-                        images.append({
-                            "ImageId": row[0],
-                            "BookId": row[1],
-                            "Name": row[2],
-                            "Url": row[3],
-                            "ImageType": row[4]
-                        })
-                except pymysql.Error as e:
-                    app_logger.error(e)
-                    error_list = [str(e)]
+                for row in results:
+                    images.append({
+                        "ImageId": row[0],
+                        "BookId": row[1],
+                        "Name": row[2],
+                        "Url": row[3],
+                        "ImageType": row[4]
+                    })
+            except pymysql.Error as e:
+                app_logger.error(e)
+                error_list = [str(e)]
     finally:
         db.close()
 
@@ -1040,18 +1037,17 @@ def delete_book(book_id: int) -> dict:
     db = pymysql.connect(**books_conf)
     result = {}
     try:
-        with db:
-            with db.cursor() as c:
-                try:
-                    c.execute("DELETE FROM books WHERE BookId = %s", (book_id,))
-                    if c.rowcount == 0:
-                        result = {"error": f"No book found with BookId {book_id}"}
-                    else:
-                        result = {"deleted": True, "BookId": book_id}
-                except pymysql.Error as e:
-                    app_logger.error(e)
-                    result = {"error": str(e)}
-            db.commit()
+        with db.cursor() as c:
+            try:
+                c.execute("DELETE FROM books WHERE BookId = %s", (book_id,))
+                if c.rowcount == 0:
+                    result = {"error": f"No book found with BookId {book_id}"}
+                else:
+                    result = {"deleted": True, "BookId": book_id}
+            except pymysql.Error as e:
+                app_logger.error(e)
+                result = {"error": str(e)}
+        db.commit()
     finally:
         db.close()
     return result
@@ -1146,16 +1142,15 @@ def update_reading_book_data(record_id, date_range):
     result = {}
     db = pymysql.connect(**books_conf)
     try:
-        with db:
-            with db.cursor() as c:
-                try:
-                    c.execute(
-                        "UPDATE complete_date_estimates SET EstimateDate = %s, EstimatedFinishDate = %s WHERE RecordId = %s",
-                        (datetime.datetime.now(), date_range[0], record_id))
-                except pymysql.Error as e:
-                    app_logger.error(e)
-                    result = {"error": [str(e)]}
-            db.commit()
+        with db.cursor() as c:
+            try:
+                c.execute(
+                    "UPDATE complete_date_estimates SET EstimateDate = %s, EstimatedFinishDate = %s WHERE RecordId = %s",
+                    (datetime.datetime.now(), date_range[0], record_id))
+            except pymysql.Error as e:
+                app_logger.error(e)
+                result = {"error": [str(e)]}
+        db.commit()
     finally:
         db.close()
     return result
