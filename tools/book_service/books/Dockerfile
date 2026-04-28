@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 LABEL maintainer="Books Server"
 LABEL description="Server for Books Database"
