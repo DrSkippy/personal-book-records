@@ -128,7 +128,7 @@ vim book_service/config/configuration.json
 ```
 
 Required fields:
-- `endpoint`: REST API URL (http://localhost:8083)
+- `endpoint`: REST API URL (http://localhost:8084)
 - `api_key`: API authentication key
 - Database credentials (username, password, host, port, database)
 

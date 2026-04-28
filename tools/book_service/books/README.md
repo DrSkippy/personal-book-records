@@ -4,7 +4,7 @@ Flask-based REST API for managing and querying the book collection database.
 
 ## Overview
 
-- **Version**: 0.16.2
+- **Version**: 0.18.0
 - **Framework**: Flask 3.1.2
 - **Port**: 8084
 - **Authentication**: API key via `x-api-key` header
@@ -111,14 +111,12 @@ curl -H "x-api-key: YOUR_KEY" http://localhost:9999/valid_locations
 ### Production (Docker Compose)
 
 ```bash
-# From tools directory
+# From tools directory — build and push to local registry
 make build-book-service
-make push-book-service  # If using registry
+make push-book-service
 
-# Deploy
-cd book_service/books
-export API_KEY=your_key_here
-docker-compose up -d
+# From repo root — pull and start
+docker compose up -d
 
 # Verify
 curl -H "x-api-key: $API_KEY" http://localhost:8084/configuration
@@ -150,7 +148,7 @@ services:
     environment:
       - API_KEY=${API_KEY}
     volumes:
-      - /var/www/html/resources/books:/app/uploads
+      - /var/www/html/resources/books:/books/uploads
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -200,7 +198,7 @@ For the complete endpoint reference with examples, see `../../README.md#tool-2-r
 
 ## Version Information
 
-- API Version: 0.16.2
+- API Version: 0.18.0
 - Flask: 3.1.2
 - Python: 3.11+
 - PyMySQL: 1.1.0+

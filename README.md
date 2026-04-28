@@ -97,11 +97,11 @@ mysql -u root -p < tools/database/schema.sql
 ### Managing containers
 
 ```bash
-docker compose up -d           # start
+docker compose up -d           # start (pulls from localhost:5000 registry)
 docker compose down            # stop
 docker compose logs -f         # tail logs
 docker compose restart         # apply configuration.json changes (no rebuild)
-docker compose up -d --build   # rebuild after code changes
+make build-all && make push-all  # rebuild images and push to registry
 ```
 
 ---
@@ -140,7 +140,7 @@ VITE_OLLAMA_API_KEY=     # Ollama bearer token (optional)
 
 ### REST API (`tools/book_service/books/`)
 
-Flask + uWSGI service running on port 8084. API key authenticated via `x-api-key` header. Full OpenAPI spec at `tools/openapi.yaml`.
+Flask + uWSGI service running on port 8084. API key authenticated via `x-api-key` header. Full OpenAPI spec at `tools/book_service/openapi.yaml`.
 
 See [`tools/README.md`](tools/README.md) for setup, endpoints, and deployment.
 
@@ -166,4 +166,4 @@ Site config for serving the React build at port 83 behind the Cloudflare Zero Tr
 
 ## Database
 
-MySQL database `book_collection`. Schema and migration scripts in `tools/database/`. Key tables: `books`, `books_read`, `tag_labels`, `books_tags`, `complete_date_estimates`, `daily_page_records`, `images`.
+MySQL database `book_collection`. Schema in `tools/database/schema.sql`. Key tables: `books`, `books_read`, `tag_labels`, `books_tags`, `complete_date_estimates`, `daily_page_records`, `images`.

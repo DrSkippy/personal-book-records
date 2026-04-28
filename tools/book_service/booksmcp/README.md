@@ -4,9 +4,16 @@ A Model Context Protocol (MCP) server that provides book and tag search function
 
 ## Overview
 
-This MCP server exposes a books database through two main tools:
-- **search_books** - Search books by title, author, ISBN, tags, and more
-- **search_tags** - Search books by tag labels
+This MCP server exposes a books database through 9 tools:
+- **search_books_by_title** - Search by title
+- **search_books_by_author** - Search by author
+- **search_books_by_isbn** - Search by ISBN-10
+- **search_books_by_isbn13** - Search by ISBN-13
+- **search_books_by_publisher** - Search by publisher
+- **search_books_by_location** - Search by physical location
+- **search_books_by_tags** - Search by tags
+- **search_books_by_read_date** - Search by read date
+- **search_tags** - Search for books by tag name
 
 The server uses the latest MCP specifications (2025-03-26) with FastMCP and streamable HTTP transport for efficient, scalable communication.
 
@@ -39,15 +46,14 @@ Or use Docker (recommended).
    docker build -t booksmcp:latest -f booksmcp/Dockerfile .
    ```
 
-2. **Run with Docker Compose:**
+2. **Run with Docker Compose (from repo root):**
    ```bash
-   cd booksmcp
-   docker-compose up -d
+   docker compose up -d
    ```
 
 3. **Check the logs:**
    ```bash
-   docker-compose logs -f booksmcp
+   docker compose logs -f booksmcp
    ```
 
 ### Manual Installation
@@ -130,88 +136,38 @@ The `docker-compose.yml` file includes:
   ```json
   {
     "name": "Books MCP Server",
-    "version": "2.0.0",
+    "version": "3.0.0",
     "description": "MCP server for book and tag search functionality",
     "transport": "Streamable HTTP (FastMCP)",
     "tools": [
-      {
-        "name": "search_books",
-        "description": "Search books by title, author, ISBN, tags, etc.",
-        "parameters": ["Title", "Author", "IsbnNumber", "IsbnNumber13", "PublisherName", "Location", "Tags", "ReadDate"]
-      },
-      {
-        "name": "search_tags",
-        "description": "Search books by tag labels",
-        "parameters": ["query"]
-      }
+      {"name": "search_books_by_title",     "parameters": ["title"]},
+      {"name": "search_books_by_author",    "parameters": ["author"]},
+      {"name": "search_books_by_isbn",      "parameters": ["isbn"]},
+      {"name": "search_books_by_isbn13",    "parameters": ["isbn13"]},
+      {"name": "search_books_by_publisher", "parameters": ["publisher"]},
+      {"name": "search_books_by_location",  "parameters": ["location"]},
+      {"name": "search_books_by_tags",      "parameters": ["tags"]},
+      {"name": "search_books_by_read_date", "parameters": ["read_date"]},
+      {"name": "search_tags",               "parameters": ["query"]}
     ]
   }
   ```
 
 ## MCP Tools
 
-### 1. search_books
+Each tool takes a single string parameter and returns a JSON string of matching books.
 
-Search books by various criteria.
-
-**Parameters:**
-- `Title` (string, optional) - Book title to search for
-- `Author` (string, optional) - Author name to search for
-- `IsbnNumber` (string, optional) - ISBN-10 number
-- `IsbnNumber13` (string, optional) - ISBN-13 number
-- `PublisherName` (string, optional) - Publisher name
-- `Location` (string, optional) - Book location
-- `Tags` (string, optional) - Tags associated with the book
-- `ReadDate` (string, optional) - Date when the book was read
-
-**Returns:** JSON string with search results
-
-**Example Response:**
-```json
-{
-  "query": {
-    "Author": "tolkien"
-  },
-  "count": 5,
-  "results": [
-    {
-      "BookId": "123",
-      "Title": "The Lord of the Rings",
-      "Author": "J.R.R. Tolkien",
-      "IsbnNumber": "0618574948",
-      "IsbnNumber13": "9780618574940",
-      "PublisherName": "Houghton Mifflin",
-      "Location": "Shelf A1",
-      "ReadDate": "2024-01-15"
-    }
-  ]
-}
-```
-
-### 2. search_tags
-
-Search for books by tag labels.
-
-**Parameters:**
-- `query` (string, required) - Tag name to search for
-
-**Returns:** JSON string with search results
-
-**Example Response:**
-```json
-{
-  "query": "history",
-  "count": 12,
-  "results": [
-    {
-      "BookId": "456",
-      "Title": "A Brief History of Time",
-      "Tag": "history",
-      "TagId": "78"
-    }
-  ]
-}
-```
+| Tool | Parameter | Searches by |
+|------|-----------|-------------|
+| `search_books_by_title` | `title` | Book title (partial match) |
+| `search_books_by_author` | `author` | Author name (partial match) |
+| `search_books_by_isbn` | `isbn` | ISBN-10 |
+| `search_books_by_isbn13` | `isbn13` | ISBN-13 |
+| `search_books_by_publisher` | `publisher` | Publisher name |
+| `search_books_by_location` | `location` | Physical location |
+| `search_books_by_tags` | `tags` | Associated tags |
+| `search_books_by_read_date` | `read_date` | Date read (YYYY-MM-DD) |
+| `search_tags` | `query` | Tag label name |
 
 ## Testing
 
@@ -500,34 +456,10 @@ Client Request → /mcp endpoint → FastMCP Router → Tool Handler → Databas
 
 ## Version History
 
-### v2.0.0 (Current)
-- **Breaking Changes:** Reimplemented using FastMCP
-- Streamable HTTP transport (2025-03-26 spec)
-- Simplified architecture
-- Enhanced logging
-- Custom `/info` endpoint
-- Removed SSE-specific endpoints (now handled by FastMCP)
-
-### v1.0.0 (Legacy)
-- Manual SSE implementation
-- Starlette-based routing
-- Deprecated HTTP+SSE specification
-
-## Migration from v1.0.0
-
-If upgrading from v1.0.0:
-
-1. **Endpoints changed:**
-   - Old: `/sse` (GET) + `/messages/` (POST)
-   - New: `/mcp` (GET/POST) - single endpoint
-
-2. **MCP clients need updating:**
-   - Update URL to `http://localhost:3005/mcp`
-   - Streamable HTTP transport now used
-
-3. **Dependencies changed:**
-   - Old: `mcp`, `starlette`, `uvicorn`
-   - New: `fastmcp` (includes everything)
+### v3.0.0 (Current)
+- 9 individual search tools (one per search axis)
+- FastMCP streamable HTTP transport
+- `/health` and `/info` endpoints
 
 ## Resources
 
