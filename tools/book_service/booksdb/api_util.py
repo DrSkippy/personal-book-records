@@ -234,33 +234,36 @@ def get_next_book_id(current_book_id, direction=1):
                      "WHERE a.BookId < %s ORDER BY a.BookId DESC LIMIT 1")
     app_logger.debug(query_str)
     next_book_id = None
-    c = db.cursor()
     try:
-        c.execute(query_str, (current_book_id,))
-    except pymysql.Error as e:
-        app_logger.error(e)
-        return next_book_id
-    else:
-        s = c.fetchall()
-        # If no results, we are at a boundary
-        if len(s) == 0:
-            if direction > 0:
-                # At the end of the collection — do not wrap forward
-                next_book_id = None
-            else:
-                # At the start of the collection — wrap backward to the last book
-                query_str = "SELECT max(a.BookId) FROM books as a"
-                c = db.cursor()
-                try:
-                    c.execute(query_str)
-                except pymysql.Error as e:
-                    app_logger.error(e)
-                else:
-                    s = c.fetchall()
-                    next_book_id = s[0][0]
+        c = db.cursor()
+        try:
+            c.execute(query_str, (current_book_id,))
+        except pymysql.Error as e:
+            app_logger.error(e)
+            return next_book_id
         else:
-            next_book_id = s[0][0]
-        return next_book_id
+            s = c.fetchall()
+            # If no results, we are at a boundary
+            if len(s) == 0:
+                if direction > 0:
+                    # At the end of the collection — do not wrap forward
+                    next_book_id = None
+                else:
+                    # At the start of the collection — wrap backward to the last book
+                    query_str = "SELECT max(a.BookId) FROM books as a"
+                    c = db.cursor()
+                    try:
+                        c.execute(query_str)
+                    except pymysql.Error as e:
+                        app_logger.error(e)
+                    else:
+                        s = c.fetchall()
+                        next_book_id = s[0][0]
+            else:
+                next_book_id = s[0][0]
+            return next_book_id
+    finally:
+        db.close()
 
 
 def get_book_ids_in_window(book_id, window):
@@ -311,46 +314,49 @@ def get_book_ids_in_window(book_id, window):
         "le_asc": "SELECT a.BookId FROM books as a WHERE a.BookId <= %s ORDER BY a.BookId ASC LIMIT %s",
     }
 
-    c = db.cursor()
     book_id_list = []
-
-    # get the bottom half first - window leading up to book_id
     try:
-        c.execute(queries["le_desc"], (book_id, bottom_half_window))
-        s = c.fetchall()
-        for row in s:
-            book_id_list.append(row[0])
-        book_id_list.reverse()
-    except pymysql.Error as e:
-        app_logger.error(e)
+        c = db.cursor()
 
-    # If fewer books exist below the anchor, expand the top half to compensate
-    below_deficit = bottom_half_window - len(book_id_list)
-    effective_top = top_half_window + below_deficit
-
-    # now get the top half - window after book_id
-    try:
-        c.execute(queries["gt_asc"], (book_id, effective_top))
-        s = c.fetchall()
-        for row in s:
-            book_id_list.append(row[0])
-    except pymysql.Error as e:
-        app_logger.error(e)
-
-    # If fewer books exist above the anchor, expand the bottom half to compensate
-    if len(book_id_list) < window:
-        above_deficit = window - len(book_id_list)
+        # get the bottom half first - window leading up to book_id
         try:
-            c.execute(queries["le_desc"], (book_id, bottom_half_window + above_deficit))
+            c.execute(queries["le_desc"], (book_id, bottom_half_window))
             s = c.fetchall()
-            new_below = [row[0] for row in s]
-            new_below.reverse()
-            # Prepend only IDs not already in the list
-            existing = set(book_id_list)
-            extra = [bid for bid in new_below if bid not in existing]
-            book_id_list = extra + book_id_list
+            for row in s:
+                book_id_list.append(row[0])
+            book_id_list.reverse()
         except pymysql.Error as e:
             app_logger.error(e)
+
+        # If fewer books exist below the anchor, expand the top half to compensate
+        below_deficit = bottom_half_window - len(book_id_list)
+        effective_top = top_half_window + below_deficit
+
+        # now get the top half - window after book_id
+        try:
+            c.execute(queries["gt_asc"], (book_id, effective_top))
+            s = c.fetchall()
+            for row in s:
+                book_id_list.append(row[0])
+        except pymysql.Error as e:
+            app_logger.error(e)
+
+        # If fewer books exist above the anchor, expand the bottom half to compensate
+        if len(book_id_list) < window:
+            above_deficit = window - len(book_id_list)
+            try:
+                c.execute(queries["le_desc"], (book_id, bottom_half_window + above_deficit))
+                s = c.fetchall()
+                new_below = [row[0] for row in s]
+                new_below.reverse()
+                # Prepend only IDs not already in the list
+                existing = set(book_id_list)
+                extra = [bid for bid in new_below if bid not in existing]
+                book_id_list = extra + book_id_list
+            except pymysql.Error as e:
+                app_logger.error(e)
+    finally:
+        db.close()
 
     return book_id_list
 
@@ -377,39 +383,42 @@ def get_complete_book_record(book_id):
     h_img = ["ImageURL"]
 
     result_data = {"book": None, "reads": None, "tags": None, "img": None, "error": []}
-    c = db.cursor()
-
     try:
-        c.execute(q_book, (book_id,))
-        s = c.fetchall()
-        result_data["book"] = _create_serializeable_result_dict(s, h_book)
-    except pymysql.Error as e:
-        app_logger.error(e)
-        result_data["error"].append(str(e))
+        c = db.cursor()
 
-    try:
-        c.execute(q_read, (book_id,))
-        s = c.fetchall()
-        result_data["reads"] = _create_serializeable_result_dict(s, h_read)
-    except pymysql.Error as e:
-        app_logger.error(e)
-        result_data["error"].append(str(e))
+        try:
+            c.execute(q_book, (book_id,))
+            s = c.fetchall()
+            result_data["book"] = _create_serializeable_result_dict(s, h_book)
+        except pymysql.Error as e:
+            app_logger.error(e)
+            result_data["error"].append(str(e))
 
-    try:
-        c.execute(q_tags, (book_id,))
-        s = c.fetchall()
-        result_data["tags"] = _create_serializeable_result_dict([[x[0] for x in s]], h_tags)
-    except pymysql.Error as e:
-        app_logger.error(e)
-        result_data["error"].append(str(e))
+        try:
+            c.execute(q_read, (book_id,))
+            s = c.fetchall()
+            result_data["reads"] = _create_serializeable_result_dict(s, h_read)
+        except pymysql.Error as e:
+            app_logger.error(e)
+            result_data["error"].append(str(e))
 
-    try:
-        c.execute(q_img, (book_id,))
-        s = c.fetchall()
-        result_data["img"] = _create_serializeable_result_dict([[x[0] for x in s]], h_img)
-    except pymysql.Error as e:
-        app_logger.error(e)
-        result_data["error"].append(str(e))
+        try:
+            c.execute(q_tags, (book_id,))
+            s = c.fetchall()
+            result_data["tags"] = _create_serializeable_result_dict([[x[0] for x in s]], h_tags)
+        except pymysql.Error as e:
+            app_logger.error(e)
+            result_data["error"].append(str(e))
+
+        try:
+            c.execute(q_img, (book_id,))
+            s = c.fetchall()
+            result_data["img"] = _create_serializeable_result_dict([[x[0] for x in s]], h_img)
+        except pymysql.Error as e:
+            app_logger.error(e)
+            result_data["error"].append(str(e))
+    finally:
+        db.close()
 
     if len(result_data["error"]) == 0:
         del result_data["error"]
@@ -454,6 +463,7 @@ def update_book_record_by_key(update_dict):
     db = pymysql.connect(**books_conf)
     book_collection_id = update_dict.get("BookId")
     if not book_collection_id:
+        db.close()
         return [{"error": "BookId is required"}]
 
     # Build SET clause with parameterized values
@@ -469,6 +479,7 @@ def update_book_record_by_key(update_dict):
         values.append(value)
 
     if not set_parts:
+        db.close()
         return [{"error": "No valid columns to update"}]
 
     values.append(book_collection_id)
@@ -476,15 +487,18 @@ def update_book_record_by_key(update_dict):
     app_logger.debug(search_str)
 
     results = []
-    with db:
-        with db.cursor() as c:
-            try:
-                c.execute(search_str, tuple(values))
-                results.append(update_dict)
-            except pymysql.Error as e:
-                app_logger.error(e)
-                results.append({"error": str(e)})
-        db.commit()
+    try:
+        with db:
+            with db.cursor() as c:
+                try:
+                    c.execute(search_str, tuple(values))
+                    results.append(update_dict)
+                except pymysql.Error as e:
+                    app_logger.error(e)
+                    results.append({"error": str(e)})
+            db.commit()
+    finally:
+        db.close()
     return results
 
 
@@ -617,13 +631,16 @@ def books_read_by_year_utility(target_year=None):
     header = table_header + ["ReadDate"]
     app_logger.debug(search_str)
     s = None
-    c = db.cursor()
     try:
-        c.execute(search_str, params)
-        s = c.fetchall()
-    except pymysql.Error as e:
-        app_logger.error(e)
-        error_list = [str(e)]
+        c = db.cursor()
+        try:
+            c.execute(search_str, params)
+            s = c.fetchall()
+        except pymysql.Error as e:
+            app_logger.error(e)
+            error_list = [str(e)]
+    finally:
+        db.close()
     return s, s, header, error_list
 
 
@@ -655,15 +672,18 @@ def status_read_utility(book_id):
                   "FROM books_read "
                   "WHERE BookId = %s ORDER BY ReadDate ASC")
     app_logger.debug(search_str)
-    c = db.cursor()
     header = ["BookId", "ReadDate", "ReadNote"]
     s = None
     try:
-        c.execute(search_str, (book_id,))
-        s = c.fetchall()
-    except pymysql.Error as e:
-        app_logger.error(e)
-        error_list = [str(e)]
+        c = db.cursor()
+        try:
+            c.execute(search_str, (book_id,))
+            s = c.fetchall()
+        except pymysql.Error as e:
+            app_logger.error(e)
+            error_list = [str(e)]
+    finally:
+        db.close()
     return s, header, error_list
 
 
@@ -699,14 +719,17 @@ def tags_search_utility(match_str):
                   " ORDER BY b.Label ASC")
     header = ["BookId", "TagId", "Tag"]
     app_logger.debug(search_str)
-    c = db.cursor()
     s = None
     try:
-        c.execute(search_str, (f"%{match_str}%",))
-        s = c.fetchall()
-    except pymysql.Error as e:
-        app_logger.error(e)
-        error_list = [str(e)]
+        c = db.cursor()
+        try:
+            c.execute(search_str, (f"%{match_str}%",))
+            s = c.fetchall()
+        except pymysql.Error as e:
+            app_logger.error(e)
+            error_list = [str(e)]
+    finally:
+        db.close()
     return s, header, error_list
 
 
@@ -814,13 +837,16 @@ def books_search_utility(args):
 
     app_logger.debug(search_str)
     header = table_header + ["ReadDate"]
-    c = db.cursor()
     try:
-        c.execute(search_str, tuple(params))
-        s = c.fetchall()
-    except pymysql.Error as e:
-        app_logger.error(e)
-        error_list = [str(e)]
+        c = db.cursor()
+        try:
+            c.execute(search_str, tuple(params))
+            s = c.fetchall()
+        except pymysql.Error as e:
+            app_logger.error(e)
+            error_list = [str(e)]
+    finally:
+        db.close()
     return s, header, error_list
 
 
@@ -854,16 +880,19 @@ def book_tags(book_id):
     search_str += " FROM tag_labels a JOIN books_tags b ON a.TagId = b.TagId"
     search_str += " WHERE b.BookId = %s ORDER BY Tag"
     app_logger.debug(search_str)
-    c = db.cursor()
     try:
-        c.execute(search_str, (book_id,))
-    except pymysql.Error as e:
-        app_logger.error(e)
-        error_list = [str(e)]
-    else:
-        s = c.fetchall()
-        tag_list = [x[0].strip() for x in s]
-        rdata = {"BookId": book_id, "tag_list": tag_list}
+        c = db.cursor()
+        try:
+            c.execute(search_str, (book_id,))
+        except pymysql.Error as e:
+            app_logger.error(e)
+            error_list = [str(e)]
+        else:
+            s = c.fetchall()
+            tag_list = [x[0].strip() for x in s]
+            rdata = {"BookId": book_id, "tag_list": tag_list}
+    finally:
+        db.close()
     return rdata, error_list
 
 
@@ -932,19 +961,22 @@ def add_tag_to_book(book_id, tag):
     tag = tag.lower().strip()
     result_data = None
     error_list = None
-    with db:
-        with db.cursor() as c:
-            try:
-                c.execute('INSERT IGNORE INTO tag_labels SET Label=%s', (tag,))
-                c.execute('SELECT TagId FROM tag_labels WHERE Label=%s', (tag,))
-                tag_id = c.fetchone()[0]
-                c.execute('INSERT INTO books_tags (BookId, TagId) VALUES (%s, %s)', (book_id, tag_id))
-                result_data = {"BookId": book_id, "Tag": tag, "TagId": tag_id}
-            except pymysql.Error as e:
-                app_logger.error(e)
-                error_list = [str(e)]
-                result_data = {"error": str(e)}
-        db.commit()
+    try:
+        with db:
+            with db.cursor() as c:
+                try:
+                    c.execute('INSERT IGNORE INTO tag_labels SET Label=%s', (tag,))
+                    c.execute('SELECT TagId FROM tag_labels WHERE Label=%s', (tag,))
+                    tag_id = c.fetchone()[0]
+                    c.execute('INSERT INTO books_tags (BookId, TagId) VALUES (%s, %s)', (book_id, tag_id))
+                    result_data = {"BookId": book_id, "Tag": tag, "TagId": tag_id}
+                except pymysql.Error as e:
+                    app_logger.error(e)
+                    error_list = [str(e)]
+                    result_data = {"error": str(e)}
+            db.commit()
+    finally:
+        db.close()
     return result_data, error_list
 
 
@@ -974,23 +1006,26 @@ def get_images_for_book(book_id):
     images = []
     error_list = None
 
-    with db:
-        with db.cursor() as c:
-            try:
-                c.execute(search_str, (book_id,))
-                results = c.fetchall()
+    try:
+        with db:
+            with db.cursor() as c:
+                try:
+                    c.execute(search_str, (book_id,))
+                    results = c.fetchall()
 
-                for row in results:
-                    images.append({
-                        "ImageId": row[0],
-                        "BookId": row[1],
-                        "Name": row[2],
-                        "Url": row[3],
-                        "ImageType": row[4]
-                    })
-            except pymysql.Error as e:
-                app_logger.error(e)
-                error_list = [str(e)]
+                    for row in results:
+                        images.append({
+                            "ImageId": row[0],
+                            "BookId": row[1],
+                            "Name": row[2],
+                            "Url": row[3],
+                            "ImageType": row[4]
+                        })
+                except pymysql.Error as e:
+                    app_logger.error(e)
+                    error_list = [str(e)]
+    finally:
+        db.close()
 
     return images, error_list
 
@@ -1004,18 +1039,21 @@ def delete_book(book_id: int) -> dict:
     """Delete a book and all related records (CASCADE handles children)."""
     db = pymysql.connect(**books_conf)
     result = {}
-    with db:
-        with db.cursor() as c:
-            try:
-                c.execute("DELETE FROM books WHERE BookId = %s", (book_id,))
-                if c.rowcount == 0:
-                    result = {"error": f"No book found with BookId {book_id}"}
-                else:
-                    result = {"deleted": True, "BookId": book_id}
-            except pymysql.Error as e:
-                app_logger.error(e)
-                result = {"error": str(e)}
-        db.commit()
+    try:
+        with db:
+            with db.cursor() as c:
+                try:
+                    c.execute("DELETE FROM books WHERE BookId = %s", (book_id,))
+                    if c.rowcount == 0:
+                        result = {"error": f"No book found with BookId {book_id}"}
+                    else:
+                        result = {"deleted": True, "BookId": book_id}
+                except pymysql.Error as e:
+                    app_logger.error(e)
+                    result = {"error": str(e)}
+            db.commit()
+    finally:
+        db.close()
     return result
 
 
@@ -1107,16 +1145,19 @@ def reading_book_data_from_db(record_id):
 def update_reading_book_data(record_id, date_range):
     result = {}
     db = pymysql.connect(**books_conf)
-    with db:
-        with db.cursor() as c:
-            try:
-                c.execute(
-                    "UPDATE complete_date_estimates SET EstimateDate = %s, EstimatedFinishDate = %s WHERE RecordId = %s",
-                    (datetime.datetime.now(), date_range[0], record_id))
-            except pymysql.Error as e:
-                app_logger.error(e)
-                result = {"error": [str(e)]}
-        db.commit()
+    try:
+        with db:
+            with db.cursor() as c:
+                try:
+                    c.execute(
+                        "UPDATE complete_date_estimates SET EstimateDate = %s, EstimatedFinishDate = %s WHERE RecordId = %s",
+                        (datetime.datetime.now(), date_range[0], record_id))
+                except pymysql.Error as e:
+                    app_logger.error(e)
+                    result = {"error": [str(e)]}
+            db.commit()
+    finally:
+        db.close()
     return result
 
 
