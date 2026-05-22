@@ -1,4 +1,4 @@
-__version__ = '0.18.1'
+__version__ = '0.18.2'
 
 import functools
 import json
@@ -283,33 +283,32 @@ def add_books():
     book_id_str = "SELECT LAST_INSERT_ID();"
     rdata = []
     try:
-        with db:
-            with db.cursor() as c:
-                for record in records:
-                    try:
-                        copyright_date = record["CopyrightDate"]
-                        if len(copyright_date.strip()) == 4:
-                            copyright_date += "-01-01 00:00:00"  # make it a valid date string!
-                        c.execute(search_str, (
-                            record["Title"],
-                            record["Author"],
-                            copyright_date,
-                            record["IsbnNumber"],
-                            record["IsbnNumber13"],
-                            record["PublisherName"],
-                            record["CoverType"],
-                            record["Pages"],
-                            record["Location"],
-                            record["BookNote"],
-                            record["Recycled"]
-                        ))
-                        c.execute(book_id_str)
-                        record["BookId"] = c.fetchall()[0][0]
-                        rdata.append(record)
-                    except pymysql.Error as e:
-                        app.logger.error(e)
-                        rdata.append({"error": str(e)})
-            db.commit()
+        with db.cursor() as c:
+            for record in records:
+                try:
+                    copyright_date = record["CopyrightDate"]
+                    if len(copyright_date.strip()) == 4:
+                        copyright_date += "-01-01 00:00:00"  # make it a valid date string!
+                    c.execute(search_str, (
+                        record["Title"],
+                        record["Author"],
+                        copyright_date,
+                        record["IsbnNumber"],
+                        record["IsbnNumber13"],
+                        record["PublisherName"],
+                        record["CoverType"],
+                        record["Pages"],
+                        record["Location"],
+                        record["BookNote"],
+                        record["Recycled"]
+                    ))
+                    c.execute(book_id_str)
+                    record["BookId"] = c.fetchall()[0][0]
+                    rdata.append(record)
+                except pymysql.Error as e:
+                    app.logger.error(e)
+                    rdata.append({"error": str(e)})
+        db.commit()
     finally:
         db.close()
     return json_response({"add_books": rdata})
@@ -338,21 +337,20 @@ def add_read_dates():
     search_str = 'INSERT INTO books_read (BookId, ReadDate, ReadNote) VALUES (%s, %s, %s)'
     res = {"update_read_dates": [], "error": []}
     try:
-        with db:
-            with db.cursor() as c:
-                for record in records:
-                    try:
-                        app.logger.debug(f"Inserting read date for BookId: {record['BookId']}")
-                        c.execute(search_str, (
-                            record["BookId"],
-                            record["ReadDate"],
-                            record["ReadNote"]
-                        ))
-                        res["update_read_dates"].append(record)
-                    except pymysql.Error as e:
-                        app.logger.error(e)
-                        res["error"].append(str(e))
-            db.commit()
+        with db.cursor() as c:
+            for record in records:
+                try:
+                    app.logger.debug(f"Inserting read date for BookId: {record['BookId']}")
+                    c.execute(search_str, (
+                        record["BookId"],
+                        record["ReadDate"],
+                        record["ReadNote"]
+                    ))
+                    res["update_read_dates"].append(record)
+                except pymysql.Error as e:
+                    app.logger.error(e)
+                    res["error"].append(str(e))
+        db.commit()
     finally:
         db.close()
     return json_response(res)
@@ -412,19 +410,18 @@ def update_edit_read_note():
     app.logger.debug(f"Updating read note for BookId: {record['BookId']}")
     rdata = []
     try:
-        with db:
-            with db.cursor() as c:
-                try:
-                    c.execute(search_str, (
-                        record["ReadNote"],
-                        record["BookId"],
-                        record["ReadDate"]
-                    ))
-                    rdata.append(record)
-                except pymysql.Error as e:
-                    app.logger.error(e)
-                    rdata.append({"error": str(e)})
-            db.commit()
+        with db.cursor() as c:
+            try:
+                c.execute(search_str, (
+                    record["ReadNote"],
+                    record["BookId"],
+                    record["ReadDate"]
+                ))
+                rdata.append(record)
+            except pymysql.Error as e:
+                app.logger.error(e)
+                rdata.append({"error": str(e)})
+        db.commit()
     finally:
         db.close()
     return json_response({"update_read": rdata})
@@ -824,16 +821,15 @@ def update_tag_value(current, updated):
     db = pymysql.connect(**books_conf)
     result_data = None
     try:
-        with db:
-            with db.cursor() as c:
-                try:
-                    _updated = updated.lower().strip(" ")
-                    records = c.execute("UPDATE tag_labels SET Label = %s WHERE Label = %s", (_updated, current))
-                    result_data = {"data": {"tag_update": f"{current} >> {updated}", "updated_tags": records}}
-                except pymysql.Error as e:
-                    app.logger.error(e)
-                    result_data = {"error": str(e)}
-            db.commit()
+        with db.cursor() as c:
+            try:
+                _updated = updated.lower().strip(" ")
+                records = c.execute("UPDATE tag_labels SET Label = %s WHERE Label = %s", (_updated, current))
+                result_data = {"data": {"tag_update": f"{current} >> {updated}", "updated_tags": records}}
+            except pymysql.Error as e:
+                app.logger.error(e)
+                result_data = {"error": str(e)}
+        db.commit()
     finally:
         db.close()
     return json_response(result_data)
@@ -872,15 +868,13 @@ def tag_maintenance():
     db = pymysql.connect(**books_conf)
     rdata = {"tag_maintenance": {}}
     try:
-        with db:
-            with db.cursor() as c:
-                try:
-                    # lower case
-                    c.execute("UPDATE tag_labels SET Label = TRIM(LOWER(Label))")
-                    db.commit()
-                except pymysql.Error as e:
-                    rdata = {"error": [str(e)]}
-                    app.logger.error(e)
+        with db.cursor() as c:
+            try:
+                c.execute("UPDATE tag_labels SET Label = TRIM(LOWER(Label))")
+                db.commit()
+            except pymysql.Error as e:
+                rdata = {"error": [str(e)]}
+                app.logger.error(e)
     finally:
         db.close()
     return json_response(rdata)
@@ -912,15 +906,13 @@ def record_set(book_id=None):
     q = "SELECT StartDate, RecordId FROM complete_date_estimates WHERE BookId = %s ORDER BY StartDate ASC"
     res = []
     try:
-        with db:
-            with db.cursor() as c:
-                try:
-                    c.execute(q, (book_id,))
-                    res = c.fetchall()
-                except pymysql.Error as e:
-                    rdata["error"] = [str(e)]
-                    app.logger.error(e)
-            db.commit()
+        with db.cursor() as c:
+            try:
+                c.execute(q, (book_id,))
+                res = c.fetchall()
+            except pymysql.Error as e:
+                rdata["error"] = [str(e)]
+                app.logger.error(e)
     finally:
         db.close()
     for record in [(str(x[0]), int(x[1])) for x in res]:
@@ -953,19 +945,18 @@ def add_date_page():
     db = pymysql.connect(**books_conf)
     result_data = {"error": "No record added."}
     try:
-        with db:
-            with db.cursor() as c:
-                try:
-                    c.execute(search_str, (
-                        record["RecordId"],
-                        record["RecordDate"],
-                        record["Page"]
-                    ))
-                    result_data = {"add_date_page": record}
-                except pymysql.Error as e:
-                    app.logger.error(e)
-                    result_data = {"add_date_page": {}, "error": str(e)}
-            db.commit()
+        with db.cursor() as c:
+            try:
+                c.execute(search_str, (
+                    record["RecordId"],
+                    record["RecordDate"],
+                    record["Page"]
+                ))
+                result_data = {"add_date_page": record}
+            except pymysql.Error as e:
+                app.logger.error(e)
+                result_data = {"add_date_page": {}, "error": str(e)}
+        db.commit()
     finally:
         db.close()
     return json_response(result_data)
@@ -983,17 +974,16 @@ def add_book_estimate(book_id, last_readable_page, start_date=None):
     app.logger.debug(f"Inserting book estimate for BookId: {book_id}")
     result_data = None
     try:
-        with db:
-            with db.cursor() as c:
-                try:
-                    c.execute(q, (book_id, start_date, last_readable_page))
-                    result_data = {"add_book_estimate":
-                                       {"BookId": f"{book_id}", "LastReadablePage":
-                                           f"{last_readable_page}", "StartDate": f"{start_date}"}}
-                except pymysql.Error as e:
-                    app.logger.error(e)
-                    result_data = {"add_book_estimate": {}, "error": str(e)}
-            db.commit()
+        with db.cursor() as c:
+            try:
+                c.execute(q, (book_id, start_date, last_readable_page))
+                result_data = {"add_book_estimate":
+                                   {"BookId": f"{book_id}", "LastReadablePage":
+                                       f"{last_readable_page}", "StartDate": f"{start_date}"}}
+            except pymysql.Error as e:
+                app.logger.error(e)
+                result_data = {"add_book_estimate": {}, "error": str(e)}
+        db.commit()
     finally:
         db.close()
     return json_response(result_data)
@@ -1096,23 +1086,22 @@ def add_image():
 
     result_data = None
     try:
-        with db:
-            with db.cursor() as c:
-                try:
-                    app.logger.debug(f"Inserting image for BookId: {record['BookId']}")
-                    c.execute(search_str, (
-                        record["BookId"],
-                        record.get("Name", ""),
-                        record.get("Url", ""),
-                        record["ImageType"]
-                    ))
-                    c.execute(image_id_str)
-                    record["ImageId"] = c.fetchall()[0][0]
-                    result_data = {"add_image": record}
-                except pymysql.Error as e:
-                    app.logger.error(e)
-                    result_data = {"error": str(e)}
-            db.commit()
+        with db.cursor() as c:
+            try:
+                app.logger.debug(f"Inserting image for BookId: {record['BookId']}")
+                c.execute(search_str, (
+                    record["BookId"],
+                    record.get("Name", ""),
+                    record.get("Url", ""),
+                    record["ImageType"]
+                ))
+                c.execute(image_id_str)
+                record["ImageId"] = c.fetchall()[0][0]
+                result_data = {"add_image": record}
+            except pymysql.Error as e:
+                app.logger.error(e)
+                result_data = {"error": str(e)}
+        db.commit()
     finally:
         db.close()
 
