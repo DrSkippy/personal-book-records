@@ -4,7 +4,7 @@ Flask-based REST API for managing and querying the book collection database.
 
 ## Overview
 
-- **Version**: 0.18.0
+- **Version**: 0.19.0
 - **Framework**: Flask 3.1.2
 - **Port**: 8084
 - **Authentication**: API key via `x-api-key` header
@@ -67,17 +67,17 @@ The API uses `../config/configuration.json`:
 
 ```json
 {
-  "username": "mysql_user",
-  "password": "mysql_password",
-  "database": "book_collection",
+  "username": "pg_user",
+  "password": "pg_password",
+  "database": "book-collection",
   "host": "localhost",
-  "port": 3306,
+  "port": 5434,
   "endpoint": "http://localhost:8084",
   "api_key": "your_api_key_here"
 }
 ```
 
-For Docker deployments, use `host.docker.internal` as the host to access MySQL on the host machine.
+For Docker deployments, use `host.docker.internal` as the host to access PostgreSQL on the host machine.
 
 ## Testing
 
@@ -132,7 +132,7 @@ See `../../README.md#deployment` for comprehensive deployment documentation incl
 ## Docker Configuration
 
 ### Dockerfile
-- Base: `python:3.11-slim`
+- Base: `python:3.12-slim`
 - Working directory: `/app`
 - Port: 8084
 - Entrypoint: `poetry run uwsgi --ini books/api.ini`
@@ -198,10 +198,10 @@ For the complete endpoint reference with examples, see `../../README.md#tool-2-r
 
 ## Version Information
 
-- API Version: 0.18.0
+- API Version: 0.19.0
 - Flask: 3.1.2
-- Python: 3.11+
-- PyMySQL: 1.1.0+
+- Python: 3.12+
+- psycopg2-binary: 2.9+
 
 ---
 

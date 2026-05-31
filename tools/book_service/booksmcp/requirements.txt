@@ -2,5 +2,5 @@
 fastmcp>=0.5.0
 
 # Database (from parent booksdb module)
-pymysql>=1.1.0
+psycopg2-binary>=2.9
 numpy>=1.24.0

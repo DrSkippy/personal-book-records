@@ -11,16 +11,16 @@ The `book_service` directory provides:
 - 50+ endpoints for managing books, reading history, and tags
 - Authentication via `x-api-key` header
 - Visualization and image management
-- Version: 0.18.0
+- Version: 0.19.0
 
 ### 2. **MCP Server** (`booksmcp/`)
 - Model Context Protocol server for AI integration (Port 3005)
 - FastMCP framework with 9 search tools
 - Designed for Claude Desktop and other MCP clients
-- Version: 3.0.0
+- Version: 3.1.0
 
 ### 3. **Shared Database Layer** (`booksdb/`)
-- Common MySQL query utilities used by all services
+- Common PostgreSQL query utilities used by all services
 - Database abstraction and helper functions
 
 ### 4. **Configuration** (`config/`)
@@ -127,11 +127,11 @@ vim config/configuration.json
 
 ```json
 {
-  "username": "mysql_user",
-  "password": "mysql_password",
-  "database": "book_collection",
+  "username": "pg_user",
+  "password": "pg_password",
+  "database": "book-collection",
   "host": "localhost",
-  "port": 3306,
+  "port": 5434,
   "isbn_com": {
     "url_isbn": "https://api2.isbndb.com/book/{}",
     "key": "your_isbndb_api_key"
@@ -222,9 +222,9 @@ results = api_util.books_search_utility(
 Both services share the same database layer and configuration:
 
 ```
-┌─────────────────────────┐
-│   MySQL Books Database  │
-└───────────┬─────────────┘
+┌──────────────────────────────┐
+│   PostgreSQL Books Database  │
+└───────────┬──────────────────┘
             │
       ┌─────┴─────┐
       │ booksdb/  │  Shared database layer
@@ -247,17 +247,25 @@ Both services share the same database layer and configuration:
 - **REST API README**: `books/README.md` - REST API quick reference
 - **MCP Server README**: `booksmcp/README.md` - Complete MCP guide (575 lines)
 - **Test Documentation**: `../test/README.md` - Test suite documentation
-- **Database Schema**: `../database/schema.sql` - MySQL database schema
+- **Database Schema**: `../database/schema_postgres.sql` - PostgreSQL database schema
 
 ## Version Information
 
-- REST API: v0.18.0
-- MCP Server: v3.0.0
-- Python: 3.11+
+- REST API: v0.19.0
+- MCP Server: v3.1.0
+- Python: 3.12+
 - Flask: 3.1.2
 - FastMCP: 0.5.0+
 
 ## Changelog
+
+### v0.19.0 / MCP v3.1.0
+- Migrated database from MySQL to PostgreSQL (`book-collection`, port 5434)
+- Swapped driver from PyMySQL to psycopg2-binary
+- Replaced `INSERT IGNORE … SET` with `INSERT … ON CONFLICT DO NOTHING`
+- Replaced `SELECT LAST_INSERT_ID()` with `RETURNING` clause
+- Replaced `YEAR()` with `EXTRACT(YEAR FROM …)::INT`
+- Removed MySQL backtick identifiers from dynamic queries
 
 ### v0.18.0
 - **Carousel — right boundary fix**: `get_next_book_id` no longer wraps forward at the end of the collection; returns `None` so the API returns `{}` and the frontend stops advancing

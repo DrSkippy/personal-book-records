@@ -29,9 +29,9 @@ The server uses the latest MCP specifications (2025-03-26) with FastMCP and stre
 
 ## Requirements
 
-- Python 3.11+
+- Python 3.12+
 - FastMCP 0.5.0+
-- PyMySQL 1.1.0+
+- psycopg2-binary 2.9+
 - NumPy 1.24.0+
 
 Or use Docker (recommended).
@@ -93,11 +93,11 @@ The server requires a configuration file at the path specified by `BOOKDB_CONFIG
 
 ```json
 {
-  "username": "db_user",
-  "password": "db_password",
-  "database": "book_collection",
+  "username": "pg_user",
+  "password": "pg_password",
+  "database": "book-collection",
   "host": "localhost",
-  "port": 3306
+  "port": 5434
 }
 ```
 
@@ -136,7 +136,7 @@ The `docker-compose.yml` file includes:
   ```json
   {
     "name": "Books MCP Server",
-    "version": "3.0.0",
+    "version": "3.1.0",
     "description": "MCP server for book and tag search functionality",
     "transport": "Streamable HTTP (FastMCP)",
     "tools": [
@@ -370,7 +370,7 @@ docker-compose logs --tail=100 booksmcp
 - Verify `BOOKDB_CONFIG` points to a valid configuration file
 - Check database credentials in the config file
 - Ensure database server is accessible from the container
-- For local MySQL, use `host.docker.internal` as host in Docker
+- For local PostgreSQL, use `host.docker.internal` as host in Docker
 
 ### MCP client connection issues
 - Verify server is running: `curl http://localhost:3005/health`
@@ -456,7 +456,10 @@ Client Request → /mcp endpoint → FastMCP Router → Tool Handler → Databas
 
 ## Version History
 
-### v3.0.0 (Current)
+### v3.1.0 (Current)
+- Migrated database driver from PyMySQL to psycopg2-binary (PostgreSQL)
+
+### v3.0.0
 - 9 individual search tools (one per search axis)
 - FastMCP streamable HTTP transport
 - `/health` and `/info` endpoints

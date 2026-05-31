@@ -1,4 +1,4 @@
-__version__ = '0.18.2'
+__version__ = '0.19.0'
 
 import functools
 import json
@@ -165,10 +165,10 @@ def configuration():
     Returns
         flask.Response - JSON string containing the application version, the
         configuration dictionaries, the ISBN configuration, and the current
-        date/time in ISO 8601 format.
+        date/time in ISO 8601 format.
     """
     books_conf_clean = books_conf.copy()
-    books_conf_clean["passwd"] = "******"
+    books_conf_clean["password"] = "******"
     isbn_conf_clean = isbn_conf.copy()
     isbn_conf_clean["key"] = "******"
     clean = {
@@ -274,13 +274,12 @@ def add_books():
     :return:
     """
     # records should be a list of dictionaries including all fields
-    db = pymysql.connect(**books_conf)
+    db = psycopg2.connect(**books_conf)
     records = request.get_json()
     search_str = ("INSERT INTO books "
                   "(Title, Author, CopyrightDate, IsbnNumber, IsbnNumber13, PublisherName, CoverType, Pages, "
                   "Location, BookNote, Recycled) "
-                  "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)")
-    book_id_str = "SELECT LAST_INSERT_ID();"
+                  "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING bookid")
     rdata = []
     try:
         with db.cursor() as c:
@@ -302,10 +301,9 @@ def add_books():
                         record["BookNote"],
                         record["Recycled"]
                     ))
-                    c.execute(book_id_str)
-                    record["BookId"] = c.fetchall()[0][0]
+                    record["BookId"] = c.fetchone()[0]
                     rdata.append(record)
-                except pymysql.Error as e:
+                except psycopg2.Error as e:
                     app.logger.error(e)
                     rdata.append({"error": str(e)})
         db.commit()
@@ -332,7 +330,7 @@ def add_read_dates():
     :return:
     """
     # records should be a list of dictionaries including all fields
-    db = pymysql.connect(**books_conf)
+    db = psycopg2.connect(**books_conf)
     records = request.get_json()
     search_str = 'INSERT INTO books_read (BookId, ReadDate, ReadNote) VALUES (%s, %s, %s)'
     res = {"update_read_dates": [], "error": []}
@@ -347,7 +345,7 @@ def add_read_dates():
                         record["ReadNote"]
                     ))
                     res["update_read_dates"].append(record)
-                except pymysql.Error as e:
+                except psycopg2.Error as e:
                     app.logger.error(e)
                     res["error"].append(str(e))
         db.commit()
@@ -404,7 +402,7 @@ def update_edit_read_note():
     :return:
     """
     # records should be a single dictionaries including all fields
-    db = pymysql.connect(**books_conf)
+    db = psycopg2.connect(**books_conf)
     record = request.get_json()
     search_str = "UPDATE books_read SET ReadNote=%s WHERE BookId = %s AND ReadDate = %s"
     app.logger.debug(f"Updating read note for BookId: {record['BookId']}")
@@ -418,7 +416,7 @@ def update_edit_read_note():
                     record["ReadDate"]
                 ))
                 rdata.append(record)
-            except pymysql.Error as e:
+            except psycopg2.Error as e:
                 app.logger.error(e)
                 rdata.append({"error": str(e)})
         db.commit()
@@ -818,15 +816,15 @@ def update_tag_value(current, updated):
     ------
     None
     """
-    db = pymysql.connect(**books_conf)
+    db = psycopg2.connect(**books_conf)
     result_data = None
     try:
         with db.cursor() as c:
             try:
                 _updated = updated.lower().strip(" ")
-                records = c.execute("UPDATE tag_labels SET Label = %s WHERE Label = %s", (_updated, current))
-                result_data = {"data": {"tag_update": f"{current} >> {updated}", "updated_tags": records}}
-            except pymysql.Error as e:
+                c.execute("UPDATE tag_labels SET Label = %s WHERE Label = %s", (_updated, current))
+                result_data = {"data": {"tag_update": f"{current} >> {updated}", "updated_tags": c.rowcount}}
+            except psycopg2.Error as e:
                 app.logger.error(e)
                 result_data = {"error": str(e)}
         db.commit()
@@ -865,14 +863,14 @@ def tags_search(match_str):
 @app.route('/tag_maintenance')
 @require_app_key
 def tag_maintenance():
-    db = pymysql.connect(**books_conf)
+    db = psycopg2.connect(**books_conf)
     rdata = {"tag_maintenance": {}}
     try:
         with db.cursor() as c:
             try:
                 c.execute("UPDATE tag_labels SET Label = TRIM(LOWER(Label))")
                 db.commit()
-            except pymysql.Error as e:
+            except psycopg2.Error as e:
                 rdata = {"error": [str(e)]}
                 app.logger.error(e)
     finally:
@@ -901,7 +899,7 @@ def date_page_records(record_id=None):
 @app.route('/record_set/<book_id>')
 @require_app_key
 def record_set(book_id=None):
-    db = pymysql.connect(**books_conf)
+    db = psycopg2.connect(**books_conf)
     rdata = {"record_set": {"BookId": book_id, "RecordId": [], "Estimate": []}}
     q = "SELECT StartDate, RecordId FROM complete_date_estimates WHERE BookId = %s ORDER BY StartDate ASC"
     res = []
@@ -910,7 +908,7 @@ def record_set(book_id=None):
             try:
                 c.execute(q, (book_id,))
                 res = c.fetchall()
-            except pymysql.Error as e:
+            except psycopg2.Error as e:
                 rdata["error"] = [str(e)]
                 app.logger.error(e)
     finally:
@@ -942,7 +940,7 @@ def add_date_page():
     record = request.get_json()
     search_str = "INSERT INTO daily_page_records (RecordId, RecordDate, Page) VALUES (%s, %s, %s)"
     app.logger.debug(f"Inserting date page record for RecordId: {record.get('RecordId')}")
-    db = pymysql.connect(**books_conf)
+    db = psycopg2.connect(**books_conf)
     result_data = {"error": "No record added."}
     try:
         with db.cursor() as c:
@@ -953,7 +951,7 @@ def add_date_page():
                     record["Page"]
                 ))
                 result_data = {"add_date_page": record}
-            except pymysql.Error as e:
+            except psycopg2.Error as e:
                 app.logger.error(e)
                 result_data = {"add_date_page": {}, "error": str(e)}
         db.commit()
@@ -967,7 +965,7 @@ def add_date_page():
 @require_app_key
 def add_book_estimate(book_id, last_readable_page, start_date=None):
     # TODO: if you call it again, you get a new record_id for a second reading of the same book
-    db = pymysql.connect(**books_conf)
+    db = psycopg2.connect(**books_conf)
     if start_date is None:
         start_date = datetime.datetime.now().strftime(FMT)
     q = "INSERT INTO complete_date_estimates (BookId, StartDate, LastReadablePage) VALUES (%s, %s, %s)"
@@ -980,7 +978,7 @@ def add_book_estimate(book_id, last_readable_page, start_date=None):
                 result_data = {"add_book_estimate":
                                    {"BookId": f"{book_id}", "LastReadablePage":
                                        f"{last_readable_page}", "StartDate": f"{start_date}"}}
-            except pymysql.Error as e:
+            except psycopg2.Error as e:
                 app.logger.error(e)
                 result_data = {"add_book_estimate": {}, "error": str(e)}
         db.commit()
@@ -1036,7 +1034,7 @@ def add_image():
     Returns:
         JSON response with the inserted image record including the auto-generated id
     """
-    db = pymysql.connect(**books_conf)
+    db = psycopg2.connect(**books_conf)
     record = request.get_json()
 
     # Validate required fields
@@ -1081,8 +1079,7 @@ def add_image():
 
     search_str = ("INSERT INTO images "
                   "(BookId, Name, Url, ImageType) "
-                  "VALUES (%s, %s, %s, %s)")
-    image_id_str = "SELECT LAST_INSERT_ID();"
+                  "VALUES (%s, %s, %s, %s) RETURNING imageid")
 
     result_data = None
     try:
@@ -1095,10 +1092,9 @@ def add_image():
                     record.get("Url", ""),
                     record["ImageType"]
                 ))
-                c.execute(image_id_str)
-                record["ImageId"] = c.fetchall()[0][0]
+                record["ImageId"] = c.fetchone()[0]
                 result_data = {"add_image": record}
-            except pymysql.Error as e:
+            except psycopg2.Error as e:
                 app.logger.error(e)
                 result_data = {"error": str(e)}
         db.commit()

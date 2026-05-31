@@ -57,10 +57,11 @@ def read_json_configuration() -> tuple[dict[str, Any], dict[str, str]]:
         try:
             books_db_config: dict[str, Any] = {
                 "user": c["username"].strip(),
-                "passwd": c["password"].strip(),
-                "db": c["database"].strip(),
+                "password": c["password"].strip(),
+                "dbname": c["database"].strip(),
                 "host": c["host"].strip(),
-                "port": int(c["port"])
+                "port": int(c["port"]),
+                "sslmode": "disable"
             }
             isbn_lookup_config: dict[str, str] = {
                 "url_isbn": c["isbn_com"]["url_isbn"].strip(),

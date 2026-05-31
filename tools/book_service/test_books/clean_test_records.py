@@ -9,7 +9,7 @@ import os
 # Ensure booksdb package is importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import pymysql
+import psycopg2
 from booksdb.config import books_conf
 
 CLEANUP_QUERIES = [
@@ -24,7 +24,7 @@ CLEANUP_QUERIES = [
 
 
 def main() -> None:
-    conn = pymysql.connect(**books_conf)
+    conn = psycopg2.connect(**books_conf)
     try:
         with conn.cursor() as cursor:
             total = 0

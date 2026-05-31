@@ -1,6 +1,6 @@
 # personal-book-records
 
-A personal book collection management system built around a MySQL database. The project provides four interfaces to the same data: a React web app, a REST API, an MCP server for AI integration, and a command-line REPL.
+A personal book collection management system built around a PostgreSQL database. The project provides four interfaces to the same data: a React web app, a REST API, an MCP server for AI integration, and a command-line REPL.
 
 ## From-Scratch Setup
 
@@ -8,7 +8,7 @@ Full stack on a single host running MySQL, Docker, and nginx.
 
 ### Prerequisites
 - Docker and Docker Compose
-- MySQL running on the host
+- PostgreSQL running on the host
 - nginx
 - Node.js 18+ (for building the React frontend)
 
@@ -25,11 +25,11 @@ Edit `configuration.json`:
 
 | Field | Value |
 |-------|-------|
-| `username` | MySQL user |
-| `password` | MySQL password |
-| `database` | `book_collection` |
-| `host` | `host.docker.internal` (containers reach host MySQL via this) |
-| `port` | `3306` |
+| `username` | PostgreSQL user |
+| `password` | PostgreSQL password |
+| `database` | `book-collection` |
+| `host` | `host.docker.internal` (containers reach host PostgreSQL via this) |
+| `port` | `5434` |
 | `api_key` | A secret key — generate with `openssl rand -hex 20` |
 | `isbn_com.key` | ISBNdb API key (optional, for ISBN lookups) |
 
@@ -89,7 +89,7 @@ Set `VITE_API_BASE_URL=https://books.drskippy.app/api` in `.env.local` (or `http
 ### Step 5 — Initialize the database (first time only)
 
 ```bash
-mysql -u root -p < tools/database/schema.sql
+psql -U <user> -h <host> -p 5434 -d book-collection < tools/database/schema_postgres.sql
 ```
 
 ---
@@ -166,4 +166,4 @@ Site config for serving the React build at port 83 behind the Cloudflare Zero Tr
 
 ## Database
 
-MySQL database `book_collection`. Schema in `tools/database/schema.sql`. Key tables: `books`, `books_read`, `tag_labels`, `books_tags`, `complete_date_estimates`, `daily_page_records`, `images`.
+PostgreSQL database `book-collection` (port 5434). Schema in `tools/database/schema_postgres.sql`. Key tables: `books`, `books_read`, `tag_labels`, `books_tags`, `complete_date_estimates`, `daily_page_records`, `images`.

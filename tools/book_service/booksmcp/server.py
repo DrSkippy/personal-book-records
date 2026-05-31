@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-__version__= "3.0.1"
+__version__= "3.1.0"
 """
 Books MCP Server - Streamable HTTP Transport
 
@@ -49,7 +49,7 @@ port = int(os.getenv("PORT", "3005"))
 host = os.getenv("HOST", "0.0.0.0")
 mcp = FastMCP(
     "booksmcp-service",
-    dependencies=["pymysql", "numpy"],
+    dependencies=["psycopg2-binary", "numpy"],
     host=host,
     port=port
 )

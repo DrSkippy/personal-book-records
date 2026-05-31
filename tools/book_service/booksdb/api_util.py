@@ -6,7 +6,7 @@ It imports from sub-modules for configuration and serialization.
 """
 import datetime
 import numpy as np
-import pymysql
+import psycopg2
 
 # Import from sub-modules for modular organization
 from .config import (
@@ -30,7 +30,7 @@ from .serialization import (
 #   from booksdb.api_util import API_KEY, books_conf, etc.
 __all__ = [
     # Third-party modules used by api.py directly
-    'pymysql', 'datetime',
+    'psycopg2', 'datetime',
     # Config exports
     'app_logger', 'table_header', 'locations_sort_order', 'FMT',
     'API_KEY', 'read_json_configuration', 'books_conf', 'isbn_conf',
@@ -59,7 +59,7 @@ def get_valid_locations():
     """
     Retrieves a sorted list of distinct locations from the book collection table.
 
-    The function connects to the MySQL database, executes a query to obtain unique
+    The function connects to the database, executes a query to obtain unique
     location values, and returns them in a sorted order according to a predefined
     sort index. It also provides the raw query results and a list of column names,
     along with any error messages that may have occurred during the database
@@ -82,7 +82,7 @@ def get_valid_locations():
     db = None
     error_list = None
     try:
-        db = pymysql.connect(**books_conf)
+        db = psycopg2.connect(**books_conf)
         cursor = db.cursor()
 
         # Execute the query
@@ -94,7 +94,7 @@ def get_valid_locations():
         locations = cursor.fetchall()
         locations_list = [loc[0] for loc in locations]
         sorted_locations_list = sort_list_by_index_list(locations_list, locations_sort_order)
-    except pymysql.Error as e:
+    except psycopg2.Error as e:
         # Log and handle database errors
         app_logger.error(e)
         error_list = [str(e)]
@@ -137,7 +137,7 @@ def get_recently_touched(limit=10):
           set: ``["BookId", "LastUpdate", "Title"]``.
 
         * error_list (list[str] | None): A list containing a single error
-          message if a ``pymysql.Error`` was raised; otherwise ``None``.
+          message if a ``psycopg2.Error`` was raised; otherwise ``None``.
 
     Raises
     ------
@@ -150,7 +150,7 @@ def get_recently_touched(limit=10):
     s = None
 
     try:
-        db = pymysql.connect(**books_conf)
+        db = psycopg2.connect(**books_conf)
         cursor = db.cursor()
 
         # Execute the query - get most recently touched books from all tables
@@ -184,7 +184,7 @@ def get_recently_touched(limit=10):
             _title = c if len(c) <= 43 else c[:40] + "..."
             recent_books.append([a, _date, _title])
 
-    except pymysql.Error as e:
+    except psycopg2.Error as e:
         # Log and handle database errors
         app_logger.error(e)
         error_list = [str(e)]
@@ -206,7 +206,7 @@ def get_next_book_id(current_book_id, direction=1):
 
     Summary:
         Retrieves the next BookId from the ``books`` table in
-        the MySQL database. The function uses the current ID and a direction
+        the database. The function uses the current ID and a direction
         flag to determine whether to look forward or backward. When the search
         reaches the end of the table it wraps around to the first or last
         entry, depending on the direction.
@@ -222,9 +222,9 @@ def get_next_book_id(current_book_id, direction=1):
         error occurs.
 
     Raises:
-        pymysql.Error: If an error occurs during the database query.
+        psycopg2.Error: If an error occurs during the database query.
     """
-    db = pymysql.connect(**books_conf)
+    db = psycopg2.connect(**books_conf)
     # Direction determines comparison operator and sort order (safe - derived from int)
     if direction > 0:
         query_str = ("SELECT a.BookId FROM books as a "
@@ -238,7 +238,7 @@ def get_next_book_id(current_book_id, direction=1):
         c = db.cursor()
         try:
             c.execute(query_str, (current_book_id,))
-        except pymysql.Error as e:
+        except psycopg2.Error as e:
             app_logger.error(e)
             return next_book_id
         else:
@@ -254,7 +254,7 @@ def get_next_book_id(current_book_id, direction=1):
                     c = db.cursor()
                     try:
                         c.execute(query_str)
-                    except pymysql.Error as e:
+                    except psycopg2.Error as e:
                         app_logger.error(e)
                     else:
                         s = c.fetchall()
@@ -270,7 +270,7 @@ def get_book_ids_in_window(book_id, window):
     """
     Get a list of book IDs within a given window around a specific book ID.
 
-    This function connects to a MySQL database and retrieves a contiguous block of
+    This function connects to the database and retrieves a contiguous block of
     book IDs that surrounds the supplied `book_id`. The window is divided into a
     top and bottom half.  If the requested range extends beyond the existing
     records, the function wraps around to the beginning or end of the collection
@@ -295,12 +295,12 @@ def get_book_ids_in_window(book_id, window):
 
     Raises
     ------
-    pymysql.Error
+    psycopg2.Error
         If a database query fails, the exception is logged but not
         propagated; the function continues with whatever results were
         retrieved so far.
     """
-    db = pymysql.connect(**books_conf)
+    db = psycopg2.connect(**books_conf)
     app_logger.debug(f"Getting book ID window for book ID {book_id} with window {window}")
     top_half_window = int((window + 1) / 2)
     bottom_half_window = window - top_half_window
@@ -325,7 +325,7 @@ def get_book_ids_in_window(book_id, window):
             for row in s:
                 book_id_list.append(row[0])
             book_id_list.reverse()
-        except pymysql.Error as e:
+        except psycopg2.Error as e:
             app_logger.error(e)
 
         # If fewer books exist below the anchor, expand the top half to compensate
@@ -338,7 +338,7 @@ def get_book_ids_in_window(book_id, window):
             s = c.fetchall()
             for row in s:
                 book_id_list.append(row[0])
-        except pymysql.Error as e:
+        except psycopg2.Error as e:
             app_logger.error(e)
 
         # If fewer books exist above the anchor, expand the bottom half to compensate
@@ -353,7 +353,7 @@ def get_book_ids_in_window(book_id, window):
                 existing = set(book_id_list)
                 extra = [bid for bid in new_below if bid not in existing]
                 book_id_list = extra + book_id_list
-            except pymysql.Error as e:
+            except psycopg2.Error as e:
                 app_logger.error(e)
     finally:
         db.close()
@@ -363,7 +363,7 @@ def get_book_ids_in_window(book_id, window):
 
 def get_complete_book_record(book_id):
     """Retrieve complete book record including reads, tags, and images."""
-    db = pymysql.connect(**books_conf)
+    db = psycopg2.connect(**books_conf)
 
     q_book = ("SELECT a.BookId, a.Title, a.Author, a.CopyrightDate, "
               "a.IsbnNumber, a.PublisherName, a.CoverType, a.Pages, "
@@ -390,7 +390,7 @@ def get_complete_book_record(book_id):
             c.execute(q_book, (book_id,))
             s = c.fetchall()
             result_data["book"] = _create_serializeable_result_dict(s, h_book)
-        except pymysql.Error as e:
+        except psycopg2.Error as e:
             app_logger.error(e)
             result_data["error"].append(str(e))
 
@@ -398,7 +398,7 @@ def get_complete_book_record(book_id):
             c.execute(q_read, (book_id,))
             s = c.fetchall()
             result_data["reads"] = _create_serializeable_result_dict(s, h_read)
-        except pymysql.Error as e:
+        except psycopg2.Error as e:
             app_logger.error(e)
             result_data["error"].append(str(e))
 
@@ -406,7 +406,7 @@ def get_complete_book_record(book_id):
             c.execute(q_tags, (book_id,))
             s = c.fetchall()
             result_data["tags"] = _create_serializeable_result_dict([[x[0] for x in s]], h_tags)
-        except pymysql.Error as e:
+        except psycopg2.Error as e:
             app_logger.error(e)
             result_data["error"].append(str(e))
 
@@ -414,7 +414,7 @@ def get_complete_book_record(book_id):
             c.execute(q_img, (book_id,))
             s = c.fetchall()
             result_data["img"] = _create_serializeable_result_dict([[x[0] for x in s]], h_img)
-        except pymysql.Error as e:
+        except psycopg2.Error as e:
             app_logger.error(e)
             result_data["error"].append(str(e))
     finally:
@@ -460,7 +460,7 @@ def update_book_record_by_key(update_dict):
         "Recycled", "Location"
     }
 
-    db = pymysql.connect(**books_conf)
+    db = psycopg2.connect(**books_conf)
     book_collection_id = update_dict.get("BookId")
     if not book_collection_id:
         db.close()
@@ -475,7 +475,7 @@ def update_book_record_by_key(update_dict):
         if key not in allowed_columns:
             app_logger.warning(f"Ignoring unknown column: {key}")
             continue
-        set_parts.append(f"`{key}` = %s")
+        set_parts.append(f"{key} = %s")
         values.append(value)
 
     if not set_parts:
@@ -492,7 +492,7 @@ def update_book_record_by_key(update_dict):
             try:
                 c.execute(search_str, tuple(values))
                 results.append(update_dict)
-            except pymysql.Error as e:
+            except psycopg2.Error as e:
                 app_logger.error(e)
                 results.append({"error": str(e)})
         db.commit()
@@ -517,27 +517,27 @@ def summary_books_read_by_year_utility(target_year=None):
     tuple: A tuple containing the serialized result, raw data, and header.
     """
     error_list = None
-    db = pymysql.connect(**books_conf)
+    db = psycopg2.connect(**books_conf)
     cursor = db.cursor()
 
     # Build query with optional year filter
     params = ()
     if target_year is not None:
         query = (
-            "SELECT YEAR(b.ReadDate) as Year, SUM(a.Pages) as Pages, COUNT(a.Pages) as Books "
+            "SELECT EXTRACT(YEAR FROM b.ReadDate)::INT as Year, SUM(a.Pages) as Pages, COUNT(a.Pages) as Books "
             "FROM books as a JOIN books_read as b "
             "ON a.BookId = b.BookId "
-            "WHERE b.ReadDate is not NULL AND YEAR(b.ReadDate) = %s "
-            "GROUP BY Year ORDER BY Year ASC"
+            "WHERE b.ReadDate is not NULL AND EXTRACT(YEAR FROM b.ReadDate)::INT = %s "
+            "GROUP BY EXTRACT(YEAR FROM b.ReadDate) ORDER BY EXTRACT(YEAR FROM b.ReadDate) ASC"
         )
-        params = (target_year,)
+        params = (int(target_year),)
     else:
         query = (
-            "SELECT YEAR(b.ReadDate) as Year, SUM(a.Pages) as Pages, COUNT(a.Pages) as Books "
+            "SELECT EXTRACT(YEAR FROM b.ReadDate)::INT as Year, SUM(a.Pages) as Pages, COUNT(a.Pages) as Books "
             "FROM books as a JOIN books_read as b "
             "ON a.BookId = b.BookId "
             "WHERE b.ReadDate is not NULL "
-            "GROUP BY Year ORDER BY Year ASC"
+            "GROUP BY EXTRACT(YEAR FROM b.ReadDate) ORDER BY EXTRACT(YEAR FROM b.ReadDate) ASC"
         )
 
     headers = ["year", "pages read", "books read"]
@@ -546,7 +546,7 @@ def summary_books_read_by_year_utility(target_year=None):
     try:
         cursor.execute(query, params)
         results = cursor.fetchall()
-    except pymysql.Error as e:
+    except psycopg2.Error as e:
         app_logger.error(e)
         error_list = [str(e)]
         results = None
@@ -561,7 +561,7 @@ def books_read_by_year_utility(target_year=None):
     Retrieves books that have been read from the database, optionally filtered by a
     specific year.
 
-    This function connects to a MySQL database using the connection parameters
+    This function connects to the database using the connection parameters
     defined in ``books_conf``. It builds a SQL query that joins the
     ``books`` table with the ``books_read`` table to fetch details for
     every book that has a non‑null ``ReadDate``.  If ``target_year`` is supplied,
@@ -590,21 +590,13 @@ def books_read_by_year_utility(target_year=None):
 
     Raises
     ------
-    pymysql.Error
+    psycopg2.Error
         If the SQL execution fails, the exception is logged and the error
         message is stored in ``error_list``; the exception itself is not
         propagated.
-
-    Notes
-    -----
-    The function logs the executed query using ``app_logger.debug``.  It is
-    intended for internal use by other modules that require a list of books
-    that have been read, possibly grouped by year.  The returned ``rows`` can
-    be passed directly to functions that format the data for presentation
-    or further analysis.
     """
     error_list = None
-    db = pymysql.connect(**books_conf)
+    db = psycopg2.connect(**books_conf)
 
     params = ()
     if target_year is not None:
@@ -614,9 +606,9 @@ def books_read_by_year_utility(target_year=None):
                       "b.ReadDate "
                       "FROM books as a JOIN books_read as b "
                       "ON a.BookId = b.BookId "
-                      "WHERE b.ReadDate is not NULL AND YEAR(b.ReadDate) = %s "
+                      "WHERE b.ReadDate is not NULL AND EXTRACT(YEAR FROM b.ReadDate)::INT = %s "
                       "ORDER BY b.ReadDate, a.BookId ASC")
-        params = (target_year,)
+        params = (int(target_year),)
     else:
         search_str = ("SELECT a.BookId, a.Title, a.Author, a.CopyrightDate, "
                       "a.IsbnNumber, a.PublisherName, a.CoverType, a.Pages, "
@@ -635,7 +627,7 @@ def books_read_by_year_utility(target_year=None):
         try:
             c.execute(search_str, params)
             s = c.fetchall()
-        except pymysql.Error as e:
+        except psycopg2.Error as e:
             app_logger.error(e)
             error_list = [str(e)]
     finally:
@@ -657,16 +649,9 @@ def status_read_utility(book_id):
             - header (list): The column names of the result set.
             - error_list (list or None): A list containing any error messages that
               occurred during execution, or ``None`` if the query succeeded.
-
-    Notes:
-        This function opens a connection to the MySQL database using the global
-        ``books_conf`` configuration. It logs the SQL query for debugging purposes,
-        executes the query, and captures any ``pymysql.Error`` exceptions.
-        The database cursor is not closed explicitly; it relies on garbage
-        collection for cleanup.
     """
     error_list = None
-    db = pymysql.connect(**books_conf)
+    db = psycopg2.connect(**books_conf)
     search_str = ("SELECT BookId, ReadDate, ReadNote "
                   "FROM books_read "
                   "WHERE BookId = %s ORDER BY ReadDate ASC")
@@ -678,7 +663,7 @@ def status_read_utility(book_id):
         try:
             c.execute(search_str, (book_id,))
             s = c.fetchall()
-        except pymysql.Error as e:
+        except psycopg2.Error as e:
             app_logger.error(e)
             error_list = [str(e)]
     finally:
@@ -707,11 +692,11 @@ def tags_search_utility(match_str):
            compatibility).
         3. A list of column header names: ['BookId', 'TagId', 'Tag'].
         4. Either None if the query succeeded, or a list of error message strings
-           collected from a pymysql.Error exception.
+           collected from a psycopg2.Error exception.
     """
     match_str = match_str.lower().strip()
     error_list = None
-    db = pymysql.connect(**books_conf)
+    db = psycopg2.connect(**books_conf)
     search_str = ("SELECT a.BookId, b.TagId, b.Label as Tag"
                   " FROM books_tags a JOIN tag_labels b ON a.TagId=b.TagId"
                   " WHERE b.Label LIKE %s"
@@ -724,7 +709,7 @@ def tags_search_utility(match_str):
         try:
             c.execute(search_str, (f"%{match_str}%",))
             s = c.fetchall()
-        except pymysql.Error as e:
+        except psycopg2.Error as e:
             app_logger.error(e)
             error_list = [str(e)]
     finally:
@@ -769,22 +754,6 @@ def books_search_utility(args):
         * ``error_list`` – a list containing any database error messages that
           occurred during query execution, or ``None`` if no errors were
           encountered.
-
-    Notes
-    -----
-    * The function relies on several global objects: ``books_conf`` for the
-      database connection parameters, ``tags_search_utility`` for resolving tag
-      IDs, ``app_logger`` for logging, and ``table_header`` for header
-      construction.  These objects must be defined in the module before calling
-      this function.
-
-    * Because the query is built by interpolating values directly into the SQL
-      string, it is susceptible to SQL injection if ``args`` contains untrusted
-      data.  Ensure that all values in ``args`` are sanitized before use.
-
-    * The returned list of rows is fetched using the ``fetchall`` method of a
-      MySQL cursor, which yields a list of tuples.  The column order matches the
-      selection in the query string.
     """
     # Allowed search columns (whitelist to prevent SQL injection)
     allowed_book_columns = {
@@ -795,7 +764,7 @@ def books_search_utility(args):
 
     error_list = None
     s = None
-    db = pymysql.connect(**books_conf)
+    db = psycopg2.connect(**books_conf)
     where_parts = []
     params = []
 
@@ -819,7 +788,7 @@ def books_search_utility(args):
                 # No matching tags - force no results
                 where_parts.append("a.BookId IN (0)")
         elif key in allowed_book_columns:
-            where_parts.append(f"a.`{key}` LIKE %s")
+            where_parts.append(f"a.{key} LIKE %s")
             params.append(f"%{value}%")
         else:
             app_logger.warning(f"Ignoring unknown search column: {key}")
@@ -841,7 +810,7 @@ def books_search_utility(args):
         try:
             c.execute(search_str, tuple(params))
             s = c.fetchall()
-        except pymysql.Error as e:
+        except psycopg2.Error as e:
             app_logger.error(e)
             error_list = [str(e)]
     finally:
@@ -865,16 +834,10 @@ def book_tags(book_id):
         1. A dictionary with keys ``"BookID"`` and ``"tag_list"``, where ``"tag_list"``
            holds a list of tag label strings associated with the book.
         2. A list of error messages or ``None`` if no errors occurred during the query.
-
-    Raises
-    ------
-    None
-        The function handles database errors internally and does not propagate
-        exceptions to the caller.
     """
     error_list = None
     s = None
-    db = pymysql.connect(**books_conf)
+    db = psycopg2.connect(**books_conf)
     search_str = "SELECT a.Label as Tag"
     search_str += " FROM tag_labels a JOIN books_tags b ON a.TagId = b.TagId"
     search_str += " WHERE b.BookId = %s ORDER BY Tag"
@@ -883,7 +846,7 @@ def book_tags(book_id):
         c = db.cursor()
         try:
             c.execute(search_str, (book_id,))
-        except pymysql.Error as e:
+        except psycopg2.Error as e:
             app_logger.error(e)
             error_list = [str(e)]
         else:
@@ -913,7 +876,7 @@ def get_tag_counts(tag_prefix=None):
         2. header - List of column names ["Tag", "Count"]
         3. error_list - List of error messages or None if successful
     """
-    db = pymysql.connect(**books_conf)
+    db = psycopg2.connect(**books_conf)
     search_str = "SELECT a.Label as Tag, COUNT(b.TagId) as Count"
     search_str += " FROM tag_labels a JOIN books_tags b ON a.TagId = b.TagId"
     params = ()
@@ -929,7 +892,7 @@ def get_tag_counts(tag_prefix=None):
     try:
         c.execute(search_str, params)
         rows = c.fetchall()
-    except pymysql.Error as e:
+    except psycopg2.Error as e:
         app_logger.error(e)
         error_list = [str(e)]
     finally:
@@ -956,19 +919,19 @@ def add_tag_to_book(book_id, tag):
            or an error dictionary on failure.
         2. A list of error messages or None if successful.
     """
-    db = pymysql.connect(**books_conf)
+    db = psycopg2.connect(**books_conf)
     tag = tag.lower().strip()
     result_data = None
     error_list = None
     try:
         with db.cursor() as c:
             try:
-                c.execute('INSERT IGNORE INTO tag_labels SET Label=%s', (tag,))
+                c.execute('INSERT INTO tag_labels (Label) VALUES (%s) ON CONFLICT DO NOTHING', (tag,))
                 c.execute('SELECT TagId FROM tag_labels WHERE Label=%s', (tag,))
                 tag_id = c.fetchone()[0]
                 c.execute('INSERT INTO books_tags (BookId, TagId) VALUES (%s, %s)', (book_id, tag_id))
                 result_data = {"BookId": book_id, "Tag": tag, "TagId": tag_id}
-            except pymysql.Error as e:
+            except psycopg2.Error as e:
                 app_logger.error(e)
                 error_list = [str(e)]
                 result_data = {"error": str(e)}
@@ -999,7 +962,7 @@ def get_images_for_book(book_id):
         1. A list of image dictionaries with keys: ImageId, BookId, Name, Url, ImageType
         2. A list of error messages or None if successful
     """
-    db = pymysql.connect(**books_conf)
+    db = psycopg2.connect(**books_conf)
     search_str = "SELECT ImageId, BookId, Name, Url, ImageType FROM images WHERE BookId = %s"
     images = []
     error_list = None
@@ -1018,7 +981,7 @@ def get_images_for_book(book_id):
                         "Url": row[3],
                         "ImageType": row[4]
                     })
-            except pymysql.Error as e:
+            except psycopg2.Error as e:
                 app_logger.error(e)
                 error_list = [str(e)]
     finally:
@@ -1034,7 +997,7 @@ def get_images_for_book(book_id):
 
 def delete_book(book_id: int) -> dict:
     """Delete a book and all related records (CASCADE handles children)."""
-    db = pymysql.connect(**books_conf)
+    db = psycopg2.connect(**books_conf)
     result = {}
     try:
         with db.cursor() as c:
@@ -1044,7 +1007,7 @@ def delete_book(book_id: int) -> dict:
                     result = {"error": f"No book found with BookId {book_id}"}
                 else:
                     result = {"deleted": True, "BookId": book_id}
-            except pymysql.Error as e:
+            except psycopg2.Error as e:
                 app_logger.error(e)
                 result = {"error": str(e)}
         db.commit()
@@ -1078,7 +1041,7 @@ def daily_page_record_from_db(record_id):
 
     # Connect to the database
     try:
-        db = pymysql.connect(**books_conf)
+        db = psycopg2.connect(**books_conf)
         with db.cursor() as cur:
             # Execute the query to fetch daily page records
             q = ("SELECT a.RecordDate, a.Page FROM daily_page_records a "
@@ -1094,7 +1057,7 @@ def daily_page_record_from_db(record_id):
                     # Calculate the day number and append it to the row
                     day_number = (row[0] - first_record_date).days
                     data.append(list(row) + [day_number])
-    except pymysql.MySQLError as e:
+    except psycopg2.Error as e:
         app_logger.error(f"Database error: {e}")
         error_list = [str(e)]
     finally:
@@ -1120,14 +1083,14 @@ def reading_book_data_from_db(record_id):
     error_list = None
     # Establish a database connection
     try:
-        db = pymysql.connect(**books_conf)
+        db = psycopg2.connect(**books_conf)
         with db.cursor() as cur:
             # Execute the query to fetch book data
             q = 'SELECT StartDate, LastReadablePage FROM complete_date_estimates WHERE RecordId = %s'
             app_logger.debug(q)
             cur.execute(q, (record_id,))
             rows = cur.fetchall()
-    except pymysql.MySQLError as e:
+    except psycopg2.Error as e:
         # Handle database errors
         app_logger.error(f"Database error: {e}")
         error_list = [str(e)]
@@ -1140,14 +1103,14 @@ def reading_book_data_from_db(record_id):
 
 def update_reading_book_data(record_id, date_range):
     result = {}
-    db = pymysql.connect(**books_conf)
+    db = psycopg2.connect(**books_conf)
     try:
         with db.cursor() as c:
             try:
                 c.execute(
                     "UPDATE complete_date_estimates SET EstimateDate = %s, EstimatedFinishDate = %s WHERE RecordId = %s",
                     (datetime.datetime.now(), date_range[0], record_id))
-            except pymysql.Error as e:
+            except psycopg2.Error as e:
                 app_logger.error(e)
                 result = {"error": [str(e)]}
         db.commit()

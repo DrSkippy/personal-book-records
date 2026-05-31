@@ -22,9 +22,10 @@ import sys
 from pathlib import Path
 
 try:
-    import pymysql
+    import psycopg2
+    import psycopg2.extras
 except ImportError:
-    print("Error: pymysql not installed. Run: poetry install")
+    print("Error: psycopg2-binary not installed. Run: poetry install")
     sys.exit(1)
 
 
@@ -75,20 +76,19 @@ class TitleFixer:
     def connect(self):
         """Connect to the database."""
         try:
-            self.connection = pymysql.connect(
+            self.connection = psycopg2.connect(
                 host=self.config['host'],
                 user=self.config['username'],
                 password=self.config['password'],
-                database=self.config['database'],
-                port=self.config.get('port', 3306),
-                charset='utf8mb4',
-                cursorclass=pymysql.cursors.DictCursor
+                dbname=self.config['database'],
+                port=self.config.get('port', 5432),
+                cursor_factory=psycopg2.extras.RealDictCursor
             )
             print(f"Connected to database: {self.config['database']} at {self.config['host']}")
         except KeyError as e:
             print(f"Error: Missing configuration key: {e}")
             sys.exit(1)
-        except pymysql.Error as e:
+        except psycopg2.Error as e:
             print(f"Error connecting to database: {e}")
             sys.exit(1)
 
@@ -173,7 +173,7 @@ class TitleFixer:
 
                 return books_to_fix
 
-        except pymysql.Error as e:
+        except psycopg2.Error as e:
             print(f"Error querying database: {e}")
             return []
 
@@ -202,7 +202,7 @@ class TitleFixer:
                 self.connection.commit()
                 return True
 
-        except pymysql.Error as e:
+        except psycopg2.Error as e:
             print(f"Error updating book {book_id}: {e}")
             self.stats['errors'] += 1
             return False
