@@ -4,7 +4,7 @@ import { getBooksRead, getYearlySummary } from './reads';
 import { getTagsForBook, searchByTag, getTagCounts, addTag } from './tags';
 import { getEstimates } from './estimates';
 
-const ollamaClient = axios.create({
+const lmStudioClient = axios.create({
   baseURL: import.meta.env.VITE_OLLAMA_BASE_URL,
   headers: {
     ...(import.meta.env.VITE_OLLAMA_API_KEY
@@ -13,14 +13,14 @@ const ollamaClient = axios.create({
   },
 });
 
-export interface OllamaMessage {
+export interface LmStudioMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
   tool_call_id?: string;
-  tool_calls?: OllamaToolCall[];
+  tool_calls?: LmStudioToolCall[];
 }
 
-export interface OllamaToolCall {
+export interface LmStudioToolCall {
   id: string;
   type: 'function';
   function: {
@@ -29,12 +29,12 @@ export interface OllamaToolCall {
   };
 }
 
-export interface OllamaChatResponse {
+export interface LmStudioChatResponse {
   choices: Array<{
     message: {
       role: string;
       content: string | null;
-      tool_calls?: OllamaToolCall[];
+      tool_calls?: LmStudioToolCall[];
     };
     finish_reason: string;
   }>;
@@ -254,8 +254,8 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
   }
 }
 
-export async function ollamaChat(messages: OllamaMessage[]): Promise<OllamaChatResponse> {
-  const response = await ollamaClient.post<OllamaChatResponse>('/v1/chat/completions', {
+export async function lmStudioChat(messages: LmStudioMessage[]): Promise<LmStudioChatResponse> {
+  const response = await lmStudioClient.post<LmStudioChatResponse>('/v1/chat/completions', {
     model: import.meta.env.VITE_OLLAMA_MODEL,
     messages,
     tools,

@@ -3,8 +3,8 @@ import PageLayout from '../components/layout/PageLayout';
 import ChatInterface from '../components/chat/ChatInterface';
 import type { ChatMessage } from '../types';
 import { Send, Trash2, FileText, AlignLeft } from 'lucide-react';
-import { ollamaChat, executeTool } from '../api/ollama';
-import type { OllamaMessage } from '../api/ollama';
+import { lmStudioChat, executeTool } from '../api/lmStudio';
+import type { LmStudioMessage } from '../api/lmStudio';
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a personal book collection. You can search books, look up reading history, tags, and estimates using the tools provided. Be concise and friendly.`;
 
@@ -14,8 +14,7 @@ export default function AiChat() {
   const [isLoading, setIsLoading] = useState(false);
   const [markdownEnabled, setMarkdownEnabled] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
-  // Maintain the full Ollama-format history (includes assistant tool_call messages)
-  const ollamaHistoryRef = useRef<OllamaMessage[]>([
+  const lmStudioHistoryRef = useRef<LmStudioMessage[]>([
     { role: 'system', content: SYSTEM_PROMPT },
   ]);
 
@@ -35,7 +34,7 @@ export default function AiChat() {
     setIsLoading(true);
 
     // Append user message to Ollama history
-    ollamaHistoryRef.current.push({ role: 'user', content: text });
+    lmStudioHistoryRef.current.push({ role: 'user', content: text });
 
     try {
       const MAX_ITERATIONS = 10;
@@ -44,12 +43,12 @@ export default function AiChat() {
       while (iterations < MAX_ITERATIONS) {
         iterations++;
 
-        const response = await ollamaChat(ollamaHistoryRef.current);
+        const response = await lmStudioChat(lmStudioHistoryRef.current);
         const msg = response.choices[0].message;
 
         if (msg.tool_calls && msg.tool_calls.length > 0) {
-          // Record the assistant's tool_calls turn in Ollama history
-          ollamaHistoryRef.current.push({
+          // Record the assistant's tool_calls turn in LM Studio history
+          lmStudioHistoryRef.current.push({
             role: 'assistant',
             content: msg.content ?? '',
             tool_calls: msg.tool_calls,
@@ -80,8 +79,8 @@ export default function AiChat() {
             displayMessages = [...displayMessages, toolMsg];
             setMessages(displayMessages);
 
-            // Add tool result to Ollama history
-            ollamaHistoryRef.current.push({
+            // Add tool result to LM Studio history
+            lmStudioHistoryRef.current.push({
               role: 'tool',
               content: toolResultStr,
               tool_call_id: tc.id,
@@ -101,19 +100,19 @@ export default function AiChat() {
         displayMessages = [...displayMessages, assistantMsg];
         setMessages(displayMessages);
 
-        // Record in Ollama history for future turns
-        ollamaHistoryRef.current.push({
+        // Record in LM Studio history for future turns
+        lmStudioHistoryRef.current.push({
           role: 'assistant',
           content: msg.content ?? '',
         });
         break;
       }
     } catch (err) {
-      console.error('[AiChat] Ollama error:', err);
+      console.error('[AiChat] LM Studio error:', err);
       const errorMsg: ChatMessage = {
         id: `error-${Date.now()}`,
         role: 'assistant',
-        content: 'Sorry, the AI backend is unavailable. Please check the Ollama server and try again.',
+        content: 'Sorry, the AI backend is unavailable. Please check the LM Studio server and try again.',
       };
       setMessages((prev) => [...prev, errorMsg]);
     } finally {
@@ -125,7 +124,7 @@ export default function AiChat() {
   const handleClear = () => {
     setMessages([]);
     setInput('');
-    ollamaHistoryRef.current = [{ role: 'system', content: SYSTEM_PROMPT }];
+    lmStudioHistoryRef.current = [{ role: 'system', content: SYSTEM_PROMPT }];
   };
 
   return (
@@ -180,7 +179,7 @@ export default function AiChat() {
         </div>
 
         <p className="text-xs text-slate text-center">
-          Powered by Ollama ({import.meta.env.VITE_OLLAMA_MODEL}) — reads your book collection via API tools.
+          Powered by LM Studio ({import.meta.env.VITE_OLLAMA_MODEL}) — reads your book collection via API tools.
         </p>
       </div>
     </PageLayout>
