@@ -98,6 +98,10 @@ Injected from `package.json` at build time via `define: { __APP_VERSION__ }` in 
 
 ## Changelog
 
+### v0.3.0
+- **AI Chat — RAG semantic search**: new `semantic_search_notes` tool searches book and reading notes by meaning via pgvector embeddings (LM Studio)
+- **AI Chat — LM Studio rename**: all `ollama` variables, types, and functions renamed to `lmStudio`; `ollama.ts` → `lmStudio.ts`
+
 ### v0.2.0
 - **Yearly Reading Reports**: columns are now sortable (Year, Pages, Books) with ▲/▼ direction indicator
 

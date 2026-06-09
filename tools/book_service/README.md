@@ -251,13 +251,20 @@ Both services share the same database layer and configuration:
 
 ## Version Information
 
-- REST API: v0.19.0
-- MCP Server: v3.1.0
+- REST API: v0.20.0
+- MCP Server: v3.3.0
 - Python: 3.12+
 - Flask: 3.1.2
 - FastMCP: 0.5.0+
 
 ## Changelog
+
+### v0.20.0 / MCP v3.3.0
+- Added RAG semantic search via pgvector: `POST /rag_search` endpoint
+- Indexes `BookNote` and `ReadNote` fields as vector embeddings (LM Studio `/v1/embeddings`)
+- Note saves auto-update embeddings; batch indexing via `database/index_notes.py`
+- MCP: added `semantic_search_notes` tool
+- Renamed `ollama` → `lm_studio` throughout frontend AI chat
 
 ### v0.19.0 / MCP v3.1.0
 - Migrated database from MySQL to PostgreSQL (`book-collection`, port 5434)

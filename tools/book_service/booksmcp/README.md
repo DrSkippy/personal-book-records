@@ -136,7 +136,7 @@ The `docker-compose.yml` file includes:
   ```json
   {
     "name": "Books MCP Server",
-    "version": "3.1.0",
+    "version": "3.3.0",
     "description": "MCP server for book and tag search functionality",
     "transport": "Streamable HTTP (FastMCP)",
     "tools": [
@@ -456,7 +456,13 @@ Client Request → /mcp endpoint → FastMCP Router → Tool Handler → Databas
 
 ## Version History
 
-### v3.1.0 (Current)
+### v3.3.0 (Current)
+- Added `semantic_search_notes` tool: pgvector RAG search over book and reading notes
+
+### v3.2.0
+- Added `requests` dependency for embedding API calls
+
+### v3.1.0
 - Migrated database driver from PyMySQL to psycopg2-binary (PostgreSQL)
 
 ### v3.0.0
