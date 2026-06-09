@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-__version__= "3.2.0"
+__version__= "3.3.0"
 """
 Books MCP Server - Streamable HTTP Transport
 
@@ -16,6 +16,7 @@ This server provides tools to search the Hendrickson Book Collection:
 7. search_books_by_tags - Search books by associated tags
 8. search_books_by_read_date - Search books by read date
 9. search_tags - Search books by tag labels
+10. semantic_search_notes - Semantic similarity search over book and reading notes (RAG)
 
 All tools return book information including: title, author, tags, book notes, and reading notes.
 
@@ -359,6 +360,37 @@ def search_books_by_read_date(read_date: str) -> str:
     """
     logger.info(f"Search books by read date: {read_date}")
     return _execute_book_search({"ReadDate": read_date})
+
+
+# ============================================================================
+# RAG / Semantic Search
+# ============================================================================
+
+@mcp.tool()
+def semantic_search_notes(query: str, limit: int = 5) -> str:
+    """
+    Search the Hendrickson Book Collection by meaning rather than exact keywords.
+
+    Uses vector embeddings to find books whose notes are semantically similar
+    to the query. Useful for finding books related to a theme, topic, or idea
+    when you don't know the exact wording used in the notes.
+
+    Returns results ranked by similarity, each including:
+    - BookId and title/author
+    - Source of the match (book_note or read_note)
+    - The matching note content
+    - Similarity score (0-1, higher is more similar)
+
+    Args:
+        query: Natural language description of what to find
+        limit: Maximum number of results to return (default 5)
+
+    Returns:
+        JSON string with array of matching notes ranked by similarity
+    """
+    logger.info(f"Semantic search: {query!r} limit={limit}")
+    results = api_util.rag_search(query, limit=limit)
+    return json.dumps({"count": len(results), "results": results})
 
 
 # ============================================================================
