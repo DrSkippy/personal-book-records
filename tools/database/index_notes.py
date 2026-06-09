@@ -31,13 +31,13 @@ def main():
     skip_book = "" if args.rebuild else """
         AND NOT EXISTS (
             SELECT 1 FROM book_note_embeddings e
-            WHERE e.bookid = b.BookId AND e.source = 'book_note'
+            WHERE e.bookid = books.BookId AND e.source = 'book_note'
         )"""
 
     skip_read = "" if args.rebuild else """
         AND NOT EXISTS (
             SELECT 1 FROM book_note_embeddings e
-            WHERE e.bookid = r.BookId AND e.read_date = r.ReadDate AND e.source = 'read_note'
+            WHERE e.bookid = books_read.BookId AND e.read_date = books_read.ReadDate AND e.source = 'read_note'
         )"""
 
     with db.cursor() as c:
