@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-__version__= "3.1.0"
+__version__= "3.2.0"
 """
 Books MCP Server - Streamable HTTP Transport
 
