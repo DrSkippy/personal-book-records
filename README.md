@@ -32,6 +32,10 @@ Edit `configuration.json`:
 | `port` | `5434` |
 | `api_key` | A secret key — generate with `openssl rand -hex 20` |
 | `isbn_com.key` | ISBNdb API key (optional, for ISBN lookups) |
+| `ai_agent.embed_host` | LM Studio base URL, e.g. `http://192.168.1.91:1234` |
+| `ai_agent.embed_model` | Embedding model name loaded in LM Studio |
+| `ai_agent.embed_api_key` | LM Studio bearer token |
+| `ai_agent.embed_dimensions` | Embedding vector dimension (must match model output, e.g. `768`) |
 
 Then create the root `.env`:
 
@@ -88,8 +92,26 @@ Set `VITE_API_BASE_URL=https://books.drskippy.app/api` in `.env.local` (or `http
 
 ### Step 5 — Initialize the database (first time only)
 
+A PostgreSQL superuser must create the database and enable the pgvector extension:
+
 ```bash
-psql -U <user> -h <host> -p 5434 -d book-collection < tools/database/schema_postgres.sql
+createdb -U postgres -p 5434 book-collection
+psql -U postgres -p 5434 -d "book-collection" -c "CREATE EXTENSION IF NOT EXISTS vector;"
+```
+
+Then apply the full schema as the application user:
+
+```bash
+cd tools
+poetry run python database/setup_db.py
+```
+
+This creates all tables, triggers, indexes, and the vector embeddings table in one shot. It is idempotent — safe to re-run against an existing database.
+
+After adding data, populate the RAG search index:
+
+```bash
+poetry run python database/index_notes.py
 ```
 
 ---
@@ -124,16 +146,16 @@ A Vite + React + TypeScript SPA served via nginx at `https://books.drskippy.app`
 - **Add / Edit Book** — create and update book records
 - **Add Read Date / Page Progress / Estimate** — logging forms
 - **Batch Update Read Notes** — bulk-edit notes across read records
-- **AI Chat** — Ollama-backed assistant with tool access to the collection
+- **AI Chat** — LM Studio-backed assistant with tool access to the collection and RAG semantic search over notes
 
 **Environment variables (`.env.local`):**
 ```
-VITE_API_BASE_URL=       # REST API base URL
+VITE_API_BASE_URL=       # REST API base URL, e.g. https://books.example.com/api
 VITE_API_KEY=            # x-api-key header value
 VITE_RESOURCE_BASE_URL=  # static image/resource base URL
-VITE_OLLAMA_BASE_URL=    # Ollama server base URL (optional)
-VITE_OLLAMA_MODEL=       # Ollama model name (optional)
-VITE_OLLAMA_API_KEY=     # Ollama bearer token (optional)
+VITE_OLLAMA_BASE_URL=    # LM Studio base URL, e.g. https://books.example.com/ollama
+VITE_OLLAMA_MODEL=       # Chat model name loaded in LM Studio
+VITE_OLLAMA_API_KEY=     # LM Studio bearer token
 ```
 
 ---
@@ -166,4 +188,4 @@ Site config for serving the React build at port 83 behind the Cloudflare Zero Tr
 
 ## Database
 
-PostgreSQL database `book-collection` (port 5434). Schema in `tools/database/schema_postgres.sql`. Key tables: `books`, `books_read`, `tag_labels`, `books_tags`, `complete_date_estimates`, `daily_page_records`, `images`.
+PostgreSQL database `book-collection` (port 5434). Current-state schema in `tools/database/schema_current.sql`; apply via `setup_db.py`. Key tables: `books`, `books_read`, `tag_labels`, `books_tags`, `complete_date_estimates`, `daily_page_records`, `images`, `book_note_embeddings`.
