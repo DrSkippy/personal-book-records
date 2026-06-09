@@ -9,5 +9,13 @@
     "key": "<your key>"
   },
   "endpoint": "http://192.168.127.13:8084",
-  "api_key": "your local api key for book service api"
+  "api_key": "your local api key for book service api",
+  "ai_agent": {
+    "model_name": "<chat model name>",
+    "ollama_host": "http://<ollama-host>:<port>",
+    "embed_host": "http://<lm-studio-host>:<port>",
+    "embed_model": "<embedding model name>",
+    "embed_api_key": "<bearer token for embedding API>",
+    "embed_dimensions": 768
+  }
 }

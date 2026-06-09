@@ -422,6 +422,16 @@ def update_edit_read_note():
         db.commit()
     finally:
         db.close()
+    if record.get("ReadNote") and record["ReadNote"].strip():
+        embed_db = None
+        try:
+            embed_db = psycopg2.connect(**books_conf)
+            upsert_read_note_embedding(embed_db, record["BookId"], record["ReadDate"], record["ReadNote"].strip())
+        except Exception as e:
+            app.logger.error(f"read_note embed update failed: {e}")
+        finally:
+            if embed_db:
+                embed_db.close()
     return json_response({"update_read": rdata})
 
 
@@ -449,6 +459,16 @@ def update_book_note_status():
         return json_response({"error": "Missing required fields: BookId, BookNote OR Recycled"}, status=400)
     else:
         data = update_book_record_by_key(record)
+        if record.get("BookNote") and record["BookNote"].strip():
+            embed_db = None
+            try:
+                embed_db = psycopg2.connect(**books_conf)
+                upsert_book_note_embedding(embed_db, record["BookId"], record["BookNote"].strip())
+            except Exception as e:
+                app.logger.error(f"book_note embed update failed for BookId={record['BookId']}: {e}")
+            finally:
+                if embed_db:
+                    embed_db.close()
         return json_response({"update_read": data})
 
 
@@ -595,6 +615,19 @@ def books_search():
     rdata, header, error_list = books_search_utility(args)
     result = serialized_result_dict(rdata, header, error_list)
     return json_string_response(result)
+
+
+@app.route('/rag_search', methods=['POST'])
+@require_app_key
+def rag_search_endpoint():
+    if not EMBED_HOST or not EMBED_MODEL:
+        return json_response({"error": "RAG search is not configured on this server."}, status=503)
+    data = request.get_json()
+    query = (data.get("query") or "").strip()
+    limit = int(data.get("limit", 5))
+    if not query:
+        return json_response({"error": "query field is required"}, status=400)
+    return json_response({"results": rag_search(query, limit=limit)})
 
 
 ##########################################################################

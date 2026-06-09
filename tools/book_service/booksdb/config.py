@@ -33,6 +33,11 @@ FMT: str = "%Y-%m-%d"
 
 API_KEY: str | None = None
 
+EMBED_HOST: str | None = None
+EMBED_MODEL: str | None = None
+EMBED_API_KEY: str | None = None
+EMBED_DIMENSIONS: int = 768
+
 
 def read_json_configuration() -> tuple[dict[str, Any], dict[str, str]]:
     """
@@ -75,6 +80,12 @@ def read_json_configuration() -> tuple[dict[str, Any], dict[str, str]]:
             else:
                 raise KeyError("Missing API key configuration.")
             app_logger.debug(f"API key configuration loaded successfully. Using API_KEY={API_KEY}")
+            global EMBED_HOST, EMBED_MODEL, EMBED_API_KEY, EMBED_DIMENSIONS
+            _ai = c.get("ai_agent", {})
+            EMBED_HOST = _ai.get("embed_host")
+            EMBED_MODEL = _ai.get("embed_model")
+            EMBED_API_KEY = _ai.get("embed_api_key")
+            EMBED_DIMENSIONS = int(_ai.get("embed_dimensions", 768))
         except KeyError as e:
             app_logger.error(e)
             raise SystemExit("Missing or incomplete configuration file.")

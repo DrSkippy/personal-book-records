@@ -7,6 +7,7 @@ It imports from sub-modules for configuration and serialization.
 import datetime
 import numpy as np
 import psycopg2
+import requests
 
 # Import from sub-modules for modular organization
 from .config import (
@@ -18,6 +19,10 @@ from .config import (
     read_json_configuration,
     books_conf,
     isbn_conf,
+    EMBED_HOST,
+    EMBED_MODEL,
+    EMBED_API_KEY,
+    EMBED_DIMENSIONS,
 )
 from .serialization import (
     sort_list_by_index_list,
@@ -48,6 +53,11 @@ __all__ = [
     'daily_page_record_from_db', 'reading_book_data_from_db',
     'update_reading_book_data', 'estimate_completion_dates',
     'calculate_estimates',
+    # Embed/RAG config
+    'EMBED_HOST', 'EMBED_MODEL', 'EMBED_API_KEY', 'EMBED_DIMENSIONS',
+    # RAG functions
+    'generate_embedding', 'upsert_book_note_embedding',
+    'upsert_read_note_embedding', 'rag_search',
 ]
 
 
@@ -1212,3 +1222,115 @@ def calculate_estimates(record_id):
     formatted_estimates = [date.strftime(FMT) for date in estimate_date_range]
 
     return formatted_estimates
+
+
+##########################################################################
+# RAG / EMBEDDING UTILITIES
+##########################################################################
+
+def generate_embedding(text: str) -> list[float] | None:
+    if not EMBED_HOST or not EMBED_MODEL:
+        return None
+    url = f"{EMBED_HOST.rstrip('/')}/v1/embeddings"
+    headers = {"Content-Type": "application/json"}
+    if EMBED_API_KEY:
+        headers["Authorization"] = f"Bearer {EMBED_API_KEY}"
+    try:
+        resp = requests.post(
+            url,
+            json={"model": EMBED_MODEL, "input": text},
+            headers=headers,
+            timeout=30,
+        )
+        resp.raise_for_status()
+        embedding = resp.json()["data"][0]["embedding"]
+        if len(embedding) != EMBED_DIMENSIONS:
+            app_logger.error(
+                f"Embedding dimension mismatch: got {len(embedding)}, expected {EMBED_DIMENSIONS}"
+            )
+            return None
+        return embedding
+    except Exception as e:
+        app_logger.error(f"Embedding generation failed: {e}")
+        return None
+
+
+def upsert_book_note_embedding(conn, book_id: int, content: str) -> None:
+    embedding = generate_embedding(content)
+    if embedding is None:
+        return
+    vector_str = "[" + ",".join(str(v) for v in embedding) + "]"
+    sql = """
+        INSERT INTO book_note_embeddings (bookid, source, read_date, content, embedding, updated_at)
+        VALUES (%s, 'book_note', NULL, %s, %s::vector, NOW())
+        ON CONFLICT (bookid) WHERE source = 'book_note'
+        DO UPDATE SET content = EXCLUDED.content,
+                      embedding = EXCLUDED.embedding,
+                      updated_at = NOW()
+    """
+    try:
+        with conn.cursor() as c:
+            c.execute(sql, (book_id, content, vector_str))
+        conn.commit()
+    except psycopg2.Error as e:
+        app_logger.error(f"upsert_book_note_embedding failed for bookid={book_id}: {e}")
+
+
+def upsert_read_note_embedding(conn, book_id: int, read_date: str, content: str) -> None:
+    embedding = generate_embedding(content)
+    if embedding is None:
+        return
+    vector_str = "[" + ",".join(str(v) for v in embedding) + "]"
+    sql = """
+        INSERT INTO book_note_embeddings (bookid, source, read_date, content, embedding, updated_at)
+        VALUES (%s, 'read_note', %s, %s, %s::vector, NOW())
+        ON CONFLICT (bookid, read_date) WHERE source = 'read_note'
+        DO UPDATE SET content = EXCLUDED.content,
+                      embedding = EXCLUDED.embedding,
+                      updated_at = NOW()
+    """
+    try:
+        with conn.cursor() as c:
+            c.execute(sql, (book_id, read_date, content, vector_str))
+        conn.commit()
+    except psycopg2.Error as e:
+        app_logger.error(f"upsert_read_note_embedding failed for bookid={book_id}, read_date={read_date}: {e}")
+
+
+def rag_search(query: str, limit: int = 5) -> list[dict]:
+    embedding = generate_embedding(query)
+    if embedding is None:
+        return []
+    vector_str = "[" + ",".join(str(v) for v in embedding) + "]"
+    sql = """
+        SELECT e.bookid, b.Title, b.Author, e.source, e.read_date, e.content,
+               1 - (e.embedding <=> %s::vector) AS similarity
+        FROM book_note_embeddings e
+        JOIN books b ON b.BookId = e.bookid
+        ORDER BY e.embedding <=> %s::vector
+        LIMIT %s
+    """
+    db = None
+    try:
+        db = psycopg2.connect(**books_conf)
+        with db.cursor() as c:
+            c.execute(sql, (vector_str, vector_str, limit))
+            rows = c.fetchall()
+        return [
+            {
+                "book_id": r[0],
+                "title": r[1],
+                "author": r[2],
+                "source": r[3],
+                "read_date": r[4].isoformat() if r[4] else None,
+                "content": r[5],
+                "similarity": float(r[6]),
+            }
+            for r in rows
+        ]
+    except psycopg2.Error as e:
+        app_logger.error(f"rag_search failed: {e}")
+        return []
+    finally:
+        if db:
+            db.close()

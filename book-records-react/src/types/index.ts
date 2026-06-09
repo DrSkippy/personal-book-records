@@ -96,3 +96,13 @@ export interface ChatMessage {
   toolArgs?: Record<string, unknown>;
   toolResult?: unknown;
 }
+
+export interface RagResult {
+  book_id: number;
+  title: string;
+  author: string;
+  source: 'book_note' | 'read_note';
+  read_date: string | null;
+  content: string;
+  similarity: number;
+}

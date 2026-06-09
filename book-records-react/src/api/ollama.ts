@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { searchBooks, getCompleteRecord, getRecentBooks } from './books';
+import { searchBooks, getCompleteRecord, getRecentBooks, ragSearch } from './books';
 import { getBooksRead, getYearlySummary } from './reads';
 import { getTagsForBook, searchByTag, getTagCounts, addTag } from './tags';
 import { getEstimates } from './estimates';
@@ -188,6 +188,24 @@ const tools = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'semantic_search_notes',
+      description:
+        'Search book notes and reading notes by meaning rather than exact keywords. ' +
+        'Use when the user asks about themes, topics, or ideas they remember from a book, ' +
+        'or wants to find books related to a concept, feeling, or subject area.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Natural language description of what to find' },
+          limit: { type: 'number', description: 'Max results to return (default 5)' },
+        },
+        required: ['query'],
+      },
+    },
+  },
 ];
 
 export async function executeTool(name: string, args: Record<string, unknown>): Promise<string> {
@@ -223,6 +241,9 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
         break;
       case 'add_tag_to_book':
         result = await addTag(args.bookId as number, args.tag as string);
+        break;
+      case 'semantic_search_notes':
+        result = await ragSearch(args.query as string, args.limit as number | undefined);
         break;
       default:
         return JSON.stringify({ error: `Unknown tool: ${name}` });

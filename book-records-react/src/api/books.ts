@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { Book, CompleteRecord, StandardResponse } from '../types';
+import type { Book, CompleteRecord, RagResult, StandardResponse } from '../types';
 
 export const searchBooks = (params: Record<string, string | number>) =>
   apiClient.get<StandardResponse>('/books_search', { params }).then(r => r.data);
@@ -36,3 +36,8 @@ export const lookupByIsbn = (isbnList: string[]) =>
 
 export const getConfiguration = () =>
   apiClient.get('/configuration').then(r => r.data);
+
+export const ragSearch = (query: string, limit = 5): Promise<RagResult[]> =>
+  apiClient
+    .post<{ results: RagResult[] }>('/rag_search', { query, limit })
+    .then(r => r.data.results);
