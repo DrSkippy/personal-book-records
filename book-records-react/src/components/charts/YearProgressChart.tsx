@@ -58,18 +58,18 @@ export default function YearProgressChart({ yearBooks, currentYear }: YearProgre
   const colors = ['#75bba7', '#6c809a', '#795663', '#7ae7c7', '#645244', '#a0b4c8', '#c0a0ac', '#90d4c4'];
 
   return (
-    <ResponsiveContainer width="100%" height={500}>
-      <LineChart data={data} margin={{ left: 24 }} onClick={(e: unknown) => {
+    <ResponsiveContainer width="100%" height={540}>
+      <LineChart data={data} margin={{ left: 24, right: 16, bottom: 32 }} onClick={(e: unknown) => {
         const evt = e as { activePayload?: Array<{ dataKey?: string }> };
         if (evt?.activePayload?.[0]?.dataKey) {
           navigate(`/year/${evt.activePayload[0].dataKey}`);
         }
       }}>
         <CartesianGrid strokeDasharray="3 3" />
-        <XAxis dataKey="day" label={{ value: 'Day of Year', position: 'insideBottom', offset: -5 }} />
+        <XAxis dataKey="day" tick={{ dy: 8 }} label={{ value: 'Day of Year', position: 'bottom', offset: 20 }} />
         <YAxis label={{ value: 'Cumulative Pages', angle: -90, position: 'insideLeft', dx: -16 }} />
         <Tooltip />
-        <Legend />
+        <Legend wrapperStyle={{ paddingTop: 16 }} />
         {years.map((year, i) => (
           <Line
             key={year}

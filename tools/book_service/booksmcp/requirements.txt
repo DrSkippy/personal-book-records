@@ -1,5 +1,5 @@
 # MCP Server - FastMCP for streamable HTTP transport
-fastmcp>=0.5.0
+fastmcp>=0.5.0,<4.0.0
 
 # Database (from parent booksdb module)
 psycopg2-binary>=2.9

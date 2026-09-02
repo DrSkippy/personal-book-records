@@ -1,6 +1,8 @@
 import PageLayout from '../components/layout/PageLayout';
 import YearProgressChart from '../components/charts/YearProgressChart';
 import AllYearsChart from '../components/charts/AllYearsChart';
+import HistogramChart from '../components/charts/HistogramChart';
+import YearRankChart from '../components/charts/YearRankChart';
 import { useYearlySummary } from '../hooks/useYearlySummary';
 import { toObjects } from '../lib/utils';
 import type { Book, YearlySummary } from '../types';
@@ -49,7 +51,7 @@ export default function Progress() {
             ) : (
               <>
                 <YearProgressChart yearBooks={yearBooks} currentYear={CURRENT_YEAR} />
-                <p className="text-xs text-slate mt-2 text-center">
+                <p className="text-xs text-slate mt-4 text-center">
                   Cumulative pages by day of year — last 15 years. Click a line to view that year.
                 </p>
               </>
@@ -68,6 +70,40 @@ export default function Progress() {
                 <AllYearsChart data={yearlySummary} currentYear={CURRENT_YEAR} />
                 <p className="text-xs text-slate mt-2 text-center">
                   Total pages per year. Current year highlighted. Click a bar to view that year.
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+        <div>
+          <h2 className="text-xl font-semibold text-white bg-umber px-4 py-2 rounded-t-lg">
+            Pages Read Distribution
+          </h2>
+          <div className="bg-white rounded-b-lg shadow p-4">
+            {summaryLoading ? (
+              <div className="h-96 bg-gray-200 rounded animate-pulse" />
+            ) : (
+              <>
+                <HistogramChart data={yearlySummary} currentYear={CURRENT_YEAR} />
+                <p className="text-xs text-slate mt-4 text-center">
+                  Distribution of total pages read across all years. Current year's bucket highlighted.
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+        <div>
+          <h2 className="text-xl font-semibold text-white bg-umber px-4 py-2 rounded-t-lg">
+            Year Rank
+          </h2>
+          <div className="bg-white rounded-b-lg shadow p-4">
+            {summaryLoading ? (
+              <div className="h-96 bg-gray-200 rounded animate-pulse" />
+            ) : (
+              <>
+                <YearRankChart data={yearlySummary} currentYear={CURRENT_YEAR} />
+                <p className="text-xs text-slate mt-4 text-center">
+                  Years ranked by pages read, most to least. Current year highlighted. Click a bar to view that year.
                 </p>
               </>
             )}

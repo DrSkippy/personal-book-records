@@ -709,7 +709,7 @@ def tags_search_utility(match_str):
     db = psycopg2.connect(**books_conf)
     search_str = ("SELECT a.BookId, b.TagId, b.Label as Tag"
                   " FROM books_tags a JOIN tag_labels b ON a.TagId=b.TagId"
-                  " WHERE b.Label LIKE %s"
+                  " WHERE b.Label ILIKE %s"
                   " ORDER BY b.Label ASC")
     header = ["BookId", "TagId", "Tag"]
     app_logger.debug(search_str)
@@ -784,7 +784,7 @@ def books_search_utility(args):
             where_parts.append("a.BookId = %s")
             params.append(value)
         elif key == "ReadDate":
-            where_parts.append("b.ReadDate LIKE %s")
+            where_parts.append("b.ReadDate ILIKE %s")
             params.append(f"%{value}%")
         elif key == "Tags":
             # Get book IDs matching the tag
@@ -798,7 +798,7 @@ def books_search_utility(args):
                 # No matching tags - force no results
                 where_parts.append("a.BookId IN (0)")
         elif key in allowed_book_columns:
-            where_parts.append(f"a.{key} LIKE %s")
+            where_parts.append(f"a.{key} ILIKE %s")
             params.append(f"%{value}%")
         else:
             app_logger.warning(f"Ignoring unknown search column: {key}")
@@ -891,7 +891,7 @@ def get_tag_counts(tag_prefix=None):
     search_str += " FROM tag_labels a JOIN books_tags b ON a.TagId = b.TagId"
     params = ()
     if tag_prefix is not None:
-        search_str += " WHERE Label LIKE %s"
+        search_str += " WHERE Label ILIKE %s"
         params = (f"{tag_prefix}%",)
     search_str += " GROUP BY Label ORDER BY Count DESC, Label ASC"
     app_logger.debug(search_str)
@@ -1112,11 +1112,28 @@ def reading_book_data_from_db(record_id):
 
 
 def update_reading_book_data(record_id, date_range):
+    """
+    Update the estimate for a reading record, unless the book has already been
+    finished since that reading session started.
+
+    Merely viewing a book's record set (e.g. via GET /record_set) recalculates
+    estimates for every past reading session, including ones that already ended
+    in a completed ReadDate. Without this guard, that recalculation rewrites
+    EstimateDate/LastUpdate on every view, making finished books show up as
+    "recently touched" for no real activity.
+    """
     result = {}
     db = psycopg2.connect(**books_conf)
     try:
         with db.cursor() as c:
             try:
+                c.execute(
+                    "SELECT 1 FROM complete_date_estimates cde "
+                    "JOIN books_read br ON br.BookId = cde.BookId "
+                    "WHERE cde.RecordId = %s AND br.ReadDate > cde.StartDate LIMIT 1",
+                    (record_id,))
+                if c.fetchone():
+                    return result
                 c.execute(
                     "UPDATE complete_date_estimates SET EstimateDate = %s, EstimatedFinishDate = %s WHERE RecordId = %s",
                     (datetime.datetime.now(), date_range[0], record_id))
