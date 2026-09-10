@@ -121,9 +121,9 @@ The AI Chat page (`/ai-chat`) uses an OpenAI-compatible `/v1/chat/completions` e
 
 **Auth:** Bearer token set via `VITE_OLLAMA_API_KEY` in `.env.local`. Applied as `Authorization: Bearer <token>` header in `src/api/ollama.ts`.
 
-**Tools available to the model (12):** `search_books`, `get_book_details`, `get_recent_books`, `get_recently_read_books`, `get_books_read_by_year`, `get_reading_summary`, `get_tags_for_book`, `search_books_by_tag`, `get_tag_counts`, `get_reading_estimates`, `add_tag_to_book`, `semantic_search_notes`.
+**Tools available to the model (12):** `search_books`, `get_book_details`, `get_recently_edited_books`, `get_recently_read_books`, `get_books_read_by_year`, `get_reading_summary`, `get_tags_for_book`, `search_books_by_tag`, `get_tag_counts`, `get_reading_estimates`, `add_tag_to_book`, `semantic_search_notes`.
 
-`get_recent_books` ranks by `LastUpdate` (edits/tags/images/estimates — "recently touched"). `get_recently_read_books` ranks by `books_read.ReadDate` ("recently finished"). These are deliberately separate: the model previously conflated "recent" with "last edited" when asked about recently-read books.
+`get_recently_edited_books` ranks by `LastUpdate` (edits/tags/images/estimates — "recently touched"; calls the `/recent` REST endpoint). `get_recently_read_books` ranks by `books_read.ReadDate` ("recently finished"; calls `/recently_read`). These are deliberately separate tools with non-overlapping names: the model previously conflated "recent" with "last edited" when asked about recently-read books, first by picking the wrong tool, then (even after a `get_recent_books` name/description fix) by calling the edit-ranked tool anyway and surfacing a stale `ReadDate` from a follow-up `get_book_details` call. Dropping "recent" entirely from the edit-ranked tool's name closes that gap.
 
 **Conversation loop:** Up to 10 tool-call iterations per user message. History maintained in `ollamaHistoryRef` for the session; reset on "Clear".
 

@@ -71,7 +71,7 @@ npm run lint
 ### AI Chat
 - OpenAI-compatible `/v1/chat/completions` endpoint with tool-calling
 - Up to 10 tool-call iterations per user message
-- Tools available: `search_books`, `get_book_details`, `get_recent_books`, `get_books_read_by_year`, `get_reading_summary`, `get_tags_for_book`, `search_books_by_tag`, `get_tag_counts`, `get_reading_estimates`
+- Tools available: `search_books`, `get_book_details`, `get_recently_edited_books`, `get_recently_read_books`, `get_books_read_by_year`, `get_reading_summary`, `get_tags_for_book`, `search_books_by_tag`, `get_tag_counts`, `get_reading_estimates`, `add_tag_to_book`, `semantic_search_notes`
 - Markdown rendering toggle
 - Session history reset via "Clear" button
 

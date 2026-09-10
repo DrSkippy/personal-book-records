@@ -6,7 +6,9 @@ import { Send, Trash2, FileText, AlignLeft } from 'lucide-react';
 import { lmStudioChat, executeTool } from '../api/lmStudio';
 import type { LmStudioMessage } from '../api/lmStudio';
 
-const SYSTEM_PROMPT = `You are a helpful assistant for a personal book collection. You can search books, look up reading history, tags, and estimates using the tools provided. Be concise and friendly.`;
+const SYSTEM_PROMPT = `You are a helpful assistant for a personal book collection. You can search books, look up reading history, tags, and estimates using the tools provided. Be concise and friendly.
+
+Important: "recent"/"recently" is ambiguous - a book's record can be edited long after it was read. For any question about reading recency (recently read, last book read, what did I just finish, most recent book), use get_recently_read_books, which is based on actual reading completion date. Only use get_recently_edited_books when the user is explicitly asking about recent edits, updates, or changes to records - never use it to answer a reading-recency question, and never treat a book's ReadDate from get_book_details as "recent" just because the book itself came from get_recently_edited_books.`;
 
 export default function AiChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);

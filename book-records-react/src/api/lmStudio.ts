@@ -78,12 +78,12 @@ const tools = [
   {
     type: 'function',
     function: {
-      name: 'get_recent_books',
+      name: 'get_recently_edited_books',
       description:
-        'Get recently touched/edited books from the collection, ranked by when the record was last ' +
-        'modified (metadata edit, tag change, image upload, reading-progress update). ' +
-        'Do NOT use this for "recently read" or "what did I just finish" questions - use ' +
-        'get_recently_read_books for those instead.',
+        'Get books ranked by when the record was last edited/touched (metadata edit, tag change, ' +
+        'image upload, reading-progress update) - NOT by reading date. ' +
+        'Do NOT use this for "recently read", "last read", or "what did I just finish" questions - ' +
+        'those mean reading completion date, not edit history. Use get_recently_read_books instead.',
       parameters: {
         type: 'object',
         properties: {
@@ -99,8 +99,9 @@ const tools = [
       name: 'get_recently_read_books',
       description:
         'Get the books most recently finished reading, ranked by actual completion date (ReadDate), ' +
-        'not by when the record was last edited. Use this whenever the user asks about recently read, ' +
-        'recently finished, or "last read" books.',
+        'not by when the record was last edited. This is the default tool for ANY question implying ' +
+        'reading recency - "recently read", "last book(s) I read", "what did I just finish", ' +
+        '"most recent book(s)", "latest read" - even if the word "edited" or "updated" is not used.',
       parameters: {
         type: 'object',
         properties: {
@@ -239,7 +240,7 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
       case 'get_book_details':
         result = await getCompleteRecord(args.bookId as number);
         break;
-      case 'get_recent_books':
+      case 'get_recently_edited_books':
         result = await getRecentBooks(args.limit as number | undefined);
         break;
       case 'get_recently_read_books':
