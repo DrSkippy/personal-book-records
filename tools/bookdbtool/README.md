@@ -4,7 +4,7 @@ An interactive Python REPL for querying and managing the personal book collectio
 
 ## Overview
 
-- **Version**: 0.6.0
+- **Version**: 0.7.0
 - **Entry Point**: `../bin/books.py`
 - **Type**: Interactive Python REPL with pre-loaded objects
 
@@ -200,9 +200,9 @@ All dependencies managed via `../pyproject.toml`
 
 ## Version History
 
-- **v0.6.0** (Current): AI integration, reading estimates, enhanced search
-- Based on REST API v0.16.2
-- Python 3.11+ required
+- **v0.7.0** (Current): AI integration, reading estimates, enhanced search
+- Based on REST API v0.20.3
+- Python 3.12+ required
 
 ---
 

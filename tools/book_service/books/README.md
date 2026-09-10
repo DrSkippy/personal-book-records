@@ -165,7 +165,8 @@ For the complete endpoint reference with examples, see `../../README.md#tool-2-r
 
 ### Books
 - GET/POST `/books_search` - Search books
-- GET `/recent` - Recently updated books
+- GET `/recent` - Recently updated (edited/touched) books, by LastUpdate
+- GET `/recently_read` - Recently read books, by books_read.ReadDate
 - GET `/complete_record/<book_id>` - Complete book details
 - POST `/add_books` - Add new books
 - POST `/update_book_record` - Update book fields

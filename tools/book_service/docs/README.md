@@ -145,7 +145,7 @@ The OpenAPI spec can be used to:
 ## Technology Stack
 
 - **Framework**: Flask (Python)
-- **Database**: MySQL 8.0+
+- **Database**: PostgreSQL 14+
 - **Authentication**: Header-based API key
 - **Data Format**: JSON
 - **Visualization**: Matplotlib/Pandas (PNG charts)

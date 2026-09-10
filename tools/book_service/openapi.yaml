@@ -428,6 +428,47 @@ paths:
         '401':
           $ref: '#/components/responses/UnauthorizedError'
 
+  /recently_read:
+    get:
+      summary: Get recently read books (default 10)
+      description: Retrieves books most recently finished reading, ranked by books_read.ReadDate (not LastUpdate)
+      tags:
+        - Query Operations
+      responses:
+        '200':
+          description: Recently read books retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /recently_read/{limit}:
+    get:
+      summary: Get N recently read books
+      description: Retrieves specified number of books most recently finished reading, ranked by books_read.ReadDate (not LastUpdate)
+      tags:
+        - Query Operations
+      parameters:
+        - name: limit
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: Maximum number of books to return
+          example: 20
+      responses:
+        '200':
+          description: Recently read books retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
   /books_search:
     get:
       summary: Search books (GET)

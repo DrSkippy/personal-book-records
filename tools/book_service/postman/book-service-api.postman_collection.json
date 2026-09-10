@@ -98,6 +98,32 @@
           "response": []
         },
         {
+          "name": "Get Recently Read Books (Default 10)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/recently_read",
+              "host": ["{{base_url}}"],
+              "path": ["recently_read"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Recently Read Books (Custom Limit)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/recently_read/20",
+              "host": ["{{base_url}}"],
+              "path": ["recently_read", "20"]
+            }
+          },
+          "response": []
+        },
+        {
           "name": "Search Books by Author",
           "request": {
             "method": "GET",

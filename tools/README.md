@@ -387,8 +387,10 @@ curl -H "x-api-key: YOUR_KEY" http://localhost:8084/configuration
 
 | Method | Endpoint | Description | Parameters |
 |--------|----------|-------------|------------|
-| GET | `/recent` | Get recently updated books | None |
-| GET | `/recent/<limit>` | Get N recent books | `limit`: Number of books (default: 10) |
+| GET | `/recent` | Get recently updated (edited/touched) books, by LastUpdate | None |
+| GET | `/recent/<limit>` | Get N recently updated books | `limit`: Number of books (default: 10) |
+| GET | `/recently_read` | Get recently *read* books, by books_read.ReadDate | None |
+| GET | `/recently_read/<limit>` | Get N recently read books | `limit`: Number of books (default: 10) |
 | GET/POST | `/books_search` | Search books | Query params: Title, Author, IsbnNumber, IsbnNumber13, PublisherName, Location, Recycled, Tags, ReadDate |
 | GET | `/complete_record/<book_id>` | Get complete book record | `book_id`: BookId |
 | GET | `/complete_record/<book_id>/<adjacent>` | Navigate to next/previous book | `adjacent`: "next" or "prev" |
@@ -2986,19 +2988,19 @@ make stop-all                     # Stop all containers
 | `book_service/config/configuration.json` | Main config (create from example) |
 | `pyproject.toml` | Python dependencies |
 | `book_service/booksmcp/requirements.txt` | MCP dependencies |
-| `database/schema.sql` | Database schema |
+| `database/schema_postgres.sql` | Database schema (PostgreSQL) |
 
 ---
 
 ## Version Information
 
-- **BookDBTool**: v0.6.0
-- **REST API**: v0.16.2
-- **MCP Server**: v3.0.0
-- **Python**: 3.11+
+- **BookDBTool**: v0.7.0
+- **REST API**: v0.20.3
+- **MCP Server**: v3.3.1
+- **Python**: 3.12+
 - **Flask**: 3.1.2
-- **FastMCP**: 0.5.0+
-- **MySQL**: 8.0+
+- **FastMCP**: 0.5.0+ (pinned `<4.0.0`)
+- **PostgreSQL**: 14+ (migrated from MySQL May 2026)
 
 ---
 

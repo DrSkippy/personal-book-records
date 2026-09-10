@@ -251,13 +251,27 @@ Both services share the same database layer and configuration:
 
 ## Version Information
 
-- REST API: v0.20.0
-- MCP Server: v3.3.0
+- REST API: v0.20.3
+- MCP Server: v3.3.1
 - Python: 3.12+
 - Flask: 3.1.2
-- FastMCP: 0.5.0+
+- FastMCP: 0.5.0+ (pinned `<4.0.0`)
 
 ## Changelog
+
+### v0.20.3
+- Added `get_recently_read` (`GET /recently_read[/<limit>]`), ranked by `books_read.ReadDate` rather than `LastUpdate`
+- AI Chat: renamed tool `get_recent_books` → `get_recently_edited_books` and added `get_recently_read_books`, since the model was answering reading-recency questions ("most recent books") with edit-recency data
+- AI Chat: system prompt now explicitly disambiguates "recently edited" from "recently read"
+
+### v0.20.2
+- `add_books`: use `record.get(...)` instead of direct dict indexing, so omitted optional fields (e.g. no ISBN lookup match) no longer raise an unhandled `KeyError`
+- Frontend `BookForm` validation: empty `CoverType`/`Pages` no longer fail schema validation, so a book can be added manually without a successful ISBN lookup
+
+### v0.20.1 / MCP v3.3.1
+- `books_search_utility`/`tags_search_utility`/`get_tag_counts`: `LIKE` → `ILIKE` (case-insensitive search)
+- `update_reading_book_data`: skip `EstimateDate` rewrite when the book already has a completed `ReadDate` after the estimate's `StartDate`, so viewing a finished book's record no longer marks it "recently touched"
+- Pinned `fastmcp<4.0.0` in booksmcp requirements; unpinned resolution had drifted to fastmcp 4.0.1 / mcp 2.x, which renamed `mcp.server.fastmcp.FastMCP` and crash-looped the MCP container
 
 ### v0.20.0 / MCP v3.3.0
 - Added RAG semantic search via pgvector: `POST /rag_search` endpoint

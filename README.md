@@ -52,7 +52,7 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-Starts `book-service` (port 8084) and `booksmcp` (port 3005). Configuration is mounted as a read-only volume — config changes only need `docker compose restart`, not a rebuild.
+Starts `book-service` (port 8084) and `booksmcp` (port 3005). Configuration is baked into the image at build time (`COPY ./book_service/config/*`) — config changes require re-running `docker compose up -d --build`, not just a restart.
 
 Verify:
 ```bash
