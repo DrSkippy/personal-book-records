@@ -53,7 +53,7 @@ make test-bookdbtool     # unit tests (no Docker)
 ```bash
 docker compose up -d     # pulls from localhost:5000, starts book-service + booksmcp
 ```
-`configuration.json` is mounted as a read-only volume — config changes only need a container restart, not a rebuild.
+`configuration.json` is baked into the image at build time (`COPY ./book_service/config/*`) — config changes require `make build-all push-all` and a redeploy, not just a container restart.
 
 **Docker conventions:**
 - Book service Dockerfile: `WORKDIR=/app`, `PYTHONPATH=/app`

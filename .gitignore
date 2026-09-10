@@ -8,3 +8,6 @@ test_*.png
 .coverage
 curl_test_script.bash
 /tools/.envrc
+.env
+.env.*
+!.env.local.example

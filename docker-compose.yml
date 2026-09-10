@@ -10,7 +10,6 @@ services:
       - API_KEY=${API_KEY}
       - BOOKDB_CONFIG=/app/config/configuration.json
     volumes:
-      - ./tools/book_service/config/configuration.json:/app/config/configuration.json:ro
       - /var/www/html/resources/books:/books/uploads
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -26,8 +25,6 @@ services:
       - PORT=3005
       - HOST=0.0.0.0
       - BOOKDB_CONFIG=/app/config/configuration.json
-    volumes:
-      - ./tools/book_service/config/configuration.json:/app/config/configuration.json:ro
     healthcheck:
       test: ["CMD", "python", "-c",
              "import urllib.request; urllib.request.urlopen('http://localhost:3005/health')"]
