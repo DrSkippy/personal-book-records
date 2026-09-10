@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+const emptyToUndefined = (val: unknown) => (val === '' || val == null ? undefined : val);
+
 export const bookSchema = z.object({
   Title: z.string().min(1, 'Title is required').max(200),
   Author: z.string().min(1, 'Author is required').max(200),
@@ -8,8 +10,8 @@ export const bookSchema = z.object({
   IsbnNumber: z.string().max(13).optional(),
   IsbnNumber13: z.string().max(13).optional(),
   PublisherName: z.string().max(50).optional(),
-  CoverType: z.enum(['Hard', 'Soft', 'Digital']).optional(),
-  Pages: z.coerce.number().int().positive().max(32767).optional(),
+  CoverType: z.preprocess(emptyToUndefined, z.enum(['Hard', 'Soft', 'Digital']).optional()),
+  Pages: z.preprocess(emptyToUndefined, z.coerce.number().int().positive().max(32767).optional()),
   BookNote: z.string().optional(),
   Recycled: z.literal(0).or(z.literal(1)).default(0),
 });

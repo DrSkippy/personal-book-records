@@ -1,4 +1,4 @@
-__version__ = '0.20.1'
+__version__ = '0.20.2'
 
 import functools
 import json
@@ -285,21 +285,21 @@ def add_books():
         with db.cursor() as c:
             for record in records:
                 try:
-                    copyright_date = record["CopyrightDate"]
-                    if len(copyright_date.strip()) == 4:
+                    copyright_date = record.get("CopyrightDate") or None
+                    if copyright_date and len(copyright_date.strip()) == 4:
                         copyright_date += "-01-01 00:00:00"  # make it a valid date string!
                     c.execute(search_str, (
                         record["Title"],
                         record["Author"],
                         copyright_date,
-                        record["IsbnNumber"],
-                        record["IsbnNumber13"],
-                        record["PublisherName"],
-                        record["CoverType"],
-                        record["Pages"],
+                        record.get("IsbnNumber") or None,
+                        record.get("IsbnNumber13") or None,
+                        record.get("PublisherName") or None,
+                        record.get("CoverType") or None,
+                        record.get("Pages") or None,
                         record["Location"],
-                        record["BookNote"],
-                        record["Recycled"]
+                        record.get("BookNote") or None,
+                        record.get("Recycled", 0)
                     ))
                     record["BookId"] = c.fetchone()[0]
                     rdata.append(record)
