@@ -175,6 +175,21 @@ class TestAppUtilityFunctions(unittest.TestCase):
         # Verify title truncation (should be <= 43 chars)
         self.assertLessEqual(len(recent_books[0][2]), 43)
 
+    def test_get_recently_read(self):
+        recent_books, raw_rows, header, error = au.get_recently_read(limit=5)
+        self.assertIsNone(error)
+        self.assertEqual(header, ["BookId", "ReadDate", "Title"])
+        self.assertGreater(len(recent_books), 0)
+        self.assertLessEqual(len(recent_books), 5)
+        self.assertEqual(len(recent_books), len(raw_rows))
+        self.assertEqual(len(recent_books[0]), 3)
+        self.assertIsInstance(int(recent_books[0][0]), int)  # BookId is int represented as string
+        self.assertTrue(isinstance(recent_books[0][1], str) or recent_books[0][1] is None)
+        self.assertIsInstance(recent_books[0][2], str)  # Title
+        # Results should be sorted by ReadDate descending
+        dates = [row[1] for row in recent_books if row[1] is not None]
+        self.assertEqual(dates, sorted(dates, reverse=True))
+
     def test_book_tags(self):
         rdata, error = au.book_tags(1873)
         self.assertIsNone(error)

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { searchBooks, getCompleteRecord, getRecentBooks, ragSearch } from './books';
+import { searchBooks, getCompleteRecord, getRecentBooks, getRecentlyReadBooks, ragSearch } from './books';
 import { getBooksRead, getYearlySummary } from './reads';
 import { getTagsForBook, searchByTag, getTagCounts, addTag } from './tags';
 import { getEstimates } from './estimates';
@@ -79,11 +79,32 @@ const tools = [
     type: 'function',
     function: {
       name: 'get_recent_books',
-      description: 'Get recently updated books from the collection.',
+      description:
+        'Get recently touched/edited books from the collection, ranked by when the record was last ' +
+        'modified (metadata edit, tag change, image upload, reading-progress update). ' +
+        'Do NOT use this for "recently read" or "what did I just finish" questions - use ' +
+        'get_recently_read_books for those instead.',
       parameters: {
         type: 'object',
         properties: {
           limit: { type: 'number', description: 'Number of recent books to return (default 10)' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_recently_read_books',
+      description:
+        'Get the books most recently finished reading, ranked by actual completion date (ReadDate), ' +
+        'not by when the record was last edited. Use this whenever the user asks about recently read, ' +
+        'recently finished, or "last read" books.',
+      parameters: {
+        type: 'object',
+        properties: {
+          limit: { type: 'number', description: 'Number of books to return (default 10)' },
         },
         required: [],
       },
@@ -220,6 +241,9 @@ export async function executeTool(name: string, args: Record<string, unknown>): 
         break;
       case 'get_recent_books':
         result = await getRecentBooks(args.limit as number | undefined);
+        break;
+      case 'get_recently_read_books':
+        result = await getRecentlyReadBooks(args.limit as number | undefined);
         break;
       case 'get_books_read_by_year':
         result = await getBooksRead(args.year as number | undefined);

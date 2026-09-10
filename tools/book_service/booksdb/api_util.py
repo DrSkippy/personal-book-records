@@ -43,7 +43,7 @@ __all__ = [
     'sort_list_by_index_list', 'serialized_result_dict',
     '_convert_db_types', '_create_serializeable_result_dict',
     # Functions defined in this module
-    'get_valid_locations', 'get_recently_touched', 'get_next_book_id',
+    'get_valid_locations', 'get_recently_touched', 'get_recently_read', 'get_next_book_id',
     'get_book_ids_in_window', 'get_complete_book_record',
     'update_book_record_by_key', 'summary_books_read_by_year_utility',
     'books_read_by_year_utility', 'status_read_utility',
@@ -200,6 +200,71 @@ def get_recently_touched(limit=10):
         error_list = [str(e)]
     finally:
         # Ensure the database connection is closed
+        if db:
+            db.close()
+
+    return recent_books, s, header, error_list
+
+
+def get_recently_read(limit=10):
+    """
+    Retrieve the books most recently finished reading.
+
+    Unlike ``get_recently_touched`` (which reflects edits, tags, images,
+    and estimate activity), this is keyed on ``books_read.ReadDate`` -
+    the date a reading session was completed - so it answers "what did
+    I read most recently" rather than "what did I last edit".
+
+    Parameters
+    ----------
+    limit : int, optional
+        The maximum number of records to return. Defaults to 10.
+
+    Returns
+    -------
+    tuple
+        A 4-tuple containing:
+
+        * recent_books (list[list]): A list where each element is a list of
+          three items: ``BookId`` (int), ``ReadDate`` (str or None), and
+          ``Title`` (str). ``ReadDate`` is formatted according to the
+          global ``FMT`` constant; titles longer than 43 characters are
+          truncated to 40 characters followed by ellipsis.
+
+        * s (tuple): The raw rows returned by the cursor's ``fetchall``.
+
+        * header (list[str]): ``["BookId", "ReadDate", "Title"]``.
+
+        * error_list (list[str] | None): A list containing a single error
+          message if a ``psycopg2.Error`` was raised; otherwise ``None``.
+    """
+    error_list = None
+    db = None
+    recent_books = []
+    header = ["BookId", "ReadDate", "Title"]
+    s = None
+
+    try:
+        db = psycopg2.connect(**books_conf)
+        cursor = db.cursor()
+
+        query = ('SELECT br.BookId, max(br.ReadDate) as ReadDate, b.Title\n'
+                 'FROM books_read br JOIN books b ON br.BookId = b.BookId\n'
+                 'GROUP BY br.BookId, b.Title\n'
+                 'ORDER BY ReadDate DESC LIMIT %s;\n')
+        app_logger.debug(query)
+        cursor.execute(query, (limit,))
+
+        s = cursor.fetchall()
+        for a, b, c in s:
+            _date = b.strftime(FMT) if b else None
+            _title = c if len(c) <= 43 else c[:40] + "..."
+            recent_books.append([a, _date, _title])
+
+    except psycopg2.Error as e:
+        app_logger.error(e)
+        error_list = [str(e)]
+    finally:
         if db:
             db.close()
 

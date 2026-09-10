@@ -1,4 +1,4 @@
-__version__ = '0.20.2'
+__version__ = '0.20.3'
 
 import functools
 import json
@@ -240,6 +240,30 @@ def recent(limit=10):
         None.
     """
     recent_books, s, header, error_list = get_recently_touched(limit)
+    result = serialized_result_dict(recent_books, header, error_list)
+    return json_string_response(result)
+
+
+@app.route('/recently_read')
+@app.route('/recently_read/<int:limit>')
+@require_app_key
+def recently_read(limit=10):
+    """
+    Retrieves the books most recently finished reading, by ReadDate.
+
+    Distinct from `/recent`, which ranks books by LastUpdate (edits, tags,
+    images, estimates) - this ranks by the completed ReadDate in
+    books_read, answering "what did I read most recently" rather than
+    "what did I last touch".
+
+    Args:
+        limit (int): Maximum number of books to return. Defaults to 10.
+
+    Returns:
+        flask.Response: A response object containing the serialized list of
+        recently read books, a status code of 200, and any necessary headers.
+    """
+    recent_books, s, header, error_list = get_recently_read(limit)
     result = serialized_result_dict(recent_books, header, error_list)
     return json_string_response(result)
 

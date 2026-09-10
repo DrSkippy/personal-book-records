@@ -19,6 +19,9 @@ export const getCompleteRecordsByIds = (bookIds: number[]) =>
 export const getRecentBooks = (limit = 10) =>
   apiClient.get<StandardResponse>(limit === 10 ? '/recent' : `/recent/${limit}`).then(r => r.data);
 
+export const getRecentlyReadBooks = (limit = 10) =>
+  apiClient.get<StandardResponse>(limit === 10 ? '/recently_read' : `/recently_read/${limit}`).then(r => r.data);
+
 export const addBooks = (books: Partial<Book>[]) =>
   apiClient.post('/add_books', books).then(r => r.data);
 
