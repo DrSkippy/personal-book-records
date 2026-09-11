@@ -740,7 +740,15 @@ All tools use a single configuration file: `book_service/config/configuration.js
     "key": "your_isbndb_api_key"
   },
   "endpoint": "http://localhost:8084",
-  "api_key": "your_40_char_api_key_here"
+  "api_key": "your_40_char_api_key_here",
+  "ai_agent": {
+    "chat_host": "http://<ollama-host>:11434",
+    "chat_model": "gpt-oss",
+    "embed_host": "http://<lm-studio-host>:1234",
+    "embed_model": "your-embedding-model",
+    "embed_api_key": "bearer-token-for-embedding-api",
+    "embed_dimensions": 768
+  }
 }
 ```
 
@@ -757,23 +765,45 @@ All tools use a single configuration file: `book_service/config/configuration.js
 | `isbn_com.key` | ISBNdb.com API key | Optional |
 | `endpoint` | REST API endpoint URL | Yes (for bookdbtool) |
 | `api_key` | REST API authentication key | Yes (for bookdbtool) |
+| `ai_agent.chat_host` | Ollama server URL used by the bookdbtool CLI's AI chat (`bin/books.py`) | Optional (bookdbtool only) |
+| `ai_agent.chat_model` | Ollama model name for the bookdbtool CLI's AI chat | Optional (bookdbtool only) |
+| `ai_agent.embed_host` | OpenAI-compatible embeddings endpoint (LM Studio) used for RAG semantic search | Optional (REST API + MCP) |
+| `ai_agent.embed_model` | Embedding model name | Optional (REST API + MCP) |
+| `ai_agent.embed_api_key` | Bearer token for the embeddings endpoint | Optional (REST API + MCP) |
+| `ai_agent.embed_dimensions` | Embedding vector dimension; must match the `vector(N)` column in `book_note_embeddings` (default: 768) | Optional (REST API + MCP) |
+
+Note the React frontend's AI Chat page is unrelated to this file - it talks to LM Studio directly via `VITE_OLLAMA_*` vars in `book-records-react/.env.local`, baked in at frontend build time.
 
 ### Environment Variables
 
-#### For REST API (Book Service)
+Every field can be set via the JSON file; the ones below can also be overridden per-process via environment variable (the env var always wins when set).
+
+#### For REST API (Book Service) and MCP Server
 
 ```bash
-export BOOKSDB_CONFIG=/path/to/config/configuration.json  # or BOOKDB_CONFIG
-export API_KEY=your_api_key_here
+export BOOKDB_CONFIG=/path/to/config/configuration.json  # or BOOKSDB_CONFIG
+export API_KEY=your_api_key_here            # overrides api_key
+export AI_EMBED_HOST=http://host:1234       # overrides ai_agent.embed_host
+export AI_EMBED_MODEL=your-embedding-model  # overrides ai_agent.embed_model
+export AI_EMBED_API_KEY=bearer-token        # overrides ai_agent.embed_api_key
+export AI_EMBED_DIMENSIONS=768              # overrides ai_agent.embed_dimensions
 ```
 
-#### For MCP Server
+MCP Server-specific:
 
 ```bash
-export BOOKDB_CONFIG=/path/to/config/configuration.json
 export PORT=3005
 export HOST=0.0.0.0
 export PYTHONUNBUFFERED=1
+```
+
+#### For bookdbtool CLI (`bin/books.py`)
+
+```bash
+export AI_CHAT_HOST=http://host:11434   # overrides ai_agent.chat_host
+export AI_CHAT_MODEL=gpt-oss            # overrides ai_agent.chat_model
+export AI_CHAT_TIMEOUT=10               # overrides ai_agent.timeout
+export AI_CHAT_MAX_HISTORY=50           # overrides ai_agent.max_history
 ```
 
 ### Docker Configuration
@@ -1270,6 +1300,10 @@ services:
     container_name: book-service
     environment:
       - API_KEY=${API_KEY}
+      - AI_EMBED_HOST=${AI_EMBED_HOST}
+      - AI_EMBED_MODEL=${AI_EMBED_MODEL}
+      - AI_EMBED_API_KEY=${AI_EMBED_API_KEY}
+      - AI_EMBED_DIMENSIONS=${AI_EMBED_DIMENSIONS}
     volumes:
       - /var/www/html/resources/books:/books/uploads
     ports:
@@ -1281,7 +1315,7 @@ networks: {}
 
 **Key Features**:
 - Volume mount for persistent book uploads
-- Environment variable for API key
+- Environment variables for API key and RAG embedding config overrides (optional - blank in `.env` falls back to `configuration.json`)
 - Host network mapping for accessing a host-installed PostgreSQL server (`host.docker.internal`)
 
 **Usage**:
@@ -1307,6 +1341,10 @@ services:
       - PORT=3005
       - HOST=0.0.0.0
       - BOOKDB_CONFIG=/app/config/configuration.json
+      - AI_EMBED_HOST=${AI_EMBED_HOST}
+      - AI_EMBED_MODEL=${AI_EMBED_MODEL}
+      - AI_EMBED_API_KEY=${AI_EMBED_API_KEY}
+      - AI_EMBED_DIMENSIONS=${AI_EMBED_DIMENSIONS}
     restart: unless-stopped
     networks:
       - books-network

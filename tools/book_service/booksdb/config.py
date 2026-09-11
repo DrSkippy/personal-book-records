@@ -82,10 +82,10 @@ def read_json_configuration() -> tuple[dict[str, Any], dict[str, str]]:
             app_logger.debug(f"API key configuration loaded successfully. Using API_KEY={API_KEY}")
             global EMBED_HOST, EMBED_MODEL, EMBED_API_KEY, EMBED_DIMENSIONS
             _ai = c.get("ai_agent", {})
-            EMBED_HOST = _ai.get("embed_host")
-            EMBED_MODEL = _ai.get("embed_model")
-            EMBED_API_KEY = _ai.get("embed_api_key")
-            EMBED_DIMENSIONS = int(_ai.get("embed_dimensions", 768))
+            EMBED_HOST = os.getenv("AI_EMBED_HOST") or _ai.get("embed_host")
+            EMBED_MODEL = os.getenv("AI_EMBED_MODEL") or _ai.get("embed_model")
+            EMBED_API_KEY = os.getenv("AI_EMBED_API_KEY") or _ai.get("embed_api_key")
+            EMBED_DIMENSIONS = int(os.getenv("AI_EMBED_DIMENSIONS") or _ai.get("embed_dimensions", 768))
         except KeyError as e:
             app_logger.error(e)
             raise SystemExit("Missing or incomplete configuration file.")

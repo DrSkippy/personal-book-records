@@ -9,6 +9,10 @@ services:
     environment:
       - API_KEY=${API_KEY}
       - BOOKDB_CONFIG=/app/config/configuration.json
+      - AI_EMBED_HOST=${AI_EMBED_HOST}
+      - AI_EMBED_MODEL=${AI_EMBED_MODEL}
+      - AI_EMBED_API_KEY=${AI_EMBED_API_KEY}
+      - AI_EMBED_DIMENSIONS=${AI_EMBED_DIMENSIONS}
     volumes:
       - /var/www/html/resources/books:/books/uploads
     extra_hosts:
@@ -25,6 +29,10 @@ services:
       - PORT=3005
       - HOST=0.0.0.0
       - BOOKDB_CONFIG=/app/config/configuration.json
+      - AI_EMBED_HOST=${AI_EMBED_HOST}
+      - AI_EMBED_MODEL=${AI_EMBED_MODEL}
+      - AI_EMBED_API_KEY=${AI_EMBED_API_KEY}
+      - AI_EMBED_DIMENSIONS=${AI_EMBED_DIMENSIONS}
     healthcheck:
       test: ["CMD", "python", "-c",
              "import urllib.request; urllib.request.urlopen('http://localhost:3005/health')"]

@@ -23,8 +23,8 @@ class TestOllamaAgent(unittest.TestCase):
 
         self.config = {
             "ai_agent": {
-                "model_name": "test-model",
-                "ollama_host": "http://localhost:11434",
+                "chat_model": "test-model",
+                "chat_host": "http://localhost:11434",
                 "timeout": 15,
                 "max_history": 100
             },
@@ -57,6 +57,21 @@ class TestOllamaAgent(unittest.TestCase):
         self.assertEqual(agent.api_key, "")
         self.assertEqual(agent.timeout, 10)
         self.assertEqual(agent.max_history, 50)
+
+    @patch.dict(os.environ, {
+        "AI_CHAT_HOST": "http://env-host:9999",
+        "AI_CHAT_MODEL": "env-model",
+        "AI_CHAT_TIMEOUT": "30",
+        "AI_CHAT_MAX_HISTORY": "5",
+    })
+    @patch('bookdbtool.ai_tools.ollama.Client')
+    @patch('bookdbtool.ai_tools.requests.Session')
+    def test_init_env_overrides_config(self, mock_session_class, mock_client_class):
+        agent = OllamaAgent(self.config)
+        self.assertEqual(agent.ollama_host, "http://env-host:9999")
+        self.assertEqual(agent.model_name, "env-model")
+        self.assertEqual(agent.timeout, 30)
+        self.assertEqual(agent.max_history, 5)
 
     def test_tools_structure(self):
         # TOOLS is now a class variable
@@ -357,7 +372,7 @@ class TestOllamaAgentIntegration(unittest.TestCase):
         mock_client_class.return_value = mock_client
 
         config = {
-            "ai_agent": {"model_name": "test", "ollama_host": "http://localhost:11434"},
+            "ai_agent": {"chat_model": "test", "chat_host": "http://localhost:11434"},
             "endpoint": "http://localhost:8084",
             "api_key": "test-key"
         }

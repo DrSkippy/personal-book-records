@@ -5,6 +5,10 @@ services:
     container_name: book-service
     environment:
       - API_KEY=${API_KEY}
+      - AI_EMBED_HOST=${AI_EMBED_HOST}
+      - AI_EMBED_MODEL=${AI_EMBED_MODEL}
+      - AI_EMBED_API_KEY=${AI_EMBED_API_KEY}
+      - AI_EMBED_DIMENSIONS=${AI_EMBED_DIMENSIONS}
     volumes:
       - /var/www/html/resources/books:/books/uploads
     ports:

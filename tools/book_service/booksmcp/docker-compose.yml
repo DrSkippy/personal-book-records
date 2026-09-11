@@ -9,6 +9,10 @@ services:
       - PORT=3005
       - HOST=0.0.0.0
       - BOOKDB_CONFIG=/app/config/configuration.json
+      - AI_EMBED_HOST=${AI_EMBED_HOST}
+      - AI_EMBED_MODEL=${AI_EMBED_MODEL}
+      - AI_EMBED_API_KEY=${AI_EMBED_API_KEY}
+      - AI_EMBED_DIMENSIONS=${AI_EMBED_DIMENSIONS}
     restart: unless-stopped
     networks:
       - books-network

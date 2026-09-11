@@ -2,6 +2,7 @@ __version__ = '0.2.0'
 
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -134,20 +135,24 @@ class OllamaAgent:
 
         Args:
             config: Configuration dictionary containing:
-                - ai_agent.model_name: The Ollama model to use
-                - ai_agent.ollama_host: The Ollama server URL
+                - ai_agent.chat_model: The Ollama model to use
+                - ai_agent.chat_host: The Ollama server URL
                 - ai_agent.timeout: Request timeout in seconds (default: 10)
                 - ai_agent.max_history: Max conversation history entries (default: 50)
                 - endpoint: The book database API endpoint
                 - api_key: API key for book database write operations
+
+            Every ai_agent field above can be overridden with an environment
+            variable: AI_CHAT_HOST, AI_CHAT_MODEL, AI_CHAT_TIMEOUT,
+            AI_CHAT_MAX_HISTORY.
         """
         ai_config = config.get("ai_agent", {})
-        self.ollama_host = ai_config.get("ollama_host", "http://localhost:11434")
+        self.ollama_host = os.getenv("AI_CHAT_HOST") or ai_config.get("chat_host", "http://localhost:11434")
         self.book_db_host = config.get("endpoint", "http://localhost:8084")
-        self.model_name = ai_config.get("model_name", "gpt-oss")
+        self.model_name = os.getenv("AI_CHAT_MODEL") or ai_config.get("chat_model", "gpt-oss")
         self.api_key = config.get("api_key", "")
-        self.timeout = ai_config.get("timeout", 10)
-        self.max_history = ai_config.get("max_history", self.MAX_HISTORY)
+        self.timeout = int(os.getenv("AI_CHAT_TIMEOUT") or ai_config.get("timeout", 10))
+        self.max_history = int(os.getenv("AI_CHAT_MAX_HISTORY") or ai_config.get("max_history", self.MAX_HISTORY))
 
         # Instance variables for conversation state
         self.reply: Optional[Dict[str, Any]] = None
