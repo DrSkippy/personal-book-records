@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "book_collection_database_schema",
   "title": "book_collection Database Schema",
-  "description": "JSON Schema representation of the book_collection MySQL database. Describes each table as a schema with column types, constraints, and relationships.",
+  "description": "JSON Schema representation of the book-collection PostgreSQL database (migrated from MySQL in May 2026). Describes each table as a schema with column types, constraints, and relationships.",
   "type": "object",
   "definitions": {
     "Book": {
@@ -97,6 +97,21 @@
         "LastUpdate": { "type": "string", "format": "date-time", "description": "Auto-maintained timestamp" }
       },
       "required": ["ImageId", "BookId", "LastUpdate"]
+    },
+
+    "BookNoteEmbedding": {
+      "type": "object",
+      "description": "RAG vector embeddings for book and reading notes (pgvector). One row per embedded note.",
+      "properties": {
+        "id":         { "type": "integer", "description": "Primary key, auto-increment" },
+        "bookid":     { "type": "integer", "description": "FK to books.BookId" },
+        "source":     { "type": "string", "enum": ["book_note", "read_note"], "description": "Which note field this embedding represents" },
+        "read_date":  { "type": ["string", "null"], "format": "date", "description": "FK to books_read.ReadDate when source is read_note" },
+        "content":    { "type": "string", "description": "The note text that was embedded" },
+        "embedding":  { "type": "array", "items": { "type": "number" }, "minItems": 768, "maxItems": 768, "description": "768-dimensional vector (pgvector), dimension must match ai_agent.embed_dimensions in configuration.json" },
+        "updated_at": { "type": "string", "format": "date-time", "description": "Auto-maintained timestamp" }
+      },
+      "required": ["id", "bookid", "source", "content", "updated_at"]
     }
   },
 
@@ -107,6 +122,7 @@
     "books_tags":              { "type": "array", "items": { "$ref": "#/definitions/BookTag" } },
     "complete_date_estimates": { "type": "array", "items": { "$ref": "#/definitions/CompleteDateEstimate" } },
     "daily_page_records":      { "type": "array", "items": { "$ref": "#/definitions/DailyPageRecord" } },
-    "images":                  { "type": "array", "items": { "$ref": "#/definitions/Image" } }
+    "images":                  { "type": "array", "items": { "$ref": "#/definitions/Image" } },
+    "book_note_embeddings":    { "type": "array", "items": { "$ref": "#/definitions/BookNoteEmbedding" } }
   }
 }

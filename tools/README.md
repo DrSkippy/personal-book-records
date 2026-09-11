@@ -156,8 +156,15 @@ tools/
 ├── notebooks/                    # Jupyter notebooks
 ├── Makefile                      # Build and test automation
 ├── pyproject.toml                # Poetry dependencies
-├── database/                     # Database schema files
-│   └── schema.sql               # Database schema
+├── database/                     # Database schema files (PostgreSQL)
+│   ├── schema_current.sql       # Canonical schema for a fresh install (run via setup_db.py)
+│   ├── schema_postgres.sql      # Incremental schema for an existing, already-migrated database
+│   ├── add_pgvector.sql         # RAG/pgvector addition (folded into schema_current.sql)
+│   ├── setup_db.py              # Fresh-install database setup script
+│   ├── migrate_mysql_to_postgres.py  # One-time MySQL -> PostgreSQL migration script
+│   ├── schema.json              # Machine-readable schema (JSON Schema)
+│   ├── schema.yaml              # Machine-readable schema (YAML)
+│   └── schema.sql               # Superseded MySQL-era schema; kept as a pointer to the files above
 └── README.md                     # This file
 ```
 

@@ -1,10 +1,19 @@
-# book_collection database schema
+# book-collection database schema
 # Machine-readable schema definition for documentation, code generation, and validation.
+# Migrated from MySQL to PostgreSQL in May 2026 - see database/migrate_mysql_to_postgres.py.
 
-database: book_collection
-charset: utf8mb4
-collation: utf8mb4_unicode_ci
-engine: InnoDB
+database: book-collection
+engine: PostgreSQL
+extensions: [vector]
+
+# Every table has a LastUpdate/updated_at column kept current by a shared
+# BEFORE UPDATE trigger (update_last_update()), not a column-level
+# "ON UPDATE" clause (Postgres has no such clause).
+triggers:
+  update_last_update:
+    fires: BEFORE UPDATE
+    applies_to: [books, books_read, books_tags, daily_page_records, images]
+    sets: "LastUpdate = CURRENT_TIMESTAMP"
 
 tables:
 
@@ -16,27 +25,27 @@ tables:
       idx_books_author: { columns: [Author] }
       idx_books_location: { columns: [Location] }
     columns:
-      BookId:        { type: INT, nullable: false, auto_increment: true }
+      BookId:        { type: SERIAL, nullable: false }
       Title:         { type: VARCHAR(200), nullable: false }
       Author:        { type: VARCHAR(200), nullable: false }
-      CopyrightDate: { type: DATETIME, nullable: true }
+      CopyrightDate: { type: TIMESTAMP, nullable: true }
       IsbnNumber:    { type: VARCHAR(13), nullable: true, description: "ISBN-10" }
       PublisherName:  { type: VARCHAR(50), nullable: true }
       CoverType:     { type: VARCHAR(30), nullable: true, description: "e.g. Hard, Soft" }
       Pages:         { type: SMALLINT, nullable: true }
-      BookNote:      { type: MEDIUMTEXT, nullable: true, description: "Free-form notes" }
-      Recycled:      { type: TINYINT(1), nullable: true, description: "1 = recycled/donated, 0 = kept" }
+      BookNote:      { type: TEXT, nullable: true, description: "Free-form notes" }
+      Recycled:      { type: SMALLINT, nullable: true, description: "1 = recycled/donated, 0 = kept" }
       Location:      { type: VARCHAR(50), nullable: false, description: "e.g. Main Collection" }
       IsbnNumber13:  { type: VARCHAR(13), nullable: true, description: "ISBN-13" }
-      LastUpdate:    { type: TIMESTAMP, nullable: false, default: CURRENT_TIMESTAMP, on_update: CURRENT_TIMESTAMP }
+      LastUpdate:    { type: TIMESTAMP, nullable: false, default: CURRENT_TIMESTAMP }
 
   tag_labels:
     description: Tag vocabulary. Each label string is unique.
     primary_key: [TagId]
     indexes:
-      idx_tag_labels_label: { columns: [Label], unique: true }
+      tag_labels_label_key: { columns: [Label], unique: true }
     columns:
-      TagId: { type: INT, nullable: false, auto_increment: true }
+      TagId: { type: SERIAL, nullable: false }
       Label: { type: VARCHAR(50), nullable: true }
 
   books_read:
@@ -49,10 +58,10 @@ tables:
         on_delete: CASCADE
         on_update: CASCADE
     columns:
-      BookId:     { type: INT, nullable: false }
+      BookId:     { type: INTEGER, nullable: false }
       ReadDate:   { type: DATE, nullable: false }
       ReadNote:   { type: TEXT, nullable: true }
-      LastUpdate: { type: TIMESTAMP, nullable: false, default: CURRENT_TIMESTAMP, on_update: CURRENT_TIMESTAMP }
+      LastUpdate: { type: TIMESTAMP, nullable: false, default: CURRENT_TIMESTAMP }
 
   books_tags:
     description: Many-to-many join table linking books to tags.
@@ -69,9 +78,9 @@ tables:
         on_delete: CASCADE
         on_update: CASCADE
     columns:
-      BookId:     { type: INT, nullable: false }
-      TagId:      { type: INT, nullable: false }
-      LastUpdate: { type: TIMESTAMP, nullable: false, default: CURRENT_TIMESTAMP, on_update: CURRENT_TIMESTAMP }
+      BookId:     { type: INTEGER, nullable: false }
+      TagId:      { type: INTEGER, nullable: false }
+      LastUpdate: { type: TIMESTAMP, nullable: false, default: CURRENT_TIMESTAMP }
 
   complete_date_estimates:
     description: Reading pace tracking with estimated finish dates.
@@ -83,12 +92,12 @@ tables:
         on_delete: CASCADE
         on_update: CASCADE
     columns:
-      RecordId:           { type: BIGINT UNSIGNED, nullable: false, auto_increment: true }
-      BookId:             { type: INT, nullable: false }
-      StartDate:          { type: DATETIME, nullable: false }
+      RecordId:           { type: BIGSERIAL, nullable: false }
+      BookId:             { type: INTEGER, nullable: false }
+      StartDate:          { type: TIMESTAMP, nullable: false }
       LastReadablePage:   { type: BIGINT, nullable: false }
-      EstimateDate:       { type: DATETIME, nullable: true }
-      EstimatedFinishDate: { type: DATETIME, nullable: true }
+      EstimateDate:       { type: TIMESTAMP, nullable: true }
+      EstimatedFinishDate: { type: TIMESTAMP, nullable: true }
 
   daily_page_records:
     description: Daily reading progress entries tied to an estimate session.
@@ -100,10 +109,10 @@ tables:
         on_delete: CASCADE
         on_update: CASCADE
     columns:
-      RecordDate: { type: DATETIME, nullable: false }
+      RecordDate: { type: TIMESTAMP, nullable: false }
       Page:       { type: BIGINT, nullable: false }
-      RecordId:   { type: BIGINT UNSIGNED, nullable: false }
-      LastUpdate: { type: TIMESTAMP, nullable: false, default: CURRENT_TIMESTAMP, on_update: CURRENT_TIMESTAMP }
+      RecordId:   { type: BIGINT, nullable: false }
+      LastUpdate: { type: TIMESTAMP, nullable: false, default: CURRENT_TIMESTAMP }
 
   images:
     description: Book cover images and associated metadata.
@@ -115,12 +124,34 @@ tables:
         on_delete: CASCADE
         on_update: CASCADE
     columns:
-      ImageId:   { type: INT, nullable: false, auto_increment: true }
-      BookId:    { type: INT, nullable: false }
+      ImageId:   { type: SERIAL, nullable: false }
+      BookId:    { type: INTEGER, nullable: false }
       Name:      { type: VARCHAR(255), nullable: true }
       Url:       { type: VARCHAR(255), nullable: true }
       ImageType: { type: VARCHAR(64), nullable: true, default: "cover-face" }
-      LastUpdate: { type: TIMESTAMP, nullable: false, default: CURRENT_TIMESTAMP, on_update: CURRENT_TIMESTAMP }
+      LastUpdate: { type: TIMESTAMP, nullable: false, default: CURRENT_TIMESTAMP }
+
+  book_note_embeddings:
+    description: RAG vector embeddings for book and reading notes (pgvector), used by semantic_search_notes.
+    primary_key: [id]
+    indexes:
+      idx_bne_embedding_hnsw: { columns: [embedding], type: hnsw, opclass: vector_cosine_ops }
+      idx_bne_unique_book_note: { columns: [bookid], unique: true, where: "source = 'book_note'" }
+      idx_bne_unique_read_note: { columns: [bookid, read_date], unique: true, where: "source = 'read_note'" }
+    foreign_keys:
+      fk_bne_book:
+        column: bookid
+        references: { table: books, column: BookId }
+        on_delete: CASCADE
+        on_update: CASCADE
+    columns:
+      id:         { type: SERIAL, nullable: false }
+      bookid:     { type: INTEGER, nullable: false }
+      source:     { type: VARCHAR(20), nullable: false, check: "source IN ('book_note', 'read_note')" }
+      read_date:  { type: DATE, nullable: true }
+      content:    { type: TEXT, nullable: false }
+      embedding:  { type: "vector(768)", nullable: true, description: "Dimension must match ai_agent.embed_dimensions in configuration.json" }
+      updated_at: { type: TIMESTAMP, nullable: false, default: CURRENT_TIMESTAMP }
 
 # Relationship summary (for quick reference by tools and code generators)
 relationships:
@@ -153,3 +184,8 @@ relationships:
     child: images
     cardinality: one-to-many
     join: "books.BookId = images.BookId"
+
+  - parent: books
+    child: book_note_embeddings
+    cardinality: one-to-many
+    join: "books.BookId = book_note_embeddings.bookid"
