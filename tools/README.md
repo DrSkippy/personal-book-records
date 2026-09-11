@@ -1,6 +1,6 @@
 # Book Database Tools
 
-A comprehensive suite of tools for managing and querying a personal book collection database. This project provides three complementary interfaces to interact with a MySQL book collection database: a command-line REPL tool, a REST API service, and an MCP (Model Context Protocol) server for AI integration.
+A comprehensive suite of tools for managing and querying a personal book collection database. This project provides three complementary interfaces to interact with a PostgreSQL book collection database: a command-line REPL tool, a REST API service, and an MCP (Model Context Protocol) server for AI integration.
 
 ## Table of Contents
 
@@ -25,10 +25,10 @@ A comprehensive suite of tools for managing and querying a personal book collect
 
 ### Prerequisites
 
-- **Python 3.11+** (required)
+- **Python 3.12+** (required)
 - **Poetry** (for dependency management)
 - **Docker** (for containerized deployment)
-- **MySQL 8.0+** (database server)
+- **PostgreSQL 14+** (database server)
 
 ### Configuration Setup
 
@@ -46,7 +46,7 @@ cp book_service/config/configuration_example.json book_service/config/configurat
   "password": "db_password",
   "database": "book_collection",
   "host": "localhost",
-  "port": 3306,
+  "port": 5434,
   "isbn_com": {
     "url_isbn": "https://api2.isbndb.com/book/{}",
     "key": "your_isbndb_api_key"
@@ -55,6 +55,8 @@ cp book_service/config/configuration_example.json book_service/config/configurat
   "api_key": "your_api_key_here"
 }
 ```
+
+`username`/`database` are historical field names carried over from the pre-migration MySQL config; `config.py` maps them to psycopg2's `user`/`dbname` kwargs internally (plus a fixed `sslmode: disable`) - the JSON keys themselves haven't changed.
 
 ### Quick Start Commands
 
@@ -87,7 +89,7 @@ This project provides three complementary tools for interacting with the book da
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│           MySQL Books Database                      │
+│           PostgreSQL Books Database                 │
 │  (books, books_read, tags, estimates)                │
 └────────────────┬────────────────────────────────────┘
                  │
@@ -111,9 +113,9 @@ Terminal    HTTP API    Claude/AI
 ### Shared Infrastructure
 
 All three tools share:
-- **Database Layer**: `book_service/booksdb/api_util.py` - Common MySQL query utilities
+- **Database Layer**: `book_service/booksdb/api_util.py` - Common PostgreSQL query utilities
 - **Configuration**: Single `configuration.json` file for all services
-- **Database Schema**: MySQL database with books, reading history, and tags
+- **Database Schema**: PostgreSQL database with books, reading history, and tags
 
 ### Directory Structure
 
@@ -721,11 +723,11 @@ All tools use a single configuration file: `book_service/config/configuration.js
 
 ```json
 {
-  "username": "mysql_user",
-  "password": "mysql_password",
+  "username": "db_user",
+  "password": "db_password",
   "database": "book_collection",
   "host": "localhost",
-  "port": 3306,
+  "port": 5434,
   "isbn_com": {
     "url_isbn": "https://api2.isbndb.com/book/{}",
     "key": "your_isbndb_api_key"
@@ -739,11 +741,11 @@ All tools use a single configuration file: `book_service/config/configuration.js
 
 | Field | Description | Required |
 |-------|-------------|----------|
-| `username` | MySQL database username | Yes |
-| `password` | MySQL database password | Yes |
-| `database` | MySQL database name (should be "book_collection") | Yes |
-| `host` | MySQL host (localhost or IP address) | Yes |
-| `port` | MySQL port (default: 3306) | Yes |
+| `username` | PostgreSQL role name (mapped to psycopg2's `user`) | Yes |
+| `password` | PostgreSQL role password | Yes |
+| `database` | PostgreSQL database name (mapped to psycopg2's `dbname`; e.g. "book-collection") | Yes |
+| `host` | PostgreSQL host (localhost or IP address) | Yes |
+| `port` | PostgreSQL port (default: 5432; this project's deployment uses 5434) | Yes |
 | `isbn_com.url_isbn` | ISBN lookup API URL template | Optional |
 | `isbn_com.key` | ISBNdb.com API key | Optional |
 | `endpoint` | REST API endpoint URL | Yes (for bookdbtool) |
@@ -769,11 +771,9 @@ export PYTHONUNBUFFERED=1
 
 ### Docker Configuration
 
-In Docker containers, the configuration file is typically mounted at:
-- Book Service: `/app/config/configuration.json`
-- MCP Server: `/app/config/configuration.json`
+`configuration.json` is baked into each image at build time (`COPY ./book_service/config/*`), landing at `/app/config/configuration.json` in both containers - config changes require rebuilding the image (`make build-all push-all`) and redeploying, not just a container restart.
 
-**Note**: When using Docker with host MySQL, use `host.docker.internal` as the host in your configuration.
+**Note**: When using Docker with a host-installed PostgreSQL, use `host.docker.internal` as the host in your configuration.
 
 ---
 
@@ -781,7 +781,7 @@ In Docker containers, the configuration file is typically mounted at:
 
 ### Overview
 
-The book database uses MySQL 8.0+ with the following tables. All tables use the InnoDB engine with utf8mb4 charset.
+The book database uses PostgreSQL 14+. Every table carries a `LastUpdate TIMESTAMP` column, kept current by a `BEFORE UPDATE` trigger (`update_last_update()`) rather than an inline column default, since Postgres has no `ON UPDATE CURRENT_TIMESTAMP` clause.
 
 ### Main Tables
 
@@ -790,45 +790,43 @@ The book database uses MySQL 8.0+ with the following tables. All tables use the 
 Stores all book metadata and collection information.
 
 **Key Fields:**
-- `BookId` (PRIMARY KEY, AUTO_INCREMENT) - Unique book identifier
-- `Title` (VARCHAR(200)) - Book title (FULLTEXT indexed)
-- `Author` (VARCHAR(200)) - Author name (FULLTEXT indexed)
-- `CopyrightDate` (DATETIME) - Copyright/publication date
+- `BookId` (PRIMARY KEY, `SERIAL`) - Unique book identifier
+- `Title` (VARCHAR(200), NOT NULL, indexed) - Book title
+- `Author` (VARCHAR(200), NOT NULL, indexed) - Author name
+- `CopyrightDate` (TIMESTAMP) - Copyright/publication date
 - `IsbnNumber` (VARCHAR(13)) - ISBN-10 number
 - `IsbnNumber13` (VARCHAR(13)) - ISBN-13 number
 - `PublisherName` (VARCHAR(50)) - Publisher name
 - `CoverType` (VARCHAR(30)) - Hard, Soft, or Digital
 - `Pages` (SMALLINT) - Page count
-- `BookNote` (MEDIUMTEXT) - Notes and comments
-- `Recycled` (TINYINT(1)) - 0=No, 1=Yes (donated/removed)
-- `Location` (VARCHAR(50)) - Physical location (indexed)
-- `LastUpdate` (TIMESTAMP) - Auto-updated timestamp
+- `BookNote` (TEXT) - Notes and comments
+- `Recycled` (SMALLINT) - 0=No, 1=Yes (donated/removed)
+- `Location` (VARCHAR(50), NOT NULL, indexed) - Physical location
+- `LastUpdate` (TIMESTAMP) - Auto-updated via trigger
 
-**Valid Locations**: Main Collection, DOWNLOAD, Oversized, Pets, Woodwork, Reference, Birding
-
-**Current Record Count**: ~2,900 books
+**Valid Locations**: Main Collection, Bedroom, Storage, Oversized, Pets, Woodwork, Reference, Birding, DOWNLOAD
 
 #### 2. **books_read** - Reading History
 
 Tracks when books were read and reading notes.
 
 **Key Fields:**
-- `BookId` (INT UNSIGNED) - Foreign key to books
-- `ReadDate` (DATE) - Date book was read/started
+- `BookId` (INTEGER, FK -> books, ON DELETE CASCADE) - Foreign key to books
+- `ReadDate` (DATE, NOT NULL) - Date book was read/finished
 - `ReadNote` (TEXT) - Reading notes and comments
-- `LastUpdate` (TIMESTAMP) - Auto-updated timestamp
+- `LastUpdate` (TIMESTAMP) - Auto-updated via trigger
 
 **Primary Key**: (BookId, ReadDate) - Allows tracking multiple readings
 
 #### 3. **books_tags** & **tag_labels** - Book Categorization
 
-**books_tags** - Book-to-tag relationships:
-- `BookId` (INT) - Book identifier
-- `TagId` (INT) - Tag identifier
+**books_tags** - Book-to-tag relationships (PK: BookId, TagId):
+- `BookId` (INTEGER, FK -> books, ON DELETE CASCADE)
+- `TagId` (INTEGER, FK -> tag_labels, ON DELETE CASCADE)
 - `LastUpdate` (TIMESTAMP)
 
 **tag_labels** - Tag definitions:
-- `TagId` (PRIMARY KEY, AUTO_INCREMENT)
+- `TagId` (PRIMARY KEY, `SERIAL`)
 - `Label` (VARCHAR(50), UNIQUE) - Tag name (lowercase)
 
 Tags provide flexible categorization for books.
@@ -838,43 +836,45 @@ Tags provide flexible categorization for books.
 Tracks reading progress and completion estimates for books in progress.
 
 **Key Fields:**
-- `RecordId` (PRIMARY KEY, AUTO_INCREMENT)
-- `BookId` (BIGINT UNSIGNED) - Book being read
-- `StartDate` (DATETIME) - Reading start date
-- `LastReadablePage` (BIGINT) - Total pages in book
-- `EstimateDate` (DATETIME) - Estimate calculation date
-- `EstimatedFinishDate` (DATETIME) - Predicted completion date
+- `RecordId` (PRIMARY KEY, `BIGSERIAL`)
+- `BookId` (INTEGER, FK -> books, ON DELETE CASCADE) - Book being read
+- `StartDate` (TIMESTAMP, NOT NULL) - Reading start date
+- `LastReadablePage` (BIGINT, NOT NULL) - Total pages in book
+- `EstimateDate` (TIMESTAMP) - Estimate calculation date
+- `EstimatedFinishDate` (TIMESTAMP) - Predicted completion date
 
 #### 5. **daily_page_records** - Daily Reading Progress
 
 Records daily page counts for reading estimates.
 
 **Key Fields:**
-- `RecordId` (BIGINT UNSIGNED) - Links to complete date estimates
-- `RecordDate` (DATETIME) - Date of reading
-- `Page` (BIGINT) - Page number reached
+- `RecordId` (BIGINT, FK -> complete_date_estimates, ON DELETE CASCADE) - Links to complete date estimates
+- `RecordDate` (TIMESTAMP, NOT NULL) - Date of reading
+- `Page` (BIGINT, NOT NULL) - Page number reached
 - `LastUpdate` (TIMESTAMP)
 
-**Primary Key**: (RecordId, RecordDate)
+**Primary Key**: (RecordDate, RecordId)
 
 #### 6. **images** - Book Cover Images
 
 Stores book cover images and other book-related images.
 
 **Key Fields:**
-- `ImageId` (PRIMARY KEY, AUTO_INCREMENT)
-- `BookId` (INT) - Book identifier
+- `ImageId` (PRIMARY KEY, `SERIAL`)
+- `BookId` (INTEGER, FK -> books, ON DELETE CASCADE)
 - `Name` (VARCHAR(255)) - Image filename
 - `Url` (VARCHAR(255)) - Image URL or path
-- `ImageType` (VARCHAR(64)) - Image type (default: 'cover-face')
+- `ImageType` (VARCHAR(64), default `'cover-face'`) - Image type
 
 ### Schema File
 
-The complete schema is available in `database/schema.sql` and can be used to create the database:
+The complete schema is available in `database/schema_postgres.sql` and can be used to create the database (run once against an existing, empty `book-collection` database):
 
 ```bash
-mysql -u root -p book_collection < database/schema.sql
+psql -U <db_user> -h <host> -d book-collection < database/schema_postgres.sql
 ```
+
+For a full fresh install (creating the role and database too), see `database/setup_db.py` and the root `README.md`.
 
 ---
 
@@ -1206,7 +1206,7 @@ make push-book-service REGISTRY=myregistry.com:5000
 
 **Location**: `book_service/books/Dockerfile`
 
-**Base Image**: `python:3.11-slim`
+**Base Image**: `python:3.12-slim`
 
 **Key Components**:
 - **Working Directory**: `/app`
@@ -1229,13 +1229,13 @@ docker build -f book_service/books/Dockerfile -t book-service .
 
 **Location**: `book_service/booksmcp/Dockerfile`
 
-**Base Image**: `python:3.11-slim`
+**Base Image**: `python:3.12-slim`
 
 **Key Components**:
 - **Working Directory**: `/app`
 - **Package Manager**: pip (no Poetry)
 - **System Dependencies**: gcc, g++ (for building Python packages)
-- **Python Dependencies**: fastmcp, pymysql from `requirements.txt`
+- **Python Dependencies**: fastmcp, psycopg2-binary from `requirements.txt`
 - **Configuration**: `BOOKDB_CONFIG` environment variable
 - **Port**: 3005 exposed
 - **Health Check**: Probes `/health` endpoint every 30s
@@ -1256,26 +1256,26 @@ docker build -f booksmcp/Dockerfile -t booksmcp-service .
 **Location**: `book_service/books/docker-compose.yml`
 
 ```yaml
-version: '3'
 services:
   book-service:
+    restart: unless-stopped
     image: localhost:5000/book-service:latest
     container_name: book-service
-    ports:
-      - "8084:8084"
     environment:
       - API_KEY=${API_KEY}
     volumes:
-      - /var/www/html/resources/books:/app/uploads
-    restart: unless-stopped
+      - /var/www/html/resources/books:/books/uploads
+    ports:
+      - 8084:8084
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - host.docker.internal:host-gateway
+networks: {}
 ```
 
 **Key Features**:
 - Volume mount for persistent book uploads
 - Environment variable for API key
-- Host network mapping for accessing host MySQL
+- Host network mapping for accessing a host-installed PostgreSQL server (`host.docker.internal`)
 
 **Usage**:
 ```bash
@@ -1289,29 +1289,33 @@ docker-compose up -d
 **Location**: `book_service/booksmcp/docker-compose.yml`
 
 ```yaml
-version: '3'
 services:
   booksmcp:
     image: localhost:5000/booksmcp-service:latest
     container_name: booksmcp-service
     ports:
-      - "3005:3005"
+      - 3005:3005
     environment:
+      - PYTHONUNBUFFERED=1
       - PORT=3005
       - HOST=0.0.0.0
-      - PYTHONUNBUFFERED=1
       - BOOKDB_CONFIG=/app/config/configuration.json
+    restart: unless-stopped
     networks:
       - books-network
-    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3005/health"]
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request;
+          urllib.request.urlopen('http://localhost:3005/health')
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - host.docker.internal:host-gateway
 
 networks:
   books-network:
@@ -1701,7 +1705,7 @@ curl http://localhost:3005/health
 
 **Requirements**:
 - Poetry and dependencies installed: `make install-deps`
-- MySQL database running and accessible
+- PostgreSQL database running and accessible
 - Configuration file created and configured
 
 ---
@@ -1998,14 +2002,16 @@ cd bin
 #### Manual Backup
 
 ```bash
-mysqldump -u username -p book_collection > backup_$(date +%Y%m%d).sql
+pg_dump -U username -h host -p 5434 book_collection > backup_$(date +%Y%m%d).sql
 ```
 
 #### Restore Database
 
 ```bash
-mysql -u username -p book_collection < backup_20250104.sql
+psql -U username -h host -p 5434 book_collection < backup_20250104.sql
 ```
+
+**Note**: `bin/backup_db.sh` still shells out to `mysqldump`/`mysql` from before the May 2026 PostgreSQL migration and will not work as-is - use the manual `pg_dump`/`psql` commands above until that script is updated.
 
 ---
 
@@ -2048,7 +2054,7 @@ vim book_service/config/configuration.json
 # Fill in your database credentials and API key
 
 # 4. Verify database connection
-mysql -u your_user -p book_collection -e "SELECT COUNT(*) FROM books;"
+psql -U your_user -h host -p 5434 book_collection -c "SELECT COUNT(*) FROM books;"
 ```
 
 #### Running Services Locally
@@ -2294,11 +2300,11 @@ docker-compose up -d
 When modifying the database schema:
 
 ```bash
-# 1. Update database/schema.sql
-vim database/schema.sql
+# 1. Update database/schema_postgres.sql
+vim database/schema_postgres.sql
 
 # 2. Test on development database
-mysql -u user -p book_collection < database/schema.sql
+psql -U user -h host -p 5434 book_collection < database/schema_postgres.sql
 
 # 3. Update API code if needed
 vim book_service/books/api.py
@@ -2493,21 +2499,21 @@ curl http://localhost:8084/configuration
 
 **Symptoms**:
 ```
-pymysql.err.OperationalError: (2003, "Can't connect to MySQL server...")
+psycopg2.OperationalError: could not connect to server: Connection refused
 ```
 
 **Solutions**:
 
-1. **Check MySQL is running**:
+1. **Check PostgreSQL is running**:
    ```bash
-   sudo systemctl status mysql
+   sudo systemctl status postgresql
    # or
-   docker ps | grep mysql
+   docker ps | grep postgres
    ```
 
 2. **Verify database credentials**:
    ```bash
-   mysql -u username -p -h host -P 3306 book_collection
+   psql -U username -h host -p 5434 book_collection
    # Should connect successfully
    ```
 
@@ -2521,7 +2527,7 @@ pymysql.err.OperationalError: (2003, "Can't connect to MySQL server...")
    ```json
    {
      "host": "host.docker.internal",
-     "port": 3306
+     "port": 5434
    }
    ```
 
@@ -2530,11 +2536,11 @@ pymysql.err.OperationalError: (2003, "Can't connect to MySQL server...")
    docker exec -it book-service ping host.docker.internal
    ```
 
-6. **Verify MySQL allows remote connections**:
+6. **Verify PostgreSQL allows remote connections** (`pg_hba.conf` and `postgresql.conf`):
    ```sql
-   -- In MySQL
-   SELECT user, host FROM mysql.user WHERE user='your_user';
-   -- Host should be '%' or your Docker network
+   -- In PostgreSQL
+   SELECT usename, client_addr FROM pg_stat_activity WHERE usename = 'your_user';
+   -- pg_hba.conf should have a matching host entry for your Docker network's subnet
    ```
 
 ---
@@ -2822,8 +2828,8 @@ docker exec -it book-service bash
 # Check processes
 ps aux
 
-# Check network
-curl http://host.docker.internal:3306
+# Check network (a bare TCP connect test - psql is more informative)
+nc -zv host.docker.internal 5434
 
 # Check files
 ls -la /app/
@@ -2891,17 +2897,17 @@ docker system df
 - **MCP Server Comprehensive Guide**: `book_service/booksmcp/README.md` - 575 lines of detailed MCP server documentation
 - **BookDBTool Tests**: `test/README.md` - Test coverage and running instructions
 - **Example Payloads**: `book_service/example_json_payloads/` - Sample JSON for API testing
-- **Database Schema**: `database/schema.sql` - Complete MySQL schema
+- **Database Schema**: `database/schema_postgres.sql` - Complete PostgreSQL schema
 
 ### External Resources
 
 #### Python and Dependencies
 
-- **Python 3.11 Documentation**: https://docs.python.org/3.11/
+- **Python 3.12 Documentation**: https://docs.python.org/3.12/
 - **Poetry Documentation**: https://python-poetry.org/docs/
 - **Flask Documentation**: https://flask.palletsprojects.com/
 - **Pandas Documentation**: https://pandas.pydata.org/docs/
-- **PyMySQL Documentation**: https://pymysql.readthedocs.io/
+- **psycopg2 Documentation**: https://www.psycopg.org/docs/
 
 #### Docker
 
@@ -2934,7 +2940,7 @@ docker system df
 
 ### Tools and Utilities
 
-- **MySQL Documentation**: https://dev.mysql.com/doc/
+- **PostgreSQL Documentation**: https://www.postgresql.org/docs/
 - **uWSGI Documentation**: https://uwsgi-docs.readthedocs.io/
 - **Makefile Tutorial**: https://makefiletutorial.com/
 
