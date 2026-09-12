@@ -1,4 +1,4 @@
-__version__ = '0.20.3'
+__version__ = '0.21.1'
 
 import functools
 import json
@@ -9,6 +9,7 @@ from logging.config import dictConfig
 import pandas as pd
 import requests
 from booksdb.api_util import *
+from booksdb.chat_util import run_chat_loop
 from flask import Flask, Response, send_file, request, abort
 from matplotlib import pylab as plt
 from werkzeug.utils import secure_filename
@@ -32,6 +33,8 @@ dictConfig({
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB upload limit
+
+check_embedding_index_freshness()
 
 
 def resp_header(rdata):
@@ -654,6 +657,38 @@ def rag_search_endpoint():
     return json_response({"results": rag_search(query, limit=limit)})
 
 
+@app.route('/chat', methods=['POST'])
+@require_app_key
+def chat_endpoint():
+    """
+    Run one turn of the AI Chat tool-calling loop server-side.
+
+    Request body: {"messages": [...]} -- the running OpenAI-format
+    conversation history (user/assistant/tool turns only; the system
+    prompt is owned server-side and never sent by or returned to the
+    client). The frontend never configures or sees the chat model, host,
+    or API key -- those live only in ai_agent.chat_host/chat_model/
+    chat_api_key on this server.
+
+    Response body: {"history": [...], "trace": [...]} -- the updated
+    history to store for the next turn, and an ordered trace of tool
+    calls/results plus the final assistant reply to render.
+    """
+    if not CHAT_HOST or not CHAT_MODEL:
+        return json_response({"error": "Chat is not configured on this server."}, status=503)
+    data = request.get_json() or {}
+    history = data.get("messages") or []
+    try:
+        result = run_chat_loop(history)
+    except requests.RequestException as e:
+        app_logger.error(f"chat completion request failed: {e}")
+        return json_response(
+            {"error": "The AI chat backend is unavailable. Please check the chat LLM server and try again."},
+            status=502,
+        )
+    return json_response(result)
+
+
 ##########################################################################
 # COMPLETE BOOK RECORD
 ##########################################################################
@@ -956,24 +991,7 @@ def date_page_records(record_id=None):
 @app.route('/record_set/<book_id>')
 @require_app_key
 def record_set(book_id=None):
-    db = psycopg2.connect(**books_conf)
-    rdata = {"record_set": {"BookId": book_id, "RecordId": [], "Estimate": []}}
-    q = "SELECT StartDate, RecordId FROM complete_date_estimates WHERE BookId = %s ORDER BY StartDate ASC"
-    res = []
-    try:
-        with db.cursor() as c:
-            try:
-                c.execute(q, (book_id,))
-                res = c.fetchall()
-            except psycopg2.Error as e:
-                rdata["error"] = [str(e)]
-                app.logger.error(e)
-    finally:
-        db.close()
-    for record in [(str(x[0]), int(x[1])) for x in res]:
-        rdata["record_set"]["RecordId"].append(record)
-        rdata["record_set"]["Estimate"].append(calculate_estimates(record[1]))
-    return json_response(rdata)
+    return json_response(get_estimate_records_for_book(book_id))
 
 
 @app.route('/add_date_page', methods=['POST'])

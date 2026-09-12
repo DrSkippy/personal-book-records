@@ -24,14 +24,6 @@ server {
         proxy_cache off;
     }
 
-    # Ollama/LM Studio — browser can't reach 192.168.1.91 directly
-    location /ollama/ {
-        proxy_pass http://192.168.1.91:1234/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_read_timeout 120s;
-    }
-
     # SPA routing — all paths fall back to index.html
     location / {
         try_files $uri $uri/ /index.html;
@@ -49,7 +41,7 @@ server {
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self' data:;" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://resources.drskippy.app; connect-src 'self'; font-src 'self' data: https://fonts.gstatic.com;" always;
 
     # Cloudflare Zero Trust tunnel: cloudflared runs at 192.168.1.172
     real_ip_header CF-Connecting-IP;

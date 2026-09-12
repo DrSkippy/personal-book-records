@@ -160,6 +160,8 @@ tools/
 │   ├── schema_current.sql       # Canonical schema for a fresh install (run via setup_db.py)
 │   ├── schema_postgres.sql      # Incremental schema for an existing, already-migrated database
 │   ├── add_pgvector.sql         # RAG/pgvector addition (folded into schema_current.sql)
+│   ├── add_embedding_index_state.sql  # Adds embedding_index_state (folded into schema_current.sql)
+│   ├── index_notes.py           # Batch (re)index book/read notes into pgvector
 │   ├── setup_db.py              # Fresh-install database setup script
 │   ├── migrate_mysql_to_postgres.py  # One-time MySQL -> PostgreSQL migration script
 │   ├── schema.json              # Machine-readable schema (JSON Schema)
@@ -742,9 +744,10 @@ All tools use a single configuration file: `book_service/config/configuration.js
   "endpoint": "http://localhost:8084",
   "api_key": "your_40_char_api_key_here",
   "ai_agent": {
-    "chat_host": "http://<ollama-host>:11434",
-    "chat_model": "gpt-oss",
-    "embed_host": "http://<lm-studio-host>:1234",
+    "chat_host": "http://<chat-llm-host>:1234",
+    "chat_model": "your-chat-model",
+    "chat_api_key": "bearer-token-for-chat-api",
+    "embed_host": "http://<embedding-llm-host>:1234",
     "embed_model": "your-embedding-model",
     "embed_api_key": "bearer-token-for-embedding-api",
     "embed_dimensions": 768
@@ -765,20 +768,35 @@ All tools use a single configuration file: `book_service/config/configuration.js
 | `isbn_com.key` | ISBNdb.com API key | Optional |
 | `endpoint` | REST API endpoint URL | Yes (for bookdbtool) |
 | `api_key` | REST API authentication key | Yes (for bookdbtool) |
-| `ai_agent.chat_host` | Ollama server URL used by the bookdbtool CLI's AI chat (`bin/books.py`) | Optional (bookdbtool only) |
-| `ai_agent.chat_model` | Ollama model name for the bookdbtool CLI's AI chat | Optional (bookdbtool only) |
+| `ai_agent.chat_host` | OpenAI-compatible chat LLM server URL, used by both the bookdbtool CLI's AI chat (`bin/books.py`) and the REST API's `POST /chat` endpoint (which backs the React AI Chat page) | Optional (bookdbtool + REST API) |
+| `ai_agent.chat_model` | Chat model name | Optional (bookdbtool + REST API) |
+| `ai_agent.chat_api_key` | Bearer token for the chat LLM server | Optional (bookdbtool + REST API) |
 | `ai_agent.embed_host` | OpenAI-compatible embeddings endpoint (LM Studio) used for RAG semantic search | Optional (REST API + MCP) |
 | `ai_agent.embed_model` | Embedding model name | Optional (REST API + MCP) |
 | `ai_agent.embed_api_key` | Bearer token for the embeddings endpoint | Optional (REST API + MCP) |
 | `ai_agent.embed_dimensions` | Embedding vector dimension; must match the `vector(N)` column in `book_note_embeddings` (default: 768) | Optional (REST API + MCP) |
 
-Note the React frontend's AI Chat page is unrelated to this file - it talks to LM Studio directly via `VITE_OLLAMA_*` vars in `book-records-react/.env.local`, baked in at frontend build time.
+`chat_host`/`chat_api_key` and `embed_host`/`embed_api_key` authenticate to independent servers - they are not required to point at the same host, and each needs its own key, even when (as in this deployment) both currently resolve to the same physical LM Studio instance.
+
+The React frontend's AI Chat page holds none of this configuration. It POSTs the running conversation to `/api/chat` (same-origin, via `VITE_API_BASE_URL`/`VITE_API_KEY`); book-service runs the full tool-calling loop server-side against `ai_agent.chat_host/chat_model/chat_api_key` and returns the result. The frontend never sees the chat model name, host, or key.
+
+**Embedding model change protection:** book-service and booksmcp both check, at process startup, whether the configured `embed_host`/`embed_model`/`embed_dimensions` still match what's recorded in the `embedding_index_state` table (set by the last full `index_notes.py --rebuild`). On a mismatch the process exits immediately with an error naming the old and new model/host and instructing the admin to run:
+```bash
+poetry run python database/index_notes.py --rebuild
+```
+This is deliberate - changing `embed_model` without a rebuild would silently mix vectors from two different embedding spaces in `book_note_embeddings`, corrupting semantic search results without any error. There is no automatic reindex; a human runs the rebuild and restarts the service. If `book_note_embeddings` already holds known-good embeddings but `embedding_index_state` hasn't been seeded yet (e.g. right after applying `database/add_embedding_index_state.sql` to an existing database), run `index_notes.py --mark-current` instead to record the baseline without re-embedding anything.
+
+**AI Chat endpoint:** `POST /chat` (book-service only, not MCP) runs the full tool-calling loop server-side against `ai_agent.chat_host/chat_model/chat_api_key` and backs the React AI Chat page. Request body `{"messages": [...]}` is the running conversation as OpenAI-format `user`/`assistant`/`tool` turns -- the system prompt is owned by the server and neither sent nor returned. Response body `{"history": [...], "trace": [...]}`: `history` is the updated conversation to send back on the next turn, and `trace` is an ordered list of `{"type": "assistant", "content": ...}` and `{"type": "tool", "toolName": ..., "toolArgs": ..., "toolResult": ...}` events for the UI to render. Returns 503 if chat isn't configured, 502 if the chat LLM server is unreachable.
+
+`chat_host` just needs to serve an OpenAI-compatible `/v1/chat/completions` -- LM Studio and OpenRouter (`chat_host: "https://openrouter.ai/api"`, note the `/api` segment) have both been used in production. Tool-calling quality depends entirely on the chosen model; a model that ignores the system prompt's tool-selection guidance (e.g. confusing "recently read" with "recently edited", see `SYSTEM_PROMPT` in `chat_util.py`) will misbehave regardless of backend correctness.
+
+**Oversized tool results:** `get_tag_counts` accepts a `limit` (default 20, sorted most-used first) so "top N tags" questions don't require fetching the whole tag table. As a backstop for any tool, `chat_util.MAX_TOOL_RESULT_CHARS` (8000) truncates whatever goes back into the model-facing history -- this exists because an unbounded `get_tag_counts` call once returned enough JSON to exceed a local model's context window outright (57k tokens against a 31k limit), which surfaces as a 502 from `/chat`. Truncation only affects what the model sees; the UI's `trace` always gets the full result.
 
 ### Environment Variables
 
 Every field can be set via the JSON file; the ones below can also be overridden per-process via environment variable (the env var always wins when set).
 
-#### For REST API (Book Service) and MCP Server
+#### For REST API (Book Service)
 
 ```bash
 export BOOKDB_CONFIG=/path/to/config/configuration.json  # or BOOKSDB_CONFIG
@@ -787,23 +805,33 @@ export AI_EMBED_HOST=http://host:1234       # overrides ai_agent.embed_host
 export AI_EMBED_MODEL=your-embedding-model  # overrides ai_agent.embed_model
 export AI_EMBED_API_KEY=bearer-token        # overrides ai_agent.embed_api_key
 export AI_EMBED_DIMENSIONS=768              # overrides ai_agent.embed_dimensions
+export AI_CHAT_HOST=http://host:1234        # overrides ai_agent.chat_host -- powers POST /chat
+export AI_CHAT_MODEL=your-chat-model        # overrides ai_agent.chat_model
+export AI_CHAT_API_KEY=bearer-token         # overrides ai_agent.chat_api_key
 ```
 
-MCP Server-specific:
+MCP Server-specific (does not use `AI_CHAT_*` -- chat lives in the REST API only):
 
 ```bash
 export PORT=3005
 export HOST=0.0.0.0
 export PYTHONUNBUFFERED=1
+export AI_EMBED_HOST=http://host:1234       # overrides ai_agent.embed_host
+export AI_EMBED_MODEL=your-embedding-model  # overrides ai_agent.embed_model
+export AI_EMBED_API_KEY=bearer-token        # overrides ai_agent.embed_api_key
+export AI_EMBED_DIMENSIONS=768              # overrides ai_agent.embed_dimensions
 ```
 
 #### For bookdbtool CLI (`bin/books.py`)
 
+`bin/books.py` has its own AI chat (`OllamaAgent`), separate from the REST API's `/chat` endpoint -- both read the same `ai_agent.chat_*` config, but each has its own process and its own env-var overrides:
+
 ```bash
-export AI_CHAT_HOST=http://host:11434   # overrides ai_agent.chat_host
-export AI_CHAT_MODEL=gpt-oss            # overrides ai_agent.chat_model
-export AI_CHAT_TIMEOUT=10               # overrides ai_agent.timeout
-export AI_CHAT_MAX_HISTORY=50           # overrides ai_agent.max_history
+export AI_CHAT_HOST=http://host:1234    # overrides ai_agent.chat_host
+export AI_CHAT_MODEL=your-chat-model    # overrides ai_agent.chat_model
+export AI_CHAT_API_KEY=bearer-token     # overrides ai_agent.chat_api_key
+export AI_CHAT_TIMEOUT=10               # overrides ai_agent.timeout (bookdbtool only)
+export AI_CHAT_MAX_HISTORY=50           # overrides ai_agent.max_history (bookdbtool only)
 ```
 
 ### Docker Configuration

@@ -153,6 +153,22 @@ tables:
       embedding:  { type: "vector(768)", nullable: true, description: "Dimension must match ai_agent.embed_dimensions in configuration.json" }
       updated_at: { type: TIMESTAMP, nullable: false, default: CURRENT_TIMESTAMP }
 
+  embedding_index_state:
+    description: >
+      Single-row marker recording which embed_host/embed_model/embed_dimensions
+      produced the vectors currently stored in book_note_embeddings. Checked by
+      book-service and booksmcp at startup against configuration.json's
+      ai_agent.embed_* values; a mismatch exits the process with instructions
+      to run index_notes.py --rebuild. Updated only by a full rebuild (or an
+      explicit index_notes.py --mark-current), never by incremental indexing.
+    primary_key: [id]
+    columns:
+      id:               { type: INTEGER, nullable: false, default: 1, check: "id = 1" }
+      embed_host:       { type: TEXT, nullable: false }
+      embed_model:      { type: TEXT, nullable: false }
+      embed_dimensions: { type: INTEGER, nullable: false }
+      updated_at:       { type: TIMESTAMP, nullable: false, default: CURRENT_TIMESTAMP }
+
 # Relationship summary (for quick reference by tools and code generators)
 relationships:
   - parent: books

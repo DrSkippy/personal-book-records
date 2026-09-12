@@ -77,7 +77,7 @@ Output goes to `book-records-react/dist/`.
 
 ### Step 4 — Configure nginx
 
-One site config handles everything on port 83: the React SPA, REST API (`/api/`), MCP server (`/mcp/`), and Ollama proxy (`/ollama/`).
+One site config handles everything on port 83: the React SPA, REST API (`/api/`), and MCP server (`/mcp/`). The AI Chat page talks to the chat LLM server through the REST API (`POST /api/chat`), so there is no separate browser-facing LLM proxy.
 
 ```bash
 sudo cp books.drskippy.app /etc/nginx/sites-available/books.drskippy.app
@@ -146,16 +146,13 @@ A Vite + React + TypeScript SPA served via nginx at `https://books.drskippy.app`
 - **Add / Edit Book** — create and update book records
 - **Add Read Date / Page Progress / Estimate** — logging forms
 - **Batch Update Read Notes** — bulk-edit notes across read records
-- **AI Chat** — LM Studio-backed assistant with tool access to the collection and RAG semantic search over notes
+- **AI Chat** — assistant with tool access to the collection and RAG semantic search over notes; the chat model/host/key are configured server-side only (see `tools/README.md`), the frontend just calls `POST /api/chat`
 
 **Environment variables (`.env.local`):**
 ```
 VITE_API_BASE_URL=       # REST API base URL, e.g. https://books.example.com/api
 VITE_API_KEY=            # x-api-key header value
 VITE_RESOURCE_BASE_URL=  # static image/resource base URL
-VITE_OLLAMA_BASE_URL=    # LM Studio base URL, e.g. https://books.example.com/ollama
-VITE_OLLAMA_MODEL=       # Chat model name loaded in LM Studio
-VITE_OLLAMA_API_KEY=     # LM Studio bearer token
 ```
 
 ---

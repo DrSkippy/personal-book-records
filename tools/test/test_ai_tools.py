@@ -1,8 +1,7 @@
 import unittest
-from unittest.mock import Mock, patch, MagicMock, call
+from unittest.mock import Mock, patch
 import sys
 import os
-import json
 from io import StringIO
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
@@ -10,21 +9,25 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from bookdbtool.ai_tools import OllamaAgent
 
 
+def _openai_response(content="", tool_calls=None):
+    message = {"role": "assistant", "content": content}
+    if tool_calls:
+        message["tool_calls"] = tool_calls
+    return {"choices": [{"message": message, "finish_reason": "stop"}]}
+
+
 class TestOllamaAgent(unittest.TestCase):
 
-    @patch('bookdbtool.ai_tools.ollama.Client')
     @patch('bookdbtool.ai_tools.requests.Session')
-    def setUp(self, mock_session_class, mock_client_class):
+    def setUp(self, mock_session_class):
         self.mock_session = Mock()
         mock_session_class.return_value = self.mock_session
-
-        self.mock_client = Mock()
-        mock_client_class.return_value = self.mock_client
 
         self.config = {
             "ai_agent": {
                 "chat_model": "test-model",
                 "chat_host": "http://localhost:11434",
+                "chat_api_key": "test-chat-key",
                 "timeout": 15,
                 "max_history": 100
             },
@@ -33,45 +36,64 @@ class TestOllamaAgent(unittest.TestCase):
         }
         self.agent = OllamaAgent(self.config)
 
-    @patch('bookdbtool.ai_tools.ollama.Client')
     @patch('bookdbtool.ai_tools.requests.Session')
-    def test_init(self, mock_session_class, mock_client_class):
+    def test_init(self, mock_session_class):
         agent = OllamaAgent(self.config)
         self.assertEqual(agent.ollama_host, "http://localhost:11434")
         self.assertEqual(agent.book_db_host, "http://localhost:8084")
         self.assertEqual(agent.model_name, "test-model")
         self.assertEqual(agent.api_key, "test-api-key")
+        self.assertEqual(agent.chat_api_key, "test-chat-key")
         self.assertEqual(agent.timeout, 15)
         self.assertEqual(agent.max_history, 100)
         self.assertIsNone(agent.reply)
         self.assertEqual(agent.conversation_history, [])
 
-    @patch('bookdbtool.ai_tools.ollama.Client')
     @patch('bookdbtool.ai_tools.requests.Session')
-    def test_init_defaults(self, mock_session_class, mock_client_class):
+    def test_init_defaults(self, mock_session_class):
         minimal_config = {}
         agent = OllamaAgent(minimal_config)
         self.assertEqual(agent.ollama_host, "http://localhost:11434")
         self.assertEqual(agent.book_db_host, "http://localhost:8084")
         self.assertEqual(agent.model_name, "gpt-oss")
         self.assertEqual(agent.api_key, "")
+        self.assertEqual(agent.chat_api_key, "")
         self.assertEqual(agent.timeout, 10)
         self.assertEqual(agent.max_history, 50)
 
     @patch.dict(os.environ, {
         "AI_CHAT_HOST": "http://env-host:9999",
         "AI_CHAT_MODEL": "env-model",
+        "AI_CHAT_API_KEY": "env-chat-key",
         "AI_CHAT_TIMEOUT": "30",
         "AI_CHAT_MAX_HISTORY": "5",
     })
-    @patch('bookdbtool.ai_tools.ollama.Client')
     @patch('bookdbtool.ai_tools.requests.Session')
-    def test_init_env_overrides_config(self, mock_session_class, mock_client_class):
+    def test_init_env_overrides_config(self, mock_session_class):
         agent = OllamaAgent(self.config)
         self.assertEqual(agent.ollama_host, "http://env-host:9999")
         self.assertEqual(agent.model_name, "env-model")
+        self.assertEqual(agent.chat_api_key, "env-chat-key")
         self.assertEqual(agent.timeout, 30)
         self.assertEqual(agent.max_history, 5)
+
+    @patch('bookdbtool.ai_tools.requests.post')
+    def test_chat_completion_sets_auth_header_when_key_present(self, mock_post):
+        mock_post.return_value = Mock(json=Mock(return_value=_openai_response("hi")), raise_for_status=Mock())
+        self.agent._chat_completion([{"role": "user", "content": "hi"}])
+        _, kwargs = mock_post.call_args
+        self.assertEqual(kwargs["headers"]["Authorization"], "Bearer test-chat-key")
+        self.assertEqual(kwargs["json"]["model"], "test-model")
+        self.assertTrue(mock_post.call_args[0][0].endswith("/v1/chat/completions"))
+
+    @patch('bookdbtool.ai_tools.requests.post')
+    def test_chat_completion_omits_auth_header_when_no_key(self, mock_post):
+        mock_post.return_value = Mock(json=Mock(return_value=_openai_response("hi")), raise_for_status=Mock())
+        config = {**self.config, "ai_agent": {**self.config["ai_agent"], "chat_api_key": ""}}
+        agent = OllamaAgent(config)
+        agent._chat_completion([{"role": "user", "content": "hi"}])
+        _, kwargs = mock_post.call_args
+        self.assertNotIn("Authorization", kwargs["headers"])
 
     def test_tools_structure(self):
         # TOOLS is now a class variable
@@ -91,11 +113,10 @@ class TestOllamaAgent(unittest.TestCase):
             self.agent.search_books_by_author
         )
 
-    @patch('bookdbtool.ai_tools.ollama.Client')
     @patch('bookdbtool.ai_tools.requests.Session')
     @patch('bookdbtool.ai_tools.Path')
     @patch('builtins.open', new_callable=unittest.mock.mock_open, read_data='{"endpoint": "http://test.com"}')
-    def test_from_config_file_success(self, mock_open, mock_path, mock_session, mock_client):
+    def test_from_config_file_success(self, mock_open, mock_path, mock_session):
         mock_path.return_value.exists.return_value = True
 
         agent = OllamaAgent.from_config_file("config.json")
@@ -211,41 +232,6 @@ class TestOllamaAgent(unittest.TestCase):
         self.assertFalse(result["success"])
         self.assertIn("error", result)
 
-    def test_tool_call_to_dict_with_dict(self):
-        tool_call = {"function": {"name": "test", "arguments": {}}}
-        result = OllamaAgent._tool_call_to_dict(tool_call)
-        self.assertEqual(result, tool_call)
-
-    def test_tool_call_to_dict_with_object(self):
-        tool_call = Mock()
-        tool_call.function = Mock()
-        tool_call.function.name = "search_books_by_author"
-        tool_call.function.arguments = {"author": "Test"}
-
-        result = OllamaAgent._tool_call_to_dict(tool_call)
-        self.assertIn("function", result)
-        self.assertEqual(result["function"]["name"], "search_books_by_author")
-
-    def test_message_to_dict_with_dict(self):
-        message = {
-            "role": "assistant",
-            "content": "Hello",
-            "tool_calls": [{"function": {"name": "test"}}]
-        }
-        result = OllamaAgent._message_to_dict(message)
-        self.assertEqual(result["role"], "assistant")
-        self.assertEqual(result["content"], "Hello")
-
-    def test_message_to_dict_with_object(self):
-        message = Mock()
-        message.role = "assistant"
-        message.content = "Hello"
-        message.tool_calls = None
-
-        result = OllamaAgent._message_to_dict(message)
-        self.assertEqual(result["role"], "assistant")
-        self.assertEqual(result["content"], "Hello")
-
     def test_trim_history(self):
         self.agent.max_history = 5
         # Add more than max_history entries
@@ -257,14 +243,12 @@ class TestOllamaAgent(unittest.TestCase):
         # Should keep the most recent messages
         self.assertEqual(self.agent.conversation_history[0]["content"], "msg5")
 
-    def test_chat_without_tool_calls(self):
-        mock_response = {
-            "message": {
-                "role": "assistant",
-                "content": "Hello! How can I help you?"
-            }
-        }
-        self.mock_client.chat.return_value = mock_response
+    @patch('bookdbtool.ai_tools.requests.post')
+    def test_chat_without_tool_calls(self, mock_post):
+        mock_post.return_value = Mock(
+            json=Mock(return_value=_openai_response("Hello! How can I help you?")),
+            raise_for_status=Mock(),
+        )
 
         with patch('sys.stdout', new=StringIO()) as fake_out:
             self.agent.chat("Hello")
@@ -275,38 +259,33 @@ class TestOllamaAgent(unittest.TestCase):
         self.assertEqual(self.agent.conversation_history[0]["role"], "user")
         self.assertEqual(self.agent.conversation_history[1]["role"], "assistant")
 
-    def test_chat_with_tool_calls(self):
+    @patch('bookdbtool.ai_tools.requests.post')
+    def test_chat_with_tool_calls(self, mock_post):
         # Create a mock for the search function and patch it in available_functions
         mock_search = Mock()
         mock_search.return_value = {"data": [[1, "Book", "Author"]], "header": ["ID", "Title", "Author"]}
         self.agent.available_functions["search_books_by_author"] = mock_search
 
-        initial_response = {
-            "message": {
-                "role": "assistant",
-                "content": "",
-                "tool_calls": [
-                    {
-                        "function": {
-                            "name": "search_books_by_author",
-                            "arguments": {"author": "Tolkien"}
-                        }
-                    }
-                ]
+        initial_response = _openai_response(tool_calls=[
+            {
+                "id": "call_1",
+                "function": {
+                    "name": "search_books_by_author",
+                    "arguments": '{"author": "Tolkien"}'
+                }
             }
-        }
+        ])
+        final_response = _openai_response("I found books by Tolkien.")
 
-        final_chunks = [
-            {"message": {"content": "I found "}},
-            {"message": {"content": "books by Tolkien."}}
+        mock_post.side_effect = [
+            Mock(json=Mock(return_value=initial_response), raise_for_status=Mock()),
+            Mock(json=Mock(return_value=final_response), raise_for_status=Mock()),
         ]
-
-        self.mock_client.chat.side_effect = [initial_response, iter(final_chunks)]
 
         with patch('sys.stdout', new=StringIO()) as fake_out:
             self.agent.chat("Find books by Tolkien")
             output = fake_out.getvalue()
-            self.assertIn("I found", output)
+            self.assertIn("I found books by Tolkien.", output)
 
         mock_search.assert_called_once_with(author="Tolkien")
         self.assertGreater(len(self.agent.conversation_history), 2)
@@ -347,12 +326,7 @@ class TestOllamaAgent(unittest.TestCase):
             self.assertIn("No reply available", output)
 
     def test_show_reply_with_data(self):
-        self.agent.reply = {
-            "message": {
-                "role": "assistant",
-                "content": "Test reply"
-            }
-        }
+        self.agent.reply = _openai_response("Test reply")
 
         with patch('sys.stdout', new=StringIO()) as fake_out:
             self.agent.show_reply()
@@ -362,14 +336,11 @@ class TestOllamaAgent(unittest.TestCase):
 
 class TestOllamaAgentIntegration(unittest.TestCase):
 
-    @patch('bookdbtool.ai_tools.ollama.Client')
+    @patch('bookdbtool.ai_tools.requests.post')
     @patch('bookdbtool.ai_tools.requests.Session')
-    def test_full_chat_flow(self, mock_session_class, mock_client_class):
+    def test_full_chat_flow(self, mock_session_class, mock_post):
         mock_session = Mock()
         mock_session_class.return_value = mock_session
-
-        mock_client = Mock()
-        mock_client_class.return_value = mock_client
 
         config = {
             "ai_agent": {"chat_model": "test", "chat_host": "http://localhost:11434"},
@@ -385,24 +356,19 @@ class TestOllamaAgentIntegration(unittest.TestCase):
         }
         mock_session.get.return_value = mock_get_response
 
-        initial_response = {
-            "message": {
-                "role": "assistant",
-                "content": "",
-                "tool_calls": [{
-                    "function": {
-                        "name": "search_books_by_author",
-                        "arguments": {"author": "Tolkien"}
-                    }
-                }]
+        initial_response = _openai_response(tool_calls=[{
+            "id": "call_1",
+            "function": {
+                "name": "search_books_by_author",
+                "arguments": '{"author": "Tolkien"}'
             }
-        }
+        }])
+        final_response = _openai_response("I found The Hobbit by Tolkien.")
 
-        final_response = iter([
-            {"message": {"content": "I found The Hobbit by Tolkien."}}
-        ])
-
-        mock_client.chat.side_effect = [initial_response, final_response]
+        mock_post.side_effect = [
+            Mock(json=Mock(return_value=initial_response), raise_for_status=Mock()),
+            Mock(json=Mock(return_value=final_response), raise_for_status=Mock()),
+        ]
 
         with patch('sys.stdout', new=StringIO()):
             agent.chat("Find books by Tolkien")

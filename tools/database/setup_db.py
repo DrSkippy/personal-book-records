@@ -41,6 +41,7 @@ EXPECTED_TABLES = {
     'daily_page_records',
     'images',
     'book_note_embeddings',
+    'embedding_index_state',
 }
 
 

@@ -187,3 +187,19 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_bne_unique_book_note
 CREATE UNIQUE INDEX IF NOT EXISTS idx_bne_unique_read_note
     ON book_note_embeddings (bookid, read_date)
     WHERE source = 'read_note';
+
+-- Single-row marker recording which embedding model/host produced the
+-- vectors currently stored in book_note_embeddings. Services compare this
+-- against the configured ai_agent.embed_* values at startup and refuse to
+-- start on a mismatch (stale vectors from a since-changed model would
+-- silently corrupt semantic search rather than error). Updated only by a
+-- full `index_notes.py --rebuild` (or `--mark-current`), never by
+-- incremental indexing runs.
+CREATE TABLE IF NOT EXISTS embedding_index_state (
+    id               INTEGER      PRIMARY KEY DEFAULT 1,
+    embed_host       TEXT         NOT NULL,
+    embed_model      TEXT         NOT NULL,
+    embed_dimensions INTEGER      NOT NULL,
+    updated_at       TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT embedding_index_state_singleton CHECK (id = 1)
+);

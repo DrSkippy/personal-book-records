@@ -23,6 +23,9 @@ from .config import (
     EMBED_MODEL,
     EMBED_API_KEY,
     EMBED_DIMENSIONS,
+    CHAT_HOST,
+    CHAT_MODEL,
+    CHAT_API_KEY,
 )
 from .serialization import (
     sort_list_by_index_list,
@@ -52,12 +55,16 @@ __all__ = [
     'delete_book', 'get_complete_records_by_ids',
     'daily_page_record_from_db', 'reading_book_data_from_db',
     'update_reading_book_data', 'estimate_completion_dates',
-    'calculate_estimates',
+    'calculate_estimates', 'get_estimate_records_for_book',
     # Embed/RAG config
     'EMBED_HOST', 'EMBED_MODEL', 'EMBED_API_KEY', 'EMBED_DIMENSIONS',
+    # Chat config
+    'CHAT_HOST', 'CHAT_MODEL', 'CHAT_API_KEY',
     # RAG functions
     'generate_embedding', 'upsert_book_note_embedding',
     'upsert_read_note_embedding', 'rag_search',
+    'get_embedding_index_state', 'set_embedding_index_state',
+    'check_embedding_index_freshness',
 ]
 
 
@@ -1306,6 +1313,33 @@ def calculate_estimates(record_id):
     return formatted_estimates
 
 
+def get_estimate_records_for_book(book_id):
+    """
+    Retrieve reading-estimate sessions for a book: every RecordId in
+    complete_date_estimates for the book, paired with its calculated
+    completion-date estimate. Shared by the GET /record_set/<book_id>
+    route and the get_reading_estimates chat tool.
+    """
+    db = psycopg2.connect(**books_conf)
+    rdata = {"record_set": {"BookId": book_id, "RecordId": [], "Estimate": []}}
+    q = "SELECT StartDate, RecordId FROM complete_date_estimates WHERE BookId = %s ORDER BY StartDate ASC"
+    res = []
+    try:
+        with db.cursor() as c:
+            try:
+                c.execute(q, (book_id,))
+                res = c.fetchall()
+            except psycopg2.Error as e:
+                rdata["error"] = [str(e)]
+                app_logger.error(e)
+    finally:
+        db.close()
+    for record in [(str(x[0]), int(x[1])) for x in res]:
+        rdata["record_set"]["RecordId"].append(record)
+        rdata["record_set"]["Estimate"].append(calculate_estimates(record[1]))
+    return rdata
+
+
 ##########################################################################
 # RAG / EMBEDDING UTILITIES
 ##########################################################################
@@ -1416,3 +1450,91 @@ def rag_search(query: str, limit: int = 5) -> list[dict]:
     finally:
         if db:
             db.close()
+
+
+def get_embedding_index_state(conn) -> dict | None:
+    """Return the embed_host/embed_model/embed_dimensions recorded for the
+    vectors currently stored in book_note_embeddings, or None if the index
+    has never been (re)built end-to-end."""
+    with conn.cursor() as c:
+        c.execute(
+            "SELECT embed_host, embed_model, embed_dimensions, updated_at "
+            "FROM embedding_index_state WHERE id = 1"
+        )
+        row = c.fetchone()
+    if row is None:
+        return None
+    return {
+        "embed_host": row[0],
+        "embed_model": row[1],
+        "embed_dimensions": row[2],
+        "updated_at": row[3],
+    }
+
+
+def set_embedding_index_state(conn, host: str, model: str, dimensions: int) -> None:
+    """Record that book_note_embeddings is fully indexed with the given
+    embed_host/embed_model/embed_dimensions. Call only after a full rebuild
+    (or an explicit admin confirmation) -- never after an incremental index
+    run, which does not touch every row."""
+    sql = """
+        INSERT INTO embedding_index_state (id, embed_host, embed_model, embed_dimensions, updated_at)
+        VALUES (1, %s, %s, %s, NOW())
+        ON CONFLICT (id) DO UPDATE
+            SET embed_host = EXCLUDED.embed_host,
+                embed_model = EXCLUDED.embed_model,
+                embed_dimensions = EXCLUDED.embed_dimensions,
+                updated_at = NOW()
+    """
+    with conn.cursor() as c:
+        c.execute(sql, (host, model, dimensions))
+    conn.commit()
+
+
+def check_embedding_index_freshness() -> None:
+    """Fail fast at service startup if the configured embedding model/host
+    doesn't match what book_note_embeddings was actually indexed with.
+
+    A silent mismatch would mix vectors from two different embedding spaces
+    in the same similarity search -- not an error, just wrong answers. If
+    embeddings are disabled (no embed_host/embed_model configured), or the
+    index has never been built, or the embedding_index_state table doesn't
+    exist yet (not yet migrated), this is a no-op.
+    """
+    if not EMBED_HOST or not EMBED_MODEL:
+        return
+    db = None
+    try:
+        db = psycopg2.connect(**books_conf)
+        state = get_embedding_index_state(db)
+    except psycopg2.errors.UndefinedTable:
+        app_logger.warning(
+            "embedding_index_state table not found -- skipping embedding "
+            "model freshness check (see database/add_embedding_index_state.sql)"
+        )
+        return
+    except psycopg2.Error as e:
+        app_logger.error(f"check_embedding_index_freshness failed to query state: {e}")
+        return
+    finally:
+        if db:
+            db.close()
+
+    if state is None:
+        return
+
+    if (
+        state["embed_host"] != EMBED_HOST
+        or state["embed_model"] != EMBED_MODEL
+        or state["embed_dimensions"] != EMBED_DIMENSIONS
+    ):
+        raise SystemExit(
+            "Embedding model/host changed since book_note_embeddings was last "
+            f"indexed: indexed with model={state['embed_model']!r} "
+            f"host={state['embed_host']!r} dimensions={state['embed_dimensions']} "
+            f"(as of {state['updated_at']}), configured with "
+            f"model={EMBED_MODEL!r} host={EMBED_HOST!r} dimensions={EMBED_DIMENSIONS}. "
+            "Existing vectors are stale and semantic search would silently mix "
+            "two different embedding spaces. Run: "
+            "poetry run python database/index_notes.py --rebuild"
+        )

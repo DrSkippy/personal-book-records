@@ -85,9 +85,6 @@ npm run lint
 VITE_API_BASE_URL=       # e.g. https://books.drskippy.app/api  (no trailing slash)
 VITE_API_KEY=
 VITE_RESOURCE_BASE_URL=
-VITE_OLLAMA_BASE_URL=    # e.g. https://books.drskippy.app/ollama
-VITE_OLLAMA_MODEL=
-VITE_OLLAMA_API_KEY=
 ```
 
 API calls are same-origin via the `/api/` nginx prefix — no CORS headers needed.
@@ -109,23 +106,17 @@ API calls are same-origin via the `/api/` nginx prefix — no CORS headers neede
 
 ## AI Chat
 
-The AI Chat page (`/ai-chat`) uses an OpenAI-compatible `/v1/chat/completions` endpoint with tool-calling support.
+The AI Chat page (`/ai-chat`) holds no model configuration. It POSTs the running conversation to `POST /api/chat` (same-origin, via `VITE_API_BASE_URL`/`VITE_API_KEY`, see `src/api/chat.ts`); `book-service` (`tools/book_service/books/api.py`, `/chat` route) runs the full OpenAI-compatible tool-calling loop server-side and returns the result. The frontend never knows the chat model, host, or API key.
 
-**Local LM servers:**
-| Server | URL | Auth |
-|---|---|---|
-| Primary (LM Studio) | `http://192.168.1.91:1234` | Bearer token required |
-| Secondary | `http://192.168.1.91:5434` | — |
+**Chat LLM server:** configured via `ai_agent.chat_host`/`chat_model`/`chat_api_key` in `tools/book_service/config/configuration.json` (or `AI_CHAT_HOST`/`AI_CHAT_MODEL`/`AI_CHAT_API_KEY` env overrides). Currently `http://192.168.1.91:1234`, model `openai/gpt-oss-20b` — the same physical LM Studio instance used for RAG embeddings (`ai_agent.embed_*`), though the two are configured independently and are not required to stay on the same host.
 
-**Current model:** `openai/gpt-oss-20b`
-
-**Auth:** Bearer token set via `VITE_OLLAMA_API_KEY` in `.env.local`. Applied as `Authorization: Bearer <token>` header in `src/api/ollama.ts`.
+**Tool-calling loop:** implemented in `tools/book_service/booksdb/chat_util.py` (`run_chat_loop`), up to 10 iterations per request. `bookdbtool`'s CLI chat (`OllamaAgent` in `ai_tools.py`) is a separate consumer of the same `ai_agent.chat_*` config, with its own smaller 5-tool set.
 
 **Tools available to the model (12):** `search_books`, `get_book_details`, `get_recently_edited_books`, `get_recently_read_books`, `get_books_read_by_year`, `get_reading_summary`, `get_tags_for_book`, `search_books_by_tag`, `get_tag_counts`, `get_reading_estimates`, `add_tag_to_book`, `semantic_search_notes`.
 
-`get_recently_edited_books` ranks by `LastUpdate` (edits/tags/images/estimates — "recently touched"; calls the `/recent` REST endpoint). `get_recently_read_books` ranks by `books_read.ReadDate` ("recently finished"; calls `/recently_read`). These are deliberately separate tools with non-overlapping names: the model previously conflated "recent" with "last edited" when asked about recently-read books, first by picking the wrong tool, then (even after a `get_recent_books` name/description fix) by calling the edit-ranked tool anyway and surfacing a stale `ReadDate` from a follow-up `get_book_details` call. Dropping "recent" entirely from the edit-ranked tool's name closes that gap.
+`get_recently_edited_books` ranks by `LastUpdate` (edits/tags/images/estimates — "recently touched"; calls `get_recently_touched`/the `/recent` REST endpoint under the hood). `get_recently_read_books` ranks by `books_read.ReadDate` ("recently finished"; calls `get_recently_read`/`/recently_read`). These are deliberately separate tools with non-overlapping names: the model previously conflated "recent" with "last edited" when asked about recently-read books, first by picking the wrong tool, then (even after a `get_recent_books` name/description fix) by calling the edit-ranked tool anyway and surfacing a stale `ReadDate` from a follow-up `get_book_details` call. Dropping "recent" entirely from the edit-ranked tool's name closes that gap.
 
-**Conversation loop:** Up to 10 tool-call iterations per user message. History maintained in `ollamaHistoryRef` for the session; reset on "Clear".
+**Conversation loop:** the frontend sends its accumulated history (user/assistant/tool turns, no system message — the server owns that) on every turn; the backend runs the loop to completion and returns the updated history plus a display trace (each tool call/result, then the final reply) in a single response. History lives in `historyRef` client-side for the session; reset on "Clear". There is no live/incremental reveal of tool calls mid-turn — the loading indicator covers the wait, and the full trace renders once the response arrives.
 
 ## Database
 
@@ -141,8 +132,9 @@ The AI Chat page (`/ai-chat`) uses an OpenAI-compatible `/v1/chat/completions` e
 Single config file (`books.drskippy.app`) handles everything on port 83:
 - `/api/` → book-service:8084 (strips prefix)
 - `/mcp/` → booksmcp:3005 (strips prefix)
-- `/ollama/` → LM Studio at 192.168.1.91:1234 (strips prefix)
 - `/` → React SPA (`dist/`) with SPA fallback
+
+The AI Chat page no longer needs a direct browser-to-LLM proxy (previously `/ollama/` → LM Studio at 192.168.1.91:1234) — chat now goes through `/api/chat`, so that location was removed.
 
 ```bash
 sudo cp books.drskippy.app /etc/nginx/sites-available/books.drskippy.app

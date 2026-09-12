@@ -3,12 +3,8 @@ import PageLayout from '../components/layout/PageLayout';
 import ChatInterface from '../components/chat/ChatInterface';
 import type { ChatMessage } from '../types';
 import { Send, Trash2, FileText, AlignLeft } from 'lucide-react';
-import { lmStudioChat, executeTool } from '../api/lmStudio';
-import type { LmStudioMessage } from '../api/lmStudio';
-
-const SYSTEM_PROMPT = `You are a helpful assistant for a personal book collection. You can search books, look up reading history, tags, and estimates using the tools provided. Be concise and friendly.
-
-Important: "recent"/"recently" is ambiguous - a book's record can be edited long after it was read. For any question about reading recency (recently read, last book read, what did I just finish, most recent book), use get_recently_read_books, which is based on actual reading completion date. Only use get_recently_edited_books when the user is explicitly asking about recent edits, updates, or changes to records - never use it to answer a reading-recency question, and never treat a book's ReadDate from get_book_details as "recent" just because the book itself came from get_recently_edited_books.`;
+import { sendChatMessage } from '../api/chat';
+import type { ChatHistoryMessage } from '../api/chat';
 
 export default function AiChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -16,9 +12,7 @@ export default function AiChat() {
   const [isLoading, setIsLoading] = useState(false);
   const [markdownEnabled, setMarkdownEnabled] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
-  const lmStudioHistoryRef = useRef<LmStudioMessage[]>([
-    { role: 'system', content: SYSTEM_PROMPT },
-  ]);
+  const historyRef = useRef<ChatHistoryMessage[]>([]);
 
   const handleSend = async () => {
     const text = input.trim();
@@ -30,91 +24,40 @@ export default function AiChat() {
       content: text,
     };
 
-    let displayMessages: ChatMessage[] = [...messages, userMsg];
-    setMessages(displayMessages);
+    setMessages((prev) => [...prev, userMsg]);
     setInput('');
     setIsLoading(true);
 
-    // Append user message to Ollama history
-    lmStudioHistoryRef.current.push({ role: 'user', content: text });
+    historyRef.current = [...historyRef.current, { role: 'user', content: text }];
 
     try {
-      const MAX_ITERATIONS = 10;
-      let iterations = 0;
+      const { history, trace } = await sendChatMessage(historyRef.current);
+      historyRef.current = history;
 
-      while (iterations < MAX_ITERATIONS) {
-        iterations++;
-
-        const response = await lmStudioChat(lmStudioHistoryRef.current);
-        const msg = response.choices[0].message;
-
-        if (msg.tool_calls && msg.tool_calls.length > 0) {
-          // Record the assistant's tool_calls turn in LM Studio history
-          lmStudioHistoryRef.current.push({
-            role: 'assistant',
-            content: msg.content ?? '',
-            tool_calls: msg.tool_calls,
-          });
-
-          // Execute each tool call sequentially
-          for (const tc of msg.tool_calls) {
-            const toolName = tc.function.name;
-            const toolArgs = JSON.parse(tc.function.arguments || '{}') as Record<string, unknown>;
-            const toolResultStr = await executeTool(toolName, toolArgs);
-            let toolResult: unknown;
-            try {
-              toolResult = JSON.parse(toolResultStr);
-            } catch {
-              toolResult = toolResultStr;
-            }
-
-            // Add tool result to display
-            const toolMsg: ChatMessage = {
-              id: `tool-${Date.now()}-${tc.id}`,
+      const newMessages: ChatMessage[] = trace.map((event, i) =>
+        event.type === 'tool'
+          ? {
+              id: `tool-${Date.now()}-${i}`,
               role: 'tool',
               content: '',
-              toolCallId: tc.id,
-              toolName,
-              toolArgs,
-              toolResult,
-            };
-            displayMessages = [...displayMessages, toolMsg];
-            setMessages(displayMessages);
-
-            // Add tool result to LM Studio history
-            lmStudioHistoryRef.current.push({
-              role: 'tool',
-              content: toolResultStr,
-              tool_call_id: tc.id,
-            });
-          }
-
-          // Loop back to get the next response
-          continue;
-        }
-
-        // No tool calls — this is the final assistant reply
-        const assistantMsg: ChatMessage = {
-          id: `assistant-${Date.now()}`,
-          role: 'assistant',
-          content: msg.content ?? 'No response.',
-        };
-        displayMessages = [...displayMessages, assistantMsg];
-        setMessages(displayMessages);
-
-        // Record in LM Studio history for future turns
-        lmStudioHistoryRef.current.push({
-          role: 'assistant',
-          content: msg.content ?? '',
-        });
-        break;
-      }
+              toolCallId: event.toolCallId,
+              toolName: event.toolName,
+              toolArgs: event.toolArgs,
+              toolResult: event.toolResult,
+            }
+          : {
+              id: `assistant-${Date.now()}-${i}`,
+              role: 'assistant',
+              content: event.content,
+            }
+      );
+      setMessages((prev) => [...prev, ...newMessages]);
     } catch (err) {
-      console.error('[AiChat] LM Studio error:', err);
+      console.error('[AiChat] chat request failed:', err);
       const errorMsg: ChatMessage = {
         id: `error-${Date.now()}`,
         role: 'assistant',
-        content: 'Sorry, the AI backend is unavailable. Please check the LM Studio server and try again.',
+        content: 'Sorry, the AI backend is unavailable. Please try again shortly.',
       };
       setMessages((prev) => [...prev, errorMsg]);
     } finally {
@@ -126,7 +69,7 @@ export default function AiChat() {
   const handleClear = () => {
     setMessages([]);
     setInput('');
-    lmStudioHistoryRef.current = [{ role: 'system', content: SYSTEM_PROMPT }];
+    historyRef.current = [];
   };
 
   return (
@@ -181,7 +124,7 @@ export default function AiChat() {
         </div>
 
         <p className="text-xs text-slate text-center">
-          Powered by LM Studio ({import.meta.env.VITE_OLLAMA_MODEL}) — reads your book collection via API tools.
+          Reads your book collection via API tools.
         </p>
       </div>
     </PageLayout>

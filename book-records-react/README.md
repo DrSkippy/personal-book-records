@@ -28,9 +28,8 @@ npm run lint
 | `VITE_API_BASE_URL` | Book service REST API base URL |
 | `VITE_API_KEY` | API key (`x-api-key` header) |
 | `VITE_RESOURCE_BASE_URL` | Static resources base URL (images) |
-| `VITE_OLLAMA_BASE_URL` | OpenAI-compatible chat API base URL (e.g. LM Studio) |
-| `VITE_OLLAMA_MODEL` | Model name (e.g. `openai/gpt-oss-20b`) |
-| `VITE_OLLAMA_API_KEY` | Bearer token for AI chat API |
+
+AI Chat needs no frontend configuration — it POSTs to `POST /chat` on the REST API above; the chat model, host, and API key are configured server-side only (`tools/book_service/config/configuration.json`'s `ai_agent.chat_*`, see `tools/README.md`).
 
 ## Pages & Routes
 
@@ -50,7 +49,7 @@ npm run lint
 | `/estimates/:id` | Reading Estimates | Estimated finish dates and reading sessions for a book |
 | `/estimates/add/:id` | Add Estimate | Start a new reading session/estimate |
 | `/estimates/:id/progress` | Add Page Progress | Log daily page progress for an active estimate |
-| `/ai-chat` | AI Chat | Conversational assistant backed by a local LM; uses 9 book-service tools |
+| `/ai-chat` | AI Chat | Conversational assistant; tool-calling loop and LM connection run server-side (`POST /chat`), 12 book-service tools |
 
 ## Key Features
 
@@ -69,8 +68,8 @@ npm run lint
 - Delete with confirmation
 
 ### AI Chat
-- OpenAI-compatible `/v1/chat/completions` endpoint with tool-calling
-- Up to 10 tool-call iterations per user message
+- Frontend POSTs the running conversation to `POST /chat` on the REST API (`src/api/chat.ts`); book-service runs the OpenAI-compatible tool-calling loop server-side and returns the updated history plus a display trace — the frontend never configures or sees the chat model, host, or API key
+- Up to 10 tool-call iterations per user message (enforced server-side)
 - Tools available: `search_books`, `get_book_details`, `get_recently_edited_books`, `get_recently_read_books`, `get_books_read_by_year`, `get_reading_summary`, `get_tags_for_book`, `search_books_by_tag`, `get_tag_counts`, `get_reading_estimates`, `add_tag_to_book`, `semantic_search_notes`
 - Markdown rendering toggle
 - Session history reset via "Clear" button
@@ -97,6 +96,11 @@ npm run lint
 Injected from `package.json` at build time via `define: { __APP_VERSION__ }` in `vite.config.ts`. Displayed in the nav bar alongside the live API version.
 
 ## Changelog
+
+### v0.5.0
+- **AI Chat — moved server-side**: the tool-calling loop and LLM connection now run in book-service (`POST /chat`) instead of the browser; `src/api/lmStudio.ts` removed, replaced by `src/api/chat.ts`. The frontend no longer configures, stores, or sends the chat model, host, or API key — `VITE_OLLAMA_BASE_URL`/`VITE_OLLAMA_MODEL`/`VITE_OLLAMA_API_KEY` are gone
+- **AI Chat — no incremental reveal**: tool calls and the final reply now arrive in a single response after the backend finishes its loop, rather than streaming in as each tool call completes (same 10-iteration cap, now enforced server-side)
+- **nginx**: the `/ollama/` browser-to-LLM proxy is no longer needed and was removed
 
 ### v0.3.0
 - **AI Chat — RAG semantic search**: new `semantic_search_notes` tool searches book and reading notes by meaning via pgvector embeddings (LM Studio)

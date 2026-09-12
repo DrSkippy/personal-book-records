@@ -9,6 +9,9 @@ services:
       - AI_EMBED_MODEL=${AI_EMBED_MODEL}
       - AI_EMBED_API_KEY=${AI_EMBED_API_KEY}
       - AI_EMBED_DIMENSIONS=${AI_EMBED_DIMENSIONS}
+      - AI_CHAT_HOST=${AI_CHAT_HOST}
+      - AI_CHAT_MODEL=${AI_CHAT_MODEL}
+      - AI_CHAT_API_KEY=${AI_CHAT_API_KEY}
     volumes:
       - /var/www/html/resources/books:/books/uploads
     ports:

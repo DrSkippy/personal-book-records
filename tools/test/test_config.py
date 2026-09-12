@@ -71,6 +71,33 @@ class TestConfig(unittest.TestCase):
         self.assertIsNone(config.EMBED_MODEL)
         self.assertEqual(config.EMBED_DIMENSIONS, 768)
 
+    def test_chat_values_from_file(self):
+        config.read_json_configuration()
+        self.assertEqual(config.CHAT_HOST, "http://file-chat-host:11434")
+        self.assertEqual(config.CHAT_MODEL, "file-chat-model")
+        self.assertIsNone(config.CHAT_API_KEY)
+
+    @patch.dict(os.environ, {
+        "AI_CHAT_HOST": "http://env-chat-host:9999",
+        "AI_CHAT_MODEL": "env-chat-model",
+        "AI_CHAT_API_KEY": "env-chat-key",
+    })
+    def test_chat_env_vars_override_file(self):
+        config.read_json_configuration()
+        self.assertEqual(config.CHAT_HOST, "http://env-chat-host:9999")
+        self.assertEqual(config.CHAT_MODEL, "env-chat-model")
+        self.assertEqual(config.CHAT_API_KEY, "env-chat-key")
+
+    def test_chat_values_none_when_absent(self):
+        cfg = dict(BASE_CONFIG)
+        cfg["ai_agent"] = {}
+        with open(self.tmp.name, "w") as f:
+            json.dump(cfg, f)
+        config.read_json_configuration()
+        self.assertIsNone(config.CHAT_HOST)
+        self.assertIsNone(config.CHAT_MODEL)
+        self.assertIsNone(config.CHAT_API_KEY)
+
 
 if __name__ == '__main__':
     unittest.main()

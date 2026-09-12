@@ -1,4 +1,4 @@
-__version__ = '0.2.0'
+__version__ = '0.3.0'
 
 import json
 import logging
@@ -6,7 +6,6 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import ollama
 import requests
 
 
@@ -14,8 +13,9 @@ class OllamaAgent:
     """
     AI Assistant - Natural language interface for querying your book collection.
 
-    Uses Ollama LLM with tool calling to search books, view tags, and add tags
-    through conversational queries.
+    Talks to an OpenAI-compatible chat LLM (e.g. LM Studio) via
+    /v1/chat/completions with tool calling to search books, view tags, and
+    add tags through conversational queries.
 
     The AI can:
         - Search books by author, title, or tags
@@ -135,31 +135,35 @@ class OllamaAgent:
 
         Args:
             config: Configuration dictionary containing:
-                - ai_agent.chat_model: The Ollama model to use
-                - ai_agent.chat_host: The Ollama server URL
+                - ai_agent.chat_model: The chat model name
+                - ai_agent.chat_host: The OpenAI-compatible chat server URL
+                - ai_agent.chat_api_key: Bearer token for the chat LLM server
                 - ai_agent.timeout: Request timeout in seconds (default: 10)
                 - ai_agent.max_history: Max conversation history entries (default: 50)
                 - endpoint: The book database API endpoint
                 - api_key: API key for book database write operations
 
             Every ai_agent field above can be overridden with an environment
-            variable: AI_CHAT_HOST, AI_CHAT_MODEL, AI_CHAT_TIMEOUT,
-            AI_CHAT_MAX_HISTORY.
+            variable: AI_CHAT_HOST, AI_CHAT_MODEL, AI_CHAT_API_KEY,
+            AI_CHAT_TIMEOUT, AI_CHAT_MAX_HISTORY.
+
+            chat_api_key authenticates to the chat LLM server (ai_agent.chat_host)
+            and is independent of ai_agent.embed_api_key, which authenticates to
+            the embedding server (ai_agent.embed_host) — the two servers are no
+            longer required to be the same host.
         """
         ai_config = config.get("ai_agent", {})
         self.ollama_host = os.getenv("AI_CHAT_HOST") or ai_config.get("chat_host", "http://localhost:11434")
         self.book_db_host = config.get("endpoint", "http://localhost:8084")
         self.model_name = os.getenv("AI_CHAT_MODEL") or ai_config.get("chat_model", "gpt-oss")
         self.api_key = config.get("api_key", "")
+        self.chat_api_key = os.getenv("AI_CHAT_API_KEY") or ai_config.get("chat_api_key", "")
         self.timeout = int(os.getenv("AI_CHAT_TIMEOUT") or ai_config.get("timeout", 10))
         self.max_history = int(os.getenv("AI_CHAT_MAX_HISTORY") or ai_config.get("max_history", self.MAX_HISTORY))
 
         # Instance variables for conversation state
         self.reply: Optional[Dict[str, Any]] = None
         self.conversation_history: List[Dict[str, Any]] = []
-
-        # Create Ollama client once (reused for all chat calls)
-        self.client = ollama.Client(host=self.ollama_host)
 
         # Create HTTP session for connection pooling
         self.session = requests.Session()
@@ -218,7 +222,7 @@ class OllamaAgent:
             print("*" * self.DIVIDER_WIDTH)
             print("Endpoint:         {}".format(self.book_db_host))
             print("Endpoint Version: {}".format(res["version"]))
-            print("Ollama Endpoint:  {}".format(self.ollama_host))
+            print("Chat Endpoint:    {}".format(self.ollama_host))
             print("Model:            {}".format(self.model_name))
             print("AI   Version:     {}".format(__version__))
             print("*" * self.DIVIDER_WIDTH)
@@ -289,49 +293,18 @@ class OllamaAgent:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    # Helper functions for serialization
-
-    @staticmethod
-    def _tool_call_to_dict(tool_call: Any) -> Dict[str, Any]:
-        """Convert a ToolCall object to a dictionary."""
-        if isinstance(tool_call, dict):
-            return tool_call
-
-        # Handle ToolCall objects
-        result = {}
-        if hasattr(tool_call, "function"):
-            func = tool_call.function
-            if isinstance(func, dict):
-                result["function"] = func
-            else:
-                result["function"] = {
-                    "name": getattr(func, "name", ""),
-                    "arguments": getattr(func, "arguments", {})
-                }
-
-        return result
-
-    @classmethod
-    def _message_to_dict(cls, message: Any) -> Dict[str, Any]:
-        """Convert an Ollama Message object to a dictionary."""
-        if isinstance(message, dict):
-            # Even if it's a dict, we need to check if tool_calls need conversion
-            result = dict(message)
-            if "tool_calls" in result and result["tool_calls"]:
-                result["tool_calls"] = [cls._tool_call_to_dict(tc) for tc in result["tool_calls"]]
-            return result
-
-        # Handle Ollama Message objects
-        result = {
-            "role": message.get("role") if isinstance(message, dict) else getattr(message, "role", "assistant"),
-            "content": message.get("content", "") if isinstance(message, dict) else getattr(message, "content", "")
-        }
-
-        # Handle tool calls if present
-        if hasattr(message, "tool_calls") and message.tool_calls:
-            result["tool_calls"] = [cls._tool_call_to_dict(tc) for tc in message.tool_calls]
-
-        return result
+    def _chat_completion(self, messages: List[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+        """POST an OpenAI-compatible /v1/chat/completions request to ai_agent.chat_host."""
+        url = f"{self.ollama_host.rstrip('/')}/v1/chat/completions"
+        headers = {"Content-Type": "application/json"}
+        if self.chat_api_key:
+            headers["Authorization"] = f"Bearer {self.chat_api_key}"
+        payload: Dict[str, Any] = {"model": self.model_name, "messages": messages, "stream": False}
+        if tools:
+            payload["tools"] = tools
+        response = requests.post(url, json=payload, headers=headers, timeout=self.timeout)
+        response.raise_for_status()
+        return response.json()
 
     def _trim_history(self) -> None:
         """Trim conversation history to max_history entries."""
@@ -369,26 +342,27 @@ class OllamaAgent:
             "content": prompt
         })
 
-        # Initial call to the model with tools (using pre-created client)
-        response = self.client.chat(
-            model=self.model_name,
-            messages=self.conversation_history,
-            tools=self.TOOLS,
-            stream=False
-        )
+        # Initial call to the model with tools
+        response = self._chat_completion(self.conversation_history, tools=self.TOOLS)
 
         # Store the full response
         self.reply = response
+        message = response["choices"][0]["message"]
+        tool_calls = message.get("tool_calls") or []
 
-        # Process tool calls if present
-        if response.get("message", {}).get("tool_calls"):
+        if tool_calls:
             # Add the assistant's response with tool calls to history
-            self.conversation_history.append(self._message_to_dict(response["message"]))
+            self.conversation_history.append({
+                "role": "assistant",
+                "content": message.get("content") or "",
+                "tool_calls": tool_calls,
+            })
 
             # Execute each tool call
-            for tool_call in response["message"]["tool_calls"]:
+            for tool_call in tool_calls:
                 function_name = tool_call["function"]["name"]
-                function_args = tool_call["function"]["arguments"]
+                raw_args = tool_call["function"].get("arguments") or "{}"
+                function_args = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
 
                 # Call the appropriate function
                 if function_name in self.available_functions:
@@ -398,42 +372,24 @@ class OllamaAgent:
                     # Add function response to conversation
                     self.conversation_history.append({
                         "role": "tool",
-                        "content": json.dumps(function_response)
+                        "content": json.dumps(function_response),
+                        "tool_call_id": tool_call.get("id"),
                     })
 
             # Get final response from model after tool execution
-            final_response = self.client.chat(
-                model=self.model_name,
-                messages=self.conversation_history,
-                stream=True
-            )
-
-            # Stream and display the final response
-            full_content = ""
-            for chunk in final_response:
-                if chunk.get("message", {}).get("content"):
-                    content = chunk["message"]["content"]
-                    print(content, end="", flush=True)
-                    full_content += content
-
-            print()  # New line after streaming
-
-            # Update reply with the final response
-            self.reply = {
-                "message": {
-                    "role": "assistant",
-                    "content": full_content
-                }
-            }
+            final_response = self._chat_completion(self.conversation_history)
+            self.reply = final_response
+            content = final_response["choices"][0]["message"].get("content") or ""
+            print(content)
 
             # Add assistant's final response to history
             self.conversation_history.append({
                 "role": "assistant",
-                "content": full_content
+                "content": content
             })
         else:
             # No tool calls, just display the response
-            content = response.get("message", {}).get("content", "")
+            content = message.get("content") or ""
             print(content)
 
             # Add assistant's response to history
@@ -466,9 +422,7 @@ class OllamaAgent:
         Example:
             >>> ai.show_history()
         """
-        # Convert any Message objects to dicts before serializing
-        serializable_history = [self._message_to_dict(msg) for msg in self.conversation_history]
-        print(json.dumps(serializable_history, indent=2))
+        print(json.dumps(self.conversation_history, indent=2))
 
     def show_reply(self) -> None:
         """
@@ -482,10 +436,6 @@ class OllamaAgent:
             >>> ai.show_reply()  # See detailed response
         """
         if self.reply:
-            # Handle nested Message objects in the reply
-            serializable_reply = dict(self.reply)
-            if "message" in serializable_reply:
-                serializable_reply["message"] = self._message_to_dict(serializable_reply["message"])
-            print(json.dumps(serializable_reply, indent=2))
+            print(json.dumps(self.reply, indent=2))
         else:
             print("No reply available yet.")

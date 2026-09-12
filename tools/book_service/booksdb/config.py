@@ -38,6 +38,10 @@ EMBED_MODEL: str | None = None
 EMBED_API_KEY: str | None = None
 EMBED_DIMENSIONS: int = 768
 
+CHAT_HOST: str | None = None
+CHAT_MODEL: str | None = None
+CHAT_API_KEY: str | None = None
+
 
 def read_json_configuration() -> tuple[dict[str, Any], dict[str, str]]:
     """
@@ -81,11 +85,15 @@ def read_json_configuration() -> tuple[dict[str, Any], dict[str, str]]:
                 raise KeyError("Missing API key configuration.")
             app_logger.debug(f"API key configuration loaded successfully. Using API_KEY={API_KEY}")
             global EMBED_HOST, EMBED_MODEL, EMBED_API_KEY, EMBED_DIMENSIONS
+            global CHAT_HOST, CHAT_MODEL, CHAT_API_KEY
             _ai = c.get("ai_agent", {})
             EMBED_HOST = os.getenv("AI_EMBED_HOST") or _ai.get("embed_host")
             EMBED_MODEL = os.getenv("AI_EMBED_MODEL") or _ai.get("embed_model")
             EMBED_API_KEY = os.getenv("AI_EMBED_API_KEY") or _ai.get("embed_api_key")
             EMBED_DIMENSIONS = int(os.getenv("AI_EMBED_DIMENSIONS") or _ai.get("embed_dimensions", 768))
+            CHAT_HOST = os.getenv("AI_CHAT_HOST") or _ai.get("chat_host")
+            CHAT_MODEL = os.getenv("AI_CHAT_MODEL") or _ai.get("chat_model")
+            CHAT_API_KEY = os.getenv("AI_CHAT_API_KEY") or _ai.get("chat_api_key")
         except KeyError as e:
             app_logger.error(e)
             raise SystemExit("Missing or incomplete configuration file.")

@@ -473,6 +473,8 @@ async def health_check(request: Request) -> PlainTextResponse:
 def main():
     """Start the MCP server with streamable HTTP transport."""
 
+    api_util.check_embedding_index_freshness()
+
     logger.info("=" * 70)
     logger.info(f"Starting Books MCP Server (FastMCP) [Version: {__version__}]")
     logger.info("=" * 70)

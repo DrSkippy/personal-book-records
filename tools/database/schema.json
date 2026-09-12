@@ -112,6 +112,18 @@
         "updated_at": { "type": "string", "format": "date-time", "description": "Auto-maintained timestamp" }
       },
       "required": ["id", "bookid", "source", "content", "updated_at"]
+    },
+    "EmbeddingIndexState": {
+      "type": "object",
+      "description": "Single-row marker recording which embed_host/embed_model/embed_dimensions produced the vectors currently stored in book_note_embeddings. Checked by book-service and booksmcp at startup; a mismatch against configuration.json's ai_agent.embed_* values exits the process. Updated only by a full index_notes.py --rebuild or --mark-current.",
+      "properties": {
+        "id":               { "type": "integer", "const": 1, "description": "Always 1 -- enforced singleton row" },
+        "embed_host":        { "type": "string" },
+        "embed_model":       { "type": "string" },
+        "embed_dimensions":  { "type": "integer" },
+        "updated_at":        { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "embed_host", "embed_model", "embed_dimensions", "updated_at"]
     }
   },
 
@@ -123,6 +135,7 @@
     "complete_date_estimates": { "type": "array", "items": { "$ref": "#/definitions/CompleteDateEstimate" } },
     "daily_page_records":      { "type": "array", "items": { "$ref": "#/definitions/DailyPageRecord" } },
     "images":                  { "type": "array", "items": { "$ref": "#/definitions/Image" } },
-    "book_note_embeddings":    { "type": "array", "items": { "$ref": "#/definitions/BookNoteEmbedding" } }
+    "book_note_embeddings":    { "type": "array", "items": { "$ref": "#/definitions/BookNoteEmbedding" } },
+    "embedding_index_state":   { "type": "array", "items": { "$ref": "#/definitions/EmbeddingIndexState" }, "maxItems": 1 }
   }
 }
