@@ -19,7 +19,6 @@ Usage:
 import asyncio
 import json
 import sys
-import time
 import unittest
 from typing import Optional, Any
 
@@ -27,7 +26,7 @@ import requests
 
 # Try to import MCP client
 try:
-    from mcp import ClientSession, types
+    from mcp import ClientSession
     from mcp.client.sse import sse_client
     MCP_CLIENT_AVAILABLE = True
 except ImportError:

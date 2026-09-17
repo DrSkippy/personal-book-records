@@ -11,8 +11,6 @@ import pandas as pd
 import requests
 from rich.console import Console
 from rich.table import Table
-from rich.style import Style
-from rich.text import Text
 
 # Rich console for output
 console = Console()
