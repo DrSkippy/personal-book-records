@@ -13,7 +13,7 @@ This MCP server exposes a books database through 9 tools:
 - **search_books_by_location** - Search by physical location
 - **search_books_by_tags** - Search by tags
 - **search_books_by_read_date** - Search by read date
-- **search_tags** - Search for books by tag name
+- **semantic_search_notes** - pgvector RAG search over book/read notes
 
 The server uses the latest MCP specifications (2025-03-26) with FastMCP and streamable HTTP transport for efficient, scalable communication.
 
@@ -108,7 +108,7 @@ The `docker-compose.yml` file includes:
 - Health checks
 - Automatic restart policy
 - Network configuration
-- Host gateway access for connecting to host MySQL
+- Host gateway access for connecting to host PostgreSQL
 
 ## API Endpoints
 
@@ -136,8 +136,8 @@ The `docker-compose.yml` file includes:
   ```json
   {
     "name": "Books MCP Server",
-    "version": "3.3.0",
-    "description": "MCP server for book and tag search functionality",
+    "version": "3.3.1",
+    "description": "MCP server for searching the Hendrickson Book Collection",
     "transport": "Streamable HTTP (FastMCP)",
     "tools": [
       {"name": "search_books_by_title",     "parameters": ["title"]},
@@ -148,16 +148,17 @@ The `docker-compose.yml` file includes:
       {"name": "search_books_by_location",  "parameters": ["location"]},
       {"name": "search_books_by_tags",      "parameters": ["tags"]},
       {"name": "search_books_by_read_date", "parameters": ["read_date"]},
-      {"name": "search_tags",               "parameters": ["query"]}
+      {"name": "semantic_search_notes",     "parameters": ["query", "limit"]}
     ]
   }
   ```
 
 ## MCP Tools
 
-Each tool takes a single string parameter and returns a JSON string of matching books.
+Each search-by-field tool takes a single string parameter and returns a JSON string of matching
+books; `semantic_search_notes` takes a query string plus an optional result limit.
 
-| Tool | Parameter | Searches by |
+| Tool | Parameters | Searches by |
 |------|-----------|-------------|
 | `search_books_by_title` | `title` | Book title (partial match) |
 | `search_books_by_author` | `author` | Author name (partial match) |
@@ -167,7 +168,7 @@ Each tool takes a single string parameter and returns a JSON string of matching 
 | `search_books_by_location` | `location` | Physical location |
 | `search_books_by_tags` | `tags` | Associated tags |
 | `search_books_by_read_date` | `read_date` | Date read (YYYY-MM-DD) |
-| `search_tags` | `query` | Tag label name |
+| `semantic_search_notes` | `query`, `limit` (default 5) | pgvector similarity over `BookNote`/`ReadNote` embeddings |
 
 ## Testing
 
@@ -456,7 +457,12 @@ Client Request → /mcp endpoint → FastMCP Router → Tool Handler → Databas
 
 ## Version History
 
-### v3.3.0 (Current)
+### v3.3.1 (Current)
+- `books_search_utility`/`tags_search_utility`/`get_tag_counts`: `LIKE` → `ILIKE` (case-insensitive search)
+- `update_reading_book_data`: skip `EstimateDate` rewrite when the book already has a completed `ReadDate` after the estimate's `StartDate`, so viewing a finished book's record no longer marks it "recently touched"
+- Pinned `fastmcp<4.0.0`; unpinned resolution had drifted to fastmcp 4.0.1 / mcp 2.x, which renamed `mcp.server.fastmcp.FastMCP` and crash-looped the MCP container
+
+### v3.3.0
 - Added `semantic_search_notes` tool: pgvector RAG search over book and reading notes
 
 ### v3.2.0

@@ -39,14 +39,16 @@ This directory contains a comprehensive Postman collection and environment files
 
 ## Collection Structure
 
-The collection is organized into 8 folders matching the API categories:
+The collection is organized into 9 folders matching the API categories:
 
-### 1. Configuration & Metadata (2 requests)
+### 1. Configuration & Metadata (3 requests)
 - Get API Configuration
 - Get Valid Locations
+- Health Check
 
-### 2. Query Operations (7 requests)
+### 2. Query Operations (10 requests)
 - Get Recent Books (various limits)
+- Get Recently Read Books (various limits)
 - Search Books (single and multi-criteria)
 - Get Complete Book Record
 - Navigate to Next/Previous Book
@@ -65,7 +67,7 @@ The collection is organized into 8 folders matching the API categories:
 - Get Tag Counts
 - Tag Maintenance
 
-### 5. Mutation Operations (6 requests)
+### 5. Mutation Operations (7 requests)
 - Add Books (manual and ISBN)
 - Add Read Dates
 - Update Book Record
@@ -86,6 +88,10 @@ The collection is organized into 8 folders matching the API categories:
 ### 8. Visualization (4 requests)
 - Year Progress Comparison Charts
 - All Years Statistics Charts
+
+### 9. AI Chat & Search (2 requests)
+- Semantic Search Notes (RAG)
+- AI Chat (one turn)
 
 ## Environment Variables
 

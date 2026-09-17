@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: Book Service API
-  version: 0.17.0
+  version: 0.21.1
   description: |
     Comprehensive REST API for personal book collection management.
 
@@ -14,6 +14,7 @@ info:
     - Image management for book covers
     - Visualization generation (charts and statistics)
     - ISBN lookup integration
+    - Semantic (pgvector) note search and server-side AI chat tool-calling
 
     All endpoints require API key authentication via the `x-api-key` header.
 
@@ -292,22 +293,27 @@ components:
         version:
           type: string
           description: API version
-          example: "0.17.0"
+          example: "0.21.1"
         configuration:
           type: object
-          description: Database configuration (passwords masked)
+          description: Database configuration (password masked)
           properties:
             user:
               type: string
-            db:
+            password:
               type: string
+              example: "******"
+            dbname:
+              type: string
+              example: "book-collection"
             host:
               type: string
             port:
               type: integer
-            passwd:
+              example: 5434
+            sslmode:
               type: string
-              example: "******"
+              example: "disable"
         isbn_configuration:
           type: object
           description: ISBN lookup configuration (API keys masked)
@@ -577,6 +583,97 @@ paths:
                 $ref: '#/components/schemas/StandardResponse'
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+
+  /rag_search:
+    post:
+      summary: Semantic search over book/read notes
+      description: |
+        Vector similarity search over BookNote/ReadNote embeddings (pgvector).
+        Returns 503 if the server has no ai_agent.embed_host/embed_model configured.
+      tags:
+        - AI Chat & Search
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - query
+              properties:
+                query:
+                  type: string
+                  description: Natural-language search text
+                limit:
+                  type: integer
+                  default: 5
+                  description: Maximum number of matches to return
+      responses:
+        '200':
+          description: Ranked note matches
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+        '400':
+          description: Missing required `query` field
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '503':
+          description: RAG search not configured on this server (no embed_host/embed_model)
+
+  /chat:
+    post:
+      summary: Run one turn of the AI Chat tool-calling loop
+      description: |
+        Runs the server-side OpenAI-compatible tool-calling loop
+        (`booksdb/chat_util.py::run_chat_loop`) against `ai_agent.chat_host`/
+        `chat_model`/`chat_api_key`, up to 10 tool-call iterations. The client
+        sends only the running user/assistant/tool history; the system prompt
+        is owned server-side and never sent or returned. Returns 503 if chat
+        is not configured on this server, 502 if the configured chat LLM
+        backend is unreachable.
+      tags:
+        - AI Chat & Search
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                messages:
+                  type: array
+                  description: Running OpenAI-format conversation history (no system message)
+                  items:
+                    type: object
+      responses:
+        '200':
+          description: Updated history and a display trace of tool calls/results plus the final reply
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  history:
+                    type: array
+                    items:
+                      type: object
+                  trace:
+                    type: array
+                    items:
+                      type: object
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '502':
+          description: The configured chat LLM backend is unavailable
+        '503':
+          description: Chat not configured on this server (no chat_host/chat_model)
 
   /complete_record/{book_id}:
     get:

@@ -1,8 +1,13 @@
 # Book Service API Documentation - Validation Report
 
+> **Historical snapshot.** This validates the original documentation package as it stood on
+> 2024-02-09 against API v0.16.2. It has not been re-run since; the API is now well past v0.16.2
+> (see `tools/book_service/README.md` changelog) and endpoint/table counts below no longer match
+> current state. For current documentation status, see `docs/README.md` and `openapi.yaml`.
+
 **Date**: 2024-02-09
 **API Version**: 0.16.2
-**Validation Status**: ✅ PASSED
+**Validation Status**: ✅ PASSED (as of the date above)
 
 ## Overview
 

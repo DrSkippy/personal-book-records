@@ -44,7 +44,7 @@ cp book_service/config/configuration_example.json book_service/config/configurat
 {
   "username": "db_user",
   "password": "db_password",
-  "database": "book_collection",
+  "database": "book-collection",
   "host": "localhost",
   "port": 5434,
   "isbn_com": {
@@ -178,7 +178,7 @@ tools/
 
 BookDBTool is an interactive Python REPL for querying and managing the book collection. It provides a rich command-line interface with multiple specialized classes for different operations.
 
-**Version**: 0.6.0
+**Version**: 0.7.0
 **Entry Point**: `bin/books.py`
 **Location**: `bookdbtool/`
 
@@ -186,7 +186,7 @@ BookDBTool is an interactive Python REPL for querying and managing the book coll
 
 - **Interactive REPL**: Full Python REPL with pre-loaded objects
 - **Book Queries**: Search, filter, and browse book collection
-- **AI Integration**: Natural language queries using Ollama LLM
+- **AI Integration**: Natural language queries via an OpenAI-compatible chat LLM (LM Studio, OpenRouter, etc. -- not Ollama-native)
 - **Reading Estimates**: Track reading progress and estimate completion dates
 - **ISBN Lookup**: Query external ISBN database for book metadata
 - **Visualization**: Generate reading statistics charts
@@ -242,9 +242,11 @@ bc.add()
 
 #### 2. **ai** - OllamaAgent (AI Chat Interface)
 
-Natural language interface powered by Ollama LLM for intuitive book queries.
+Natural language interface for intuitive book queries, powered by an OpenAI-compatible chat LLM
+(LM Studio, OpenRouter, etc.). The class keeps its historical `OllamaAgent` name from when it
+called the Ollama-native API directly, but it now speaks raw `/v1/chat/completions`.
 
-**Version**: 0.1.0
+**Version**: 0.3.0
 **Features**: Tool calling, conversation history, multi-parameter searches
 
 **Key Methods:**
@@ -322,7 +324,7 @@ See `test/README.md` for detailed test documentation.
 
 A comprehensive REST API built with Flask for managing book records, reading history, tags, and generating visualizations.
 
-**Version**: 0.16.2
+**Version**: 0.21.1
 **Framework**: Flask 3.1.2
 **Port**: 8084
 **Location**: `book_service/books/`
@@ -611,6 +613,28 @@ curl -H "x-api-key: YOUR_KEY" \
 
 ---
 
+#### AI Chat & Search Endpoints
+
+| Method | Endpoint | Description | Parameters |
+|--------|----------|-------------|------------|
+| POST | `/rag_search` | Semantic (pgvector) search over `BookNote`/`ReadNote` embeddings | Body: `{"query": "...", "limit": 5}`. Returns 503 if `ai_agent.embed_host`/`embed_model` isn't configured |
+| POST | `/chat` | Run one turn of the server-side AI chat tool-calling loop (see `ai_agent.chat_*` under [Field Descriptions](#field-descriptions) below) | Body: `{"messages": [...]}` |
+
+**Examples:**
+```bash
+# Semantic note search
+curl -X POST -H "x-api-key: YOUR_KEY" -H "Content-Type: application/json" \
+  -d '{"query": "books about overcoming failure", "limit": 5}' \
+  http://localhost:8084/rag_search
+
+# One chat turn
+curl -X POST -H "x-api-key: YOUR_KEY" -H "Content-Type: application/json" \
+  -d '{"messages": [{"role": "user", "content": "What have I read most recently?"}]}' \
+  http://localhost:8084/chat
+```
+
+---
+
 ### Response Format
 
 All endpoints return JSON responses with this general structure:
@@ -657,14 +681,14 @@ poetry run pytest test_books/test_docker_api.py -v
 
 A Model Context Protocol (MCP) server that exposes the book database to AI models like Claude for seamless integration and natural language queries.
 
-**Version**: 3.0.0
-**Framework**: FastMCP 0.5.0+
+**Version**: 3.3.1
+**Framework**: FastMCP 0.5.0+ (pinned `<4.0.0`)
 **Port**: 3005
 **Location**: `book_service/booksmcp/`
 
 ### Features
 
-- **9 MCP Tools**: Search by title, author, ISBN, publisher, location, tags, and read date
+- **9 MCP Tools**: Search by title, author, ISBN, publisher, location, tags, and read date; plus pgvector semantic note search
 - **FastMCP Framework**: Modern, streamable HTTP transport
 - **Claude Integration**: Designed for Claude Desktop and other MCP clients
 - **Health Checks**: Built-in health monitoring
@@ -696,7 +720,7 @@ The server exposes 9 tools for searching books:
 6. `search_books_by_location` - Search by physical location
 7. `search_books_by_tags` - Search by tags
 8. `search_books_by_read_date` - Search by read date
-9. `search_tags` - Search for books by tag name
+9. `semantic_search_notes` - pgvector RAG search over book/read notes (`query`, `limit`)
 
 ### Endpoints
 
@@ -734,7 +758,7 @@ All tools use a single configuration file: `book_service/config/configuration.js
 {
   "username": "db_user",
   "password": "db_password",
-  "database": "book_collection",
+  "database": "book-collection",
   "host": "localhost",
   "port": 5434,
   "isbn_com": {
@@ -2075,13 +2099,13 @@ cd bin
 #### Manual Backup
 
 ```bash
-pg_dump -U username -h host -p 5434 book_collection > backup_$(date +%Y%m%d).sql
+pg_dump -U username -h host -p 5434 book-collection > backup_$(date +%Y%m%d).sql
 ```
 
 #### Restore Database
 
 ```bash
-psql -U username -h host -p 5434 book_collection < backup_20250104.sql
+psql -U username -h host -p 5434 book-collection < backup_20250104.sql
 ```
 
 **Note**: `bin/backup_db.sh` still shells out to `mysqldump`/`mysql` from before the May 2026 PostgreSQL migration and will not work as-is - use the manual `pg_dump`/`psql` commands above until that script is updated.
@@ -2127,7 +2151,7 @@ vim book_service/config/configuration.json
 # Fill in your database credentials and API key
 
 # 4. Verify database connection
-psql -U your_user -h host -p 5434 book_collection -c "SELECT COUNT(*) FROM books;"
+psql -U your_user -h host -p 5434 book-collection -c "SELECT COUNT(*) FROM books;"
 ```
 
 #### Running Services Locally
@@ -2377,7 +2401,7 @@ When modifying the database schema:
 vim database/schema_postgres.sql
 
 # 2. Test on development database
-psql -U user -h host -p 5434 book_collection < database/schema_postgres.sql
+psql -U user -h host -p 5434 book-collection < database/schema_postgres.sql
 
 # 3. Update API code if needed
 vim book_service/books/api.py
@@ -2586,7 +2610,7 @@ psycopg2.OperationalError: could not connect to server: Connection refused
 
 2. **Verify database credentials**:
    ```bash
-   psql -U username -h host -p 5434 book_collection
+   psql -U username -h host -p 5434 book-collection
    # Should connect successfully
    ```
 
@@ -3008,8 +3032,9 @@ docker system df
 
 #### AI Integration
 
-- **Ollama Documentation**: https://ollama.ai/
-- **LangChain**: https://python.langchain.com/ (if extending AI features)
+- **OpenAI Chat Completions API** (the protocol `ai_agent.chat_host` speaks): https://platform.openai.com/docs/api-reference/chat
+- **LM Studio Documentation** (current chat/embeddings host): https://lmstudio.ai/docs
+- **OpenRouter Documentation** (alternate verified `chat_host`): https://openrouter.ai/docs
 
 ### Tools and Utilities
 
@@ -3074,7 +3099,7 @@ make stop-all                     # Stop all containers
 ## Version Information
 
 - **BookDBTool**: v0.7.0
-- **REST API**: v0.20.3
+- **REST API**: v0.21.1
 - **MCP Server**: v3.3.1
 - **Python**: 3.12+
 - **Flask**: 3.1.2

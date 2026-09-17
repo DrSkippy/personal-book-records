@@ -4,20 +4,20 @@
 
 ```
 personal-book-records/
-├── book-records-react/     # React/Vite/TypeScript SPA frontend (v0.2.0)
+├── book-records-react/     # React/Vite/TypeScript SPA frontend (v0.5.0)
 ├── tools/                  # Python backend (API, MCP, CLI)
 │   ├── book_service/
-│   │   ├── books/          # Flask REST API (port 8084, v0.18.0)
-│   │   ├── booksmcp/       # FastMCP server (port 3005)
-│   │   ├── booksdb/        # DB layer (api_util.py, config.py)
-│   │   ├── config/         # configuration.json (gitignored)
+│   │   ├── books/          # Flask REST API (port 8084, v0.21.1)
+│   │   ├── booksmcp/       # FastMCP server (port 3005, v3.3.1)
+│   │   ├── booksdb/        # DB layer (api_util.py, config.py, chat_util.py)
+│   │   ├── config/         # configuration.json (transcrypt-encrypted, committed)
 │   │   └── test_books/     # Integration tests
 │   ├── bookdbtool/         # CLI REPL tools
 │   ├── test/               # Unit/mock tests
 │   ├── Makefile            # All build/run/test targets
 │   └── pyproject.toml      # Poetry project
 ├── docker-compose.yml      # Root compose: pulls from local registry, starts both services
-└── books.drskippy.app      # Single nginx config (port 83): SPA + /api/ + /mcp/ + /ollama/
+└── books.drskippy.app      # Single nginx config (port 83): SPA + /api/ + /mcp/
 ```
 
 ## Backend (tools/)
@@ -35,7 +35,7 @@ poetry run pytest ...
 - `book_service/booksdb/config.py` — DB config loader
 - `book_service/booksmcp/server.py` — MCP server entry point
 
-**Critical pattern:** `__all__` in `api_util.py` must include `pymysql` and `datetime` — these are re-exported for use in other modules that do `from booksdb.api_util import *`.
+**Critical pattern:** `__all__` in `api_util.py` must include `psycopg2` and `datetime` — these are re-exported for use in other modules that do `from booksdb.api_util import *`.
 
 **Docker builds run from `tools/` (repo root for book-service):**
 ```bash
@@ -90,7 +90,7 @@ VITE_RESOURCE_BASE_URL=
 API calls are same-origin via the `/api/` nginx prefix — no CORS headers needed.
 
 **Structure:**
-- `src/api/` — axios API clients (`client.ts` wraps all book-service calls, `ollama.ts` handles AI chat)
+- `src/api/` — axios API clients (`client.ts` wraps all book-service calls, `chat.ts` posts the conversation to `/api/chat`)
 - `src/hooks/` — TanStack Query hooks, one per resource type
 - `src/pages/` — route-level page components
 - `src/components/` — shared UI components
@@ -120,11 +120,12 @@ The AI Chat page (`/ai-chat`) holds no model configuration. It POSTs the running
 
 ## Database
 
-- **Database:** `book_collection` (MySQL)
-- **Tables:** `books`, `books_read`, `tag_labels`, `books_tags`, `complete_date_estimates`, `daily_page_records`, `images`
+- **Database:** `book-collection` (PostgreSQL, port 5434) — migrated from MySQL in May 2026 (`tools/database/migrate_mysql_to_postgres.py`); driver is `psycopg2`, not `pymysql`
+- **Tables:** `books`, `books_read`, `tag_labels`, `books_tags`, `complete_date_estimates`, `daily_page_records`, `images`, `book_note_embeddings`, `embedding_index_state`
 - **Key columns:** `BookId`, `IsbnNumber`, `IsbnNumber13`, `BookNote`, `TagId`, `RecordId`, `Page`, `ImageId`, `Name`, `Url`, `ImageType`, `LastUpdate`
 - CASCADE foreign keys handle child record deletion when a book is deleted
-- `Category` column was dropped in the Feb 2026 migration
+- `Category` column was dropped in the Feb 2026 migration (pre-dates the PostgreSQL move)
+- `book_note_embeddings` holds pgvector embeddings of `BookNote`/`ReadNote` for `POST /rag_search` and the `semantic_search_notes` chat tool; `embedding_index_state` records which `embed_host`/`embed_model`/`embed_dimensions` the index was built with so a config change can't silently mix embedding spaces
 - Valid locations: `Main Collection`, `Bedroom`, `Storage`, `Oversized`, `Pets`, `Woodwork`, `Reference`, `Birding`, `DOWNLOAD`
 
 ## nginx Deployment

@@ -4,7 +4,8 @@ This document describes the database schema, relationships, and business logic f
 
 ## Database Overview
 
-The Book Service API uses MySQL 8.0+ with 7 primary tables:
+The Book Service API uses PostgreSQL 14+ (migrated from MySQL in May 2026; see
+`tools/database/migrate_mysql_to_postgres.py`) with pgvector enabled, across 9 tables:
 
 1. **books** - Core book metadata
 2. **books_read** - Reading history
@@ -13,6 +14,11 @@ The Book Service API uses MySQL 8.0+ with 7 primary tables:
 5. **images** - Book cover images
 6. **complete_date_estimates** - Reading progress tracking
 7. **daily_page_records** - Daily reading progress data
+8. **book_note_embeddings** - pgvector embeddings of `BookNote`/`ReadNote`, for `/rag_search` and the `semantic_search_notes` chat tool
+9. **embedding_index_state** - Single-row marker recording which `embed_host`/`embed_model`/`embed_dimensions` produced the vectors currently in `book_note_embeddings`
+
+The canonical, always-current schema lives in `tools/database/schema_current.sql` and is applied via
+`poetry run python database/setup_db.py` (idempotent — safe to re-run against an existing database).
 
 ## Entity Relationship Diagram
 
@@ -22,6 +28,7 @@ erDiagram
     BOOKS ||--o{ BOOKS-TAGS : "has"
     BOOKS ||--o{ IMAGES : "has"
     BOOKS ||--o{ COMPLETE-DATE-ESTIMATES : "tracks"
+    BOOKS ||--o{ BOOK-NOTE-EMBEDDINGS : "embeds"
     TAG-LABELS ||--o{ BOOKS-TAGS : "categorizes"
     COMPLETE-DATE-ESTIMATES ||--o{ DAILY-PAGE-RECORDS : "contains"
 
@@ -29,14 +36,14 @@ erDiagram
         int BookId PK
         varchar Title
         varchar Author
-        datetime CopyrightDate
+        timestamp CopyrightDate
         varchar IsbnNumber
         varchar IsbnNumber13
         varchar PublisherName
         varchar CoverType
         smallint Pages
-        mediumtext BookNote
-        tinyint Recycled
+        text BookNote
+        smallint Recycled
         varchar Location
         timestamp LastUpdate
     }
@@ -65,22 +72,33 @@ erDiagram
         varchar Name
         varchar Url
         varchar ImageType
+        timestamp LastUpdate
     }
 
     COMPLETE-DATE-ESTIMATES {
         bigint RecordId PK
-        bigint BookId FK
-        datetime StartDate
+        int BookId FK
+        timestamp StartDate
         bigint LastReadablePage
-        datetime EstimateDate
-        datetime EstimatedFinishDate
+        timestamp EstimateDate
+        timestamp EstimatedFinishDate
     }
 
     DAILY-PAGE-RECORDS {
         bigint RecordId FK
-        datetime RecordDate PK
+        timestamp RecordDate PK
         bigint Page
         timestamp LastUpdate
+    }
+
+    BOOK-NOTE-EMBEDDINGS {
+        int id PK
+        int bookid FK
+        varchar source
+        date read_date
+        text content
+        vector embedding
+        timestamp updated_at
     }
 ```
 
@@ -93,40 +111,44 @@ The central table storing book metadata.
 **Schema**:
 ```sql
 CREATE TABLE books (
-  BookId int NOT NULL AUTO_INCREMENT,
-  Title varchar(200) NOT NULL,
-  Author varchar(200) NOT NULL,
-  CopyrightDate datetime DEFAULT NULL,
-  IsbnNumber varchar(13) DEFAULT NULL,
-  PublisherName varchar(50) DEFAULT NULL,
-  CoverType varchar(30) DEFAULT NULL,
-  Pages smallint DEFAULT NULL,
-  BookNote mediumtext,
-  Recycled tinyint(1) DEFAULT NULL,
-  Location varchar(50) NOT NULL,
-  IsbnNumber13 varchar(13) DEFAULT NULL,
-  LastUpdate timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (BookId),
-  KEY Location_idx (Location),
-  FULLTEXT KEY Author_idx (Author),
-  FULLTEXT KEY Title_idx (Title)
-) ENGINE=InnoDB AUTO_INCREMENT=2912 DEFAULT CHARSET=utf8mb4;
+    BookId        SERIAL         NOT NULL,
+    Title         VARCHAR(200)   NOT NULL,
+    Author        VARCHAR(200)   NOT NULL,
+    CopyrightDate TIMESTAMP      DEFAULT NULL,
+    IsbnNumber    VARCHAR(13)    DEFAULT NULL,
+    PublisherName VARCHAR(50)    DEFAULT NULL,
+    CoverType     VARCHAR(30)    DEFAULT NULL,
+    Pages         SMALLINT       DEFAULT NULL,
+    BookNote      TEXT           DEFAULT NULL,
+    Recycled      SMALLINT       DEFAULT NULL,
+    Location      VARCHAR(50)    NOT NULL,
+    IsbnNumber13  VARCHAR(13)    DEFAULT NULL,
+    LastUpdate    TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (BookId)
+);
+
+CREATE INDEX idx_books_title    ON books (Title);
+CREATE INDEX idx_books_author   ON books (Author);
+CREATE INDEX idx_books_location ON books (Location);
 ```
 
+`LastUpdate` is maintained by a `BEFORE UPDATE` trigger (`update_last_update()`), not a MySQL-style
+`ON UPDATE CURRENT_TIMESTAMP` column default.
+
 **Key Fields**:
-- `BookId`: Auto-incrementing primary key
-- `Title`, `Author`: Required fields with fulltext indexes for searching
+- `BookId`: Auto-incrementing (`SERIAL`) primary key
+- `Title`, `Author`: Required fields; plain B-tree indexes back `ILIKE` search (no MySQL-style `FULLTEXT` index in Postgres)
 - `CopyrightDate`: Accepts year-only (`YYYY`) which is converted to `YYYY-01-01 00:00:00`
 - `IsbnNumber`: ISBN-10 format
 - `IsbnNumber13`: ISBN-13 format
-- `CoverType`: Physical format (Hard, Soft, Digital)
+- `CoverType`: Physical format (Hard, Soft, Digital); when `Digital`, `Location` must be `DOWNLOAD`
 - `Recycled`: Soft delete flag (0=active, 1=removed/donated)
-- `Location`: Required field, must match a valid location
+- `Location`: Required field, must be one of the valid locations (`GET /valid_locations`)
 - `LastUpdate`: Automatically updated timestamp
 
 **Business Logic**:
-- Year-only copyright dates are automatically expanded to full datetime
-- Title and Author have fulltext indexes for efficient searching
+- Year-only copyright dates are automatically expanded to full timestamps
+- Title and Author searches use `ILIKE` (case-insensitive) against the indexed columns
 - Recycled flag enables soft deletes (preserves history while marking book as removed)
 
 ### books_read
@@ -136,13 +158,14 @@ Tracks reading history with dates and notes.
 **Schema**:
 ```sql
 CREATE TABLE books_read (
-  BookId int unsigned NOT NULL,
-  ReadDate date NOT NULL,
-  ReadNote text CHARACTER SET utf8mb4,
-  LastUpdate timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (BookId, ReadDate),
-  CONSTRAINT fk_books_read_book FOREIGN KEY (BookId) REFERENCES books (BookId) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    BookId     INTEGER    NOT NULL,
+    ReadDate   DATE       NOT NULL,
+    ReadNote   TEXT       DEFAULT NULL,
+    LastUpdate TIMESTAMP  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (BookId, ReadDate),
+    CONSTRAINT fk_books_read_book FOREIGN KEY (BookId)
+        REFERENCES books (BookId) ON DELETE CASCADE ON UPDATE CASCADE
+);
 ```
 
 **Key Fields**:
@@ -155,6 +178,7 @@ CREATE TABLE books_read (
 - A book can be read multiple times (multiple ReadDate entries)
 - Each reading can have its own note
 - The same book with the same date cannot be inserted twice
+- Saving a non-empty `ReadNote` triggers an embedding refresh in `book_note_embeddings` (source `read_note`)
 
 ### tag_labels
 
@@ -163,11 +187,11 @@ Stores unique tag definitions.
 **Schema**:
 ```sql
 CREATE TABLE tag_labels (
-  TagId int NOT NULL AUTO_INCREMENT,
-  Label varchar(50) DEFAULT NULL,
-  PRIMARY KEY (TagId),
-  UNIQUE KEY tag_labels_UN (Label)
-) ENGINE=InnoDB AUTO_INCREMENT=6911 DEFAULT CHARSET=utf8mb4;
+    TagId  SERIAL       NOT NULL,
+    Label  VARCHAR(50)  DEFAULT NULL,
+    PRIMARY KEY (TagId),
+    UNIQUE (Label)
+);
 ```
 
 **Key Fields**:
@@ -186,18 +210,20 @@ Many-to-many relationship between books and tags.
 **Schema**:
 ```sql
 CREATE TABLE books_tags (
-  BookId int NOT NULL,
-  TagId int NOT NULL,
-  LastUpdate timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (BookId, TagId),
-  CONSTRAINT fk_books_tags_book FOREIGN KEY (BookId) REFERENCES books (BookId) ON DELETE CASCADE,
-  CONSTRAINT fk_books_tags_tag FOREIGN KEY (TagId) REFERENCES tag_labels (TagId) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    BookId     INTEGER    NOT NULL,
+    TagId      INTEGER    NOT NULL,
+    LastUpdate TIMESTAMP  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (BookId, TagId),
+    CONSTRAINT fk_books_tags_book FOREIGN KEY (BookId)
+        REFERENCES books (BookId) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT fk_books_tags_tag FOREIGN KEY (TagId)
+        REFERENCES tag_labels (TagId) ON DELETE CASCADE ON UPDATE CASCADE
+);
 ```
 
 **Key Fields**:
 - Composite primary key: (`BookId`, `TagId`)
-- `BookId`: References books table (INT)
+- `BookId`: References books table
 - `TagId`: References tag_labels table
 
 **Business Logic**:
@@ -212,14 +238,16 @@ Stores image metadata for book covers.
 **Schema**:
 ```sql
 CREATE TABLE images (
-  ImageId int NOT NULL AUTO_INCREMENT,
-  BookId int NOT NULL,
-  Name varchar(255) DEFAULT NULL,
-  Url varchar(255) DEFAULT NULL,
-  ImageType varchar(64) DEFAULT 'cover-face',
-  PRIMARY KEY (ImageId),
-  CONSTRAINT fk_images_book FOREIGN KEY (BookId) REFERENCES books (BookId) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4;
+    ImageId    SERIAL       NOT NULL,
+    BookId     INTEGER      NOT NULL,
+    Name       VARCHAR(255) DEFAULT NULL,
+    Url        VARCHAR(255) DEFAULT NULL,
+    ImageType  VARCHAR(64)  DEFAULT 'cover-face',
+    LastUpdate TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (ImageId),
+    CONSTRAINT fk_images_book FOREIGN KEY (BookId)
+        REFERENCES books (BookId) ON DELETE CASCADE ON UPDATE CASCADE
+);
 ```
 
 **Key Fields**:
@@ -244,19 +272,20 @@ Tracks reading session metadata for progress estimation.
 **Schema**:
 ```sql
 CREATE TABLE complete_date_estimates (
-  BookId bigint unsigned NOT NULL,
-  StartDate datetime NOT NULL,
-  LastReadablePage bigint NOT NULL,
-  EstimateDate datetime DEFAULT NULL,
-  EstimatedFinishDate datetime DEFAULT NULL,
-  RecordId bigint unsigned NOT NULL AUTO_INCREMENT,
-  PRIMARY KEY (RecordId),
-  CONSTRAINT fk_estimates_book FOREIGN KEY (BookId) REFERENCES books (BookId) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=76 DEFAULT CHARSET=utf8mb4;
+    RecordId             BIGSERIAL  NOT NULL,
+    BookId               INTEGER    NOT NULL,
+    StartDate            TIMESTAMP  NOT NULL,
+    LastReadablePage     BIGINT     NOT NULL,
+    EstimateDate         TIMESTAMP  DEFAULT NULL,
+    EstimatedFinishDate  TIMESTAMP  DEFAULT NULL,
+    PRIMARY KEY (RecordId),
+    CONSTRAINT fk_complete_date_estimates_book FOREIGN KEY (BookId)
+        REFERENCES books (BookId) ON DELETE CASCADE ON UPDATE CASCADE
+);
 ```
 
 **Key Fields**:
-- `RecordId`: Auto-incrementing primary key used to track daily progress
+- `RecordId`: Auto-incrementing (`BIGSERIAL`) primary key used to track daily progress
 - `BookId`: Foreign key to books table
 - `StartDate`: When reading estimate began
 - `LastReadablePage`: Total readable pages in book
@@ -267,6 +296,8 @@ CREATE TABLE complete_date_estimates (
 - Multiple reading sessions can exist for the same book (e.g., re-reads)
 - RecordId is used to associate daily page records
 - Completion estimates use linear regression on daily page progress
+- `EstimateDate` is not rewritten when the book already has a `ReadDate` after the estimate's
+  `StartDate` — otherwise viewing a finished book's record would incorrectly mark it "recently touched"
 
 ### daily_page_records
 
@@ -275,17 +306,18 @@ Tracks day-by-day reading progress.
 **Schema**:
 ```sql
 CREATE TABLE daily_page_records (
-  RecordDate datetime NOT NULL,
-  Page bigint NOT NULL,
-  RecordId bigint unsigned NOT NULL,
-  LastUpdate timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (RecordId, RecordDate),
-  CONSTRAINT fk_daily_pages_record FOREIGN KEY (RecordId) REFERENCES complete_date_estimates (RecordId) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    RecordDate TIMESTAMP  NOT NULL,
+    Page       BIGINT     NOT NULL,
+    RecordId   BIGINT     NOT NULL,
+    LastUpdate TIMESTAMP  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (RecordDate, RecordId),
+    CONSTRAINT fk_daily_page_records_record FOREIGN KEY (RecordId)
+        REFERENCES complete_date_estimates (RecordId) ON DELETE CASCADE ON UPDATE CASCADE
+);
 ```
 
 **Key Fields**:
-- Composite primary key: (`RecordId`, `RecordDate`)
+- Composite primary key: (`RecordDate`, `RecordId`)
 - `RecordId`: Foreign key to complete_date_estimates
 - `RecordDate`: Date of reading progress
 - `Page`: Page number reached on this date
@@ -294,6 +326,63 @@ CREATE TABLE daily_page_records (
 - Each date can have only one page record per estimate session
 - Used for calculating reading pace and estimated completion
 - Page numbers should be cumulative (total pages read, not daily increment)
+
+### book_note_embeddings
+
+pgvector embeddings of `BookNote`/`ReadNote`, powering `POST /rag_search` and the chat
+`semantic_search_notes` tool.
+
+**Schema**:
+```sql
+CREATE TABLE book_note_embeddings (
+    id         SERIAL       NOT NULL,
+    bookid     INTEGER      NOT NULL,
+    source     VARCHAR(20)  NOT NULL CHECK (source IN ('book_note', 'read_note')),
+    read_date  DATE         DEFAULT NULL,
+    content    TEXT         NOT NULL,
+    embedding  vector(768),
+    updated_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_bne_book FOREIGN KEY (bookid)
+        REFERENCES books (BookId) ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE INDEX idx_bne_embedding_hnsw ON book_note_embeddings USING hnsw (embedding vector_cosine_ops);
+CREATE UNIQUE INDEX idx_bne_unique_book_note ON book_note_embeddings (bookid) WHERE source = 'book_note';
+CREATE UNIQUE INDEX idx_bne_unique_read_note ON book_note_embeddings (bookid, read_date) WHERE source = 'read_note';
+```
+
+**Key Fields**:
+- `source`: `book_note` (one row per book) or `read_note` (one row per book+`read_date`)
+- `embedding`: vector dimension (768 by default) must match `ai_agent.embed_dimensions` in `configuration.json`
+- HNSW index enables approximate cosine-similarity search with no separate training step
+
+**Business Logic**:
+- Saving a `BookNote` or `ReadNote` auto-triggers a re-embed of that row
+- Bulk (re)indexing via `poetry run python database/index_notes.py [--rebuild]`
+- Vector dimension is fixed at table-creation time; changing `embed_dimensions` requires recreating the table
+
+### embedding_index_state
+
+Single-row table recording which embedding model actually produced the vectors in
+`book_note_embeddings`, so `book-service` and `booksmcp` can refuse to start against a
+mismatched model rather than silently mixing embedding spaces.
+
+**Schema**:
+```sql
+CREATE TABLE embedding_index_state (
+    id               INTEGER   PRIMARY KEY DEFAULT 1,
+    embed_host       TEXT      NOT NULL,
+    embed_model      TEXT      NOT NULL,
+    embed_dimensions INTEGER   NOT NULL,
+    updated_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT embedding_index_state_singleton CHECK (id = 1)
+);
+```
+
+**Business Logic**:
+- Written only by `index_notes.py --rebuild` (or `--mark-current` to seed a baseline without re-embedding), never by incremental indexing
+- Checked at process startup against the configured `ai_agent.embed_host`/`embed_model`/`embed_dimensions`; mismatch is a fatal startup error, not a warning
 
 ## Relationships
 
@@ -310,7 +399,10 @@ CREATE TABLE daily_page_records (
    - One book can have multiple reading sessions
    - Useful for long books read over multiple attempts
 
-4. **complete_date_estimates → daily_page_records**
+4. **books → book_note_embeddings**
+   - One book has one `book_note` embedding and up to one `read_note` embedding per `ReadDate`
+
+5. **complete_date_estimates → daily_page_records**
    - One reading session has multiple daily progress entries
 
 ### Many-to-Many Relationships
@@ -414,36 +506,41 @@ POST/PUT endpoints return operation-specific objects:
 
 ### Primary Keys
 - All tables have primary keys for fast lookups
-- Auto-incrementing PKs for books, images, tag_labels, complete_date_estimates
+- Auto-incrementing (`SERIAL`/`BIGSERIAL`) PKs for books, images, tag_labels, complete_date_estimates, book_note_embeddings
 
 ### Secondary Indexes
-- `Location_idx` on books.Location (frequent filter)
-- Fulltext indexes on Author and Title (text search optimization)
+- `idx_books_title`, `idx_books_author`, `idx_books_location` on `books` (search/filter support; `ILIKE` for case-insensitive matches, not MySQL `FULLTEXT`)
+- `idx_bne_embedding_hnsw` (HNSW, cosine ops) on `book_note_embeddings.embedding` for semantic search
+- `idx_bne_unique_book_note` / `idx_bne_unique_read_note` (partial unique indexes) enforce one embedding per book-note / per book+read_date
 
 ### Composite Primary Keys
 - books_read: (BookId, ReadDate)
 - books_tags: (BookId, TagId)
-- daily_page_records: (RecordId, RecordDate)
+- daily_page_records: (RecordDate, RecordId)
 
 These composite keys ensure uniqueness while enabling efficient queries.
 
 ## Auto-Updated Fields
 
-Several fields automatically update via database triggers:
+`LastUpdate` columns are maintained by a shared `update_last_update()` PL/pgSQL trigger function
+(`BEFORE UPDATE`), applied per-table:
 
-- `books.LastUpdate` - Updates on any row modification
-- `books_read.LastUpdate` - Updates on any row modification
-- `books_tags.LastUpdate` - Updates on any row modification
-- `daily_page_records.LastUpdate` - Updates on any row modification
+- `books.LastUpdate`
+- `books_read.LastUpdate`
+- `books_tags.LastUpdate`
+- `images.LastUpdate`
+- `daily_page_records.LastUpdate`
 
-These timestamps help track data freshness and enable caching strategies.
+`book_note_embeddings.updated_at` and `embedding_index_state.updated_at` are set at insert/rebuild
+time rather than via a trigger.
+
+These timestamps help track data freshness (e.g. the `get_recently_edited_books`/`/recent` "recently
+touched" ranking) and enable caching strategies.
 
 ## Database Size Considerations
 
-Based on the auto-increment values:
-- books: ~2,900+ books
-- tag_labels: ~6,900+ unique tags
-- complete_date_estimates: ~75+ reading sessions
-- images: ~10+ image records
-
 The schema is designed to scale to tens of thousands of books and millions of reading records.
+`BookId`, `TagId`, `ImageId`, `RecordId`, and `book_note_embeddings.id` are all Postgres
+`SERIAL`/`BIGSERIAL` sequences rather than fixed MySQL `AUTO_INCREMENT` counters — actual current
+row counts are best checked directly (`SELECT count(*) FROM ...`) rather than inferred from schema
+defaults.

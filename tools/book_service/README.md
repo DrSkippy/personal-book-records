@@ -11,13 +11,13 @@ The `book_service` directory provides:
 - 50+ endpoints for managing books, reading history, and tags
 - Authentication via `x-api-key` header
 - Visualization and image management
-- Version: 0.19.0
+- Version: 0.21.1
 
 ### 2. **MCP Server** (`booksmcp/`)
 - Model Context Protocol server for AI integration (Port 3005)
-- FastMCP framework with 9 search tools
+- FastMCP framework with 9 tools (8 search tools + pgvector semantic note search)
 - Designed for Claude Desktop and other MCP clients
-- Version: 3.1.0
+- Version: 3.3.1
 
 ### 3. **Shared Database Layer** (`booksdb/`)
 - Common PostgreSQL query utilities used by all services
@@ -75,7 +75,7 @@ For complete documentation on all services, see:
 ### Service-Specific Documentation
 
 - **REST API Details**: `books/README.md` - REST API quick reference
-- **MCP Server Complete Guide**: `booksmcp/README.md` - Comprehensive MCP documentation (575 lines)
+- **MCP Server Complete Guide**: `booksmcp/README.md` - Comprehensive MCP documentation (500+ lines)
 
 ## Directory Structure
 
@@ -90,7 +90,10 @@ book_service/
 │   └── README.md             # REST API quick reference
 ├── booksdb/                  # Shared database layer
 │   ├── __init__.py
-│   └── api_util.py           # Database query utilities
+│   ├── api_util.py           # Database query utilities
+│   ├── config.py             # Config loader (DB, API key, ai_agent.chat_*/embed_*)
+│   ├── chat_util.py          # AI Chat tool-calling loop (run_chat_loop)
+│   └── serialization.py      # Response serialization helpers
 ├── booksmcp/                 # MCP server
 │   ├── server.py             # FastMCP server
 │   ├── Dockerfile            # Docker configuration
@@ -109,7 +112,8 @@ book_service/
     ├── test_api_util.py      # Database layer tests
     ├── test_docker_api.py    # REST API tests
     ├── test_booksmcp.py      # MCP server tests
-    └── generate_curl_commands.py  # Test script generator
+    ├── generate_curl_commands.py  # Test script generator
+    └── clean_test_records.py # Removes records created by integration tests
 ```
 
 ## Configuration
@@ -245,19 +249,27 @@ Both services share the same database layer and configuration:
 
 - **Main README**: `../README.md` - Comprehensive documentation for all tools
 - **REST API README**: `books/README.md` - REST API quick reference
-- **MCP Server README**: `booksmcp/README.md` - Complete MCP guide (575 lines)
+- **MCP Server README**: `booksmcp/README.md` - Complete MCP guide (500+ lines)
 - **Test Documentation**: `../test/README.md` - Test suite documentation
 - **Database Schema**: `../database/schema_postgres.sql` - PostgreSQL database schema
 
 ## Version Information
 
-- REST API: v0.20.3
+- REST API: v0.21.1
 - MCP Server: v3.3.1
 - Python: 3.12+
 - Flask: 3.1.2
 - FastMCP: 0.5.0+ (pinned `<4.0.0`)
 
 ## Changelog
+
+### v0.21.1
+- **AI Chat moved server-side**: `POST /chat` runs the full tool-calling loop in-process (`booksdb/chat_util.py::run_chat_loop`) against `ai_agent.chat_host/chat_model/chat_api_key`; the frontend now only POSTs/receives conversation history and never sees the chat model, host, or key
+- Added independent `ai_agent.chat_api_key` (`AI_CHAT_API_KEY` env override), decoupled from `embed_api_key` — chat and embeddings no longer need to share an LLM host
+- `bookdbtool`'s `OllamaAgent` rewritten from the `ollama` package to raw OpenAI-compatible `/v1/chat/completions` calls
+- `get_tag_counts` gained a `limit` param (default 20); `chat_util.MAX_TOOL_RESULT_CHARS` truncates oversized tool results before they reach the model (backstop against context-window overflow from any tool)
+- **Embedding freshness check**: new `embedding_index_state` table records which `embed_host`/`embed_model`/`embed_dimensions` produced the current `book_note_embeddings`; book-service and booksmcp refuse to start on a mismatch. `index_notes.py` gained `--mark-current`
+- nginx's `/ollama/` browser-to-LLM proxy removed (no longer needed)
 
 ### v0.20.3
 - Added `get_recently_read` (`GET /recently_read[/<limit>]`), ranked by `books_read.ReadDate` rather than `LastUpdate`

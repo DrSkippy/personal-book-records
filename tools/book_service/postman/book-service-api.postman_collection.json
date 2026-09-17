@@ -1,9 +1,9 @@
 {
   "info": {
     "name": "Book Service API",
-    "description": "Comprehensive REST API for personal book collection management (v0.17.0)",
+    "description": "Comprehensive REST API for personal book collection management (v0.21.1)",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "_postman_id": "book-service-api-v0.17.0"
+    "_postman_id": "book-service-api-v0.21.1"
   },
   "auth": {
     "type": "apikey",
@@ -747,6 +747,51 @@
               "host": ["{{base_url}}"],
               "path": ["image", "all_years.png", "2023"]
             }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "AI Chat & Search",
+      "item": [
+        {
+          "name": "Semantic Search Notes (RAG)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"books about overcoming failure\",\n  \"limit\": 5\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/rag_search",
+              "host": ["{{base_url}}"],
+              "path": ["rag_search"]
+            },
+            "description": "Vector similarity search over BookNote/ReadNote embeddings (pgvector). Returns 503 if ai_agent.embed_host/embed_model is not configured."
+          },
+          "response": []
+        },
+        {
+          "name": "AI Chat (one turn)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"What have I read most recently?\" }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/chat",
+              "host": ["{{base_url}}"],
+              "path": ["chat"]
+            },
+            "description": "Runs one turn of the server-side tool-calling chat loop. Send only user/assistant/tool history -- no system message. Returns {history, trace}; pass the returned history back on the next turn."
           },
           "response": []
         }

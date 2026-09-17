@@ -1,6 +1,6 @@
 # Book Service API Documentation
 
-**Version**: 0.16.2
+**Version**: 0.21.1
 
 ## Overview
 
@@ -40,25 +40,26 @@ curl -H "x-api-key: YOUR_API_KEY" http://localhost:8084/configuration
 Expected response:
 ```json
 {
-  "version": "0.16.2",
+  "version": "0.21.1",
   "configuration": {
     "user": "...",
-    "db": "book_collection",
+    "password": "******",
+    "dbname": "book-collection",
     "host": "...",
-    "port": 3306,
-    "passwd": "******"
+    "port": 5434,
+    "sslmode": "disable"
   },
   "isbn_configuration": {
     "url_isbn": "...",
     "key": "******"
   },
-  "date": "2024-01-15T10:30"
+  "date": "2026-01-15T10:30"
 }
 ```
 
 ## API Capabilities
 
-### 50+ Endpoints Organized in 8 Categories
+### 50+ Endpoints Organized in 9 Categories
 
 1. **Configuration & Metadata** (2 endpoints)
    - Get API configuration and version
@@ -100,6 +101,10 @@ Expected response:
 8. **Visualization** (4 endpoints)
    - Year-over-year progress comparison charts
    - All-time reading statistics charts
+
+9. **AI Chat & Search** (2 endpoints)
+   - Server-side OpenAI-compatible tool-calling chat loop (`/chat`)
+   - Semantic (pgvector) search over book/read notes (`/rag_search`)
 
 ## Response Format
 

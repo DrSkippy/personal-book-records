@@ -1,19 +1,26 @@
-# Unit Tests for bookdbtool
+# Unit Tests
 
-This directory contains comprehensive unit tests for the bookdbtool package.
+This directory contains unit/mock tests for both the `bookdbtool` package and the `book_service`
+backend (Flask API + `booksdb` layer). Integration tests that run against live containers live
+separately in `../book_service/test_books/`.
 
 > **For comprehensive testing workflows and Makefile integration**, see:
 > `../README.md#testing` - Main documentation with complete testing procedures
 
 ## Test Coverage
 
-The test suite covers all major modules in the bookdbtool package:
-
+**bookdbtool:**
 - **test_book_db_tools.py** - Tests for BCTool class (book database operations)
-- **test_ai_tools.py** - Tests for OllamaAgent class (AI chat agent)
+- **test_ai_tools.py** - Tests for OllamaAgent class (AI chat agent; OpenAI-compatible `/v1/chat/completions` client)
 - **test_estimate_tools.py** - Tests for ESTTool class (reading estimates)
 - **test_isbn_lookup_tools.py** - Tests for ISBNLookup class (ISBN lookups)
 - **test_visualization_tools.py** - Tests for visualization functions
+
+**book_service backend:**
+- **test_config.py** - Tests for `booksdb/config.py` configuration loading (including `ai_agent.chat_*`/`embed_*` fields)
+- **test_chat_util.py** - Tests for the server-side AI chat tool-calling loop (`booksdb/chat_util.py`)
+- **test_chat_endpoint.py** - Flask route integration tests for `POST /chat`
+- **test_embedding_index_state.py** - Tests for the `embedding_index_state` freshness check (embedding model mismatch protection)
 
 ## Running the Tests
 
@@ -43,7 +50,7 @@ poetry run python -m unittest test.test_book_db_tools.TestBCTool.test_init -v
 
 ## Test Statistics
 
-- Total test methods: 124+
+- Total test methods: 157+ (bookdbtool + book_service backend combined)
 - Test coverage includes:
   - Unit tests for all public methods
   - Tests for method aliases

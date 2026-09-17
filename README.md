@@ -4,7 +4,7 @@ A personal book collection management system built around a PostgreSQL database.
 
 ## From-Scratch Setup
 
-Full stack on a single host running MySQL, Docker, and nginx.
+Full stack on a single host running PostgreSQL, Docker, and nginx.
 
 ### Prerequisites
 - Docker and Docker Compose
@@ -122,9 +122,11 @@ poetry run python database/index_notes.py
 docker compose up -d           # start (pulls from localhost:5000 registry)
 docker compose down            # stop
 docker compose logs -f         # tail logs
-docker compose restart         # apply configuration.json changes (no rebuild)
-make build-all && make push-all  # rebuild images and push to registry
+docker compose restart         # restart with the currently-built image (no config reload)
+make build-all && make push-all  # rebuild images (bakes in configuration.json) and push to registry
 ```
+
+`configuration.json` is baked into the image at build time — `docker compose restart` does **not** pick up edits to it; rebuild and redeploy (`make build-all && make push-all`, then `docker compose up -d`) instead.
 
 ---
 

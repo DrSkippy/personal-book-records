@@ -216,7 +216,7 @@ Content-Type: image/jpeg
 - Verify connection settings in `configuration.json`
 - Test database connectivity:
   ```bash
-  mysql -h <host> -u <user> -p <database>
+  psql -h <host> -p <port> -U <user> -d book-collection
   ```
 
 #### Database Constraint Violation
@@ -224,11 +224,13 @@ Content-Type: image/jpeg
 **Example - Duplicate Read Date**:
 ```json
 {
-  "error": "Duplicate entry '1234-2024-01-15' for key 'PRIMARY'"
+  "error": "duplicate key value violates unique constraint \"books_read_pkey\""
 }
 ```
 
-**Explanation**: Trying to add the same book + date combination twice
+**Explanation**: Trying to add the same book + date combination twice (Postgres reports this as a
+unique-constraint violation on the `(BookId, ReadDate)` primary key, not a MySQL-style "Duplicate
+entry" message)
 
 **Solution**: Check if record already exists:
 ```bash
@@ -240,7 +242,7 @@ curl -H "x-api-key: YOUR_API_KEY" http://localhost:8084/status_read/1234
 **Example**:
 ```json
 {
-  "error": "Cannot add or update a child row: a foreign key constraint fails"
+  "error": "insert or update on table \"books_read\" violates foreign key constraint \"fk_books_read_book\""
 }
 ```
 
@@ -441,7 +443,7 @@ Example log messages:
 ```
 [INFO] File uploaded successfully: /books/uploads/cover.jpg
 [ERROR] x-api-key missing or incorrect.
-[ERROR] (1062, "Duplicate entry '1234-2024-01-15' for key 'PRIMARY'")
+[ERROR] duplicate key value violates unique constraint "books_read_pkey"
 [DEBUG] Inserting read date for BookId: 1234
 ```
 
@@ -505,7 +507,7 @@ When reporting issues, include:
 ### Example Issue Report
 
 ```
-API Version: 0.16.2
+API Version: 0.21.1
 
 Request:
 curl -X POST \
@@ -523,7 +525,7 @@ Response Body:
 }
 
 Server Log:
-[ERROR] (1048, "Column 'Title' cannot be null")
+[ERROR] null value in column "title" of relation "books" violates not-null constraint
 
 Expected: Book should be added with auto-generated BookId
 Actual: 500 error with database constraint violation

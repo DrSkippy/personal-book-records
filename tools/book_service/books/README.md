@@ -4,7 +4,7 @@ Flask-based REST API for managing and querying the book collection database.
 
 ## Overview
 
-- **Version**: 0.20.0
+- **Version**: 0.21.1
 - **Framework**: Flask 3.1.2
 - **Port**: 8084
 - **Authentication**: API key via `x-api-key` header
@@ -188,6 +188,10 @@ For the complete endpoint reference with examples, see `../../README.md#tool-2-r
 - GET `/image/year_progress_comparison.png` - Progress by year chart
 - GET `/image/all_years.png` - All-time statistics
 
+### AI Chat & Search
+- POST `/rag_search` - Semantic (pgvector) search over book/read notes
+- POST `/chat` - One turn of the server-side AI chat tool-calling loop
+
 **Full endpoint reference**: See `../../README.md#complete-api-endpoint-reference`
 
 ## Related Documentation
@@ -199,7 +203,7 @@ For the complete endpoint reference with examples, see `../../README.md#tool-2-r
 
 ## Version Information
 
-- API Version: 0.20.0
+- API Version: 0.21.1
 - Flask: 3.1.2
 - Python: 3.12+
 - psycopg2-binary: 2.9+

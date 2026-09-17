@@ -450,6 +450,11 @@ async def server_info(request: Request) -> dict[str, Any]:
                 "name": "search_books_by_read_date",
                 "description": "Search books by read date",
                 "parameters": ["read_date"]
+            },
+            {
+                "name": "semantic_search_notes",
+                "description": "Semantic (pgvector) search over book and reading notes",
+                "parameters": ["query", "limit"]
             }
         ],
         "examples": {

@@ -35,19 +35,20 @@ curl -H "x-api-key: YOUR_API_KEY" http://localhost:8084/configuration
 **Expected Response (200 OK)**:
 ```json
 {
-  "version": "0.16.2",
+  "version": "0.21.1",
   "configuration": {
     "user": "books_user",
-    "db": "book_collection",
+    "password": "******",
+    "dbname": "book-collection",
     "host": "192.168.1.90",
-    "port": 3306,
-    "passwd": "******"
+    "port": 5434,
+    "sslmode": "disable"
   },
   "isbn_configuration": {
     "url_isbn": "https://api.isbndb.com/book/",
     "key": "******"
   },
-  "date": "2024-01-15T10:30"
+  "date": "2026-01-15T10:30"
 }
 ```
 

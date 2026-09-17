@@ -1,9 +1,15 @@
 # Book Service API Documentation - Project Summary
 
+> **Historical snapshot.** This records the original documentation project as delivered on
+> 2024-02-09 against API v0.16.2. It is not maintained going forward; the API has since moved
+> well past v0.16.2 (see `tools/book_service/README.md` changelog for the version history), and
+> figures like endpoint/table counts below reflect that point in time, not current state. For
+> current documentation, start at `docs/README.md` and `openapi.yaml`.
+
 **Project**: API Documentation for New Web Client Development
 **API Version**: 0.16.2
 **Completion Date**: 2024-02-09
-**Status**: ✅ COMPLETE
+**Status**: ✅ COMPLETE (as of the date above)
 
 ## Project Goal
 

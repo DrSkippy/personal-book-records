@@ -19,7 +19,7 @@ poetry run python bin/books.py
 
 - **Interactive REPL**: Full Python environment with pre-loaded database tools
 - **Book Queries**: Search, filter, and browse book collection
-- **AI Integration**: Natural language queries using Ollama LLM
+- **AI Integration**: Natural language queries via an OpenAI-compatible chat LLM (LM Studio, OpenRouter, etc. -- not Ollama-native)
 - **Reading Estimates**: Track reading progress and predict completion dates
 - **ISBN Lookup**: Query external ISBN databases
 - **Visualization**: Generate reading statistics charts
@@ -40,7 +40,8 @@ bc.add()
 ```
 
 ### 2. **ai** - OllamaAgent
-Natural language AI interface powered by Ollama LLM.
+Natural language AI interface powered by an OpenAI-compatible chat LLM (the class keeps its
+historical `OllamaAgent` name, but no longer talks to the Ollama-native API).
 
 ```python
 ai.chat("Find all fiction books I read in 2024")
@@ -139,25 +140,25 @@ Required fields:
 - Requests (for HTTP API calls)
 - Pandas, NumPy (for data processing)
 - Matplotlib (for visualizations)
-- Ollama (for AI integration)
+- Requests (for the OpenAI-compatible chat LLM calls in `ai_tools.py`)
 
 All dependencies managed via `../pyproject.toml`
 
 ## Key Features Details
 
 ### Book Queries (BCTool)
-- Search by author, title, ISBN, category, publisher, location
+- Search by author, title, ISBN, tags, publisher, location
 - Filter by read status, recycled status
 - Browse recently updated books
 - Get reading statistics and summaries
 - Add and update book records interactively
 
 ### AI Chat (OllamaAgent)
-- Natural language book queries
+- Natural language book queries against an OpenAI-compatible chat LLM (`ai_agent.chat_*` config)
 - Tool calling for advanced searches
 - Conversation history
 - Multi-parameter searches
-- Supports: author, title, ISBN, category, tags, dates
+- Supports: author, title, ISBN, tags, dates
 
 ### Reading Estimates (ESTTool)
 - Track daily reading progress
@@ -201,7 +202,8 @@ All dependencies managed via `../pyproject.toml`
 ## Version History
 
 - **v0.7.0** (Current): AI integration, reading estimates, enhanced search
-- Based on REST API v0.20.3
+- `ai_tools.py` at v0.3.0: `OllamaAgent` rewritten to call an OpenAI-compatible `/v1/chat/completions` server directly (`requests`) instead of the `ollama` package's native API
+- Based on REST API v0.21.1
 - Python 3.12+ required
 
 ---
