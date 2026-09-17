@@ -2,6 +2,23 @@
 
 A personal book collection management system built around a PostgreSQL database. The project provides four interfaces to the same data: a React web app, a REST API, an MCP server for AI integration, and a command-line REPL.
 
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/dashboard.jpg" alt="Dashboard: recently updated books and yearly reading reports"/><br/><sub><b>Dashboard</b> — recent activity, search, and yearly reading reports</sub></td>
+    <td width="50%"><img src="docs/screenshots/carousel.jpg" alt="Book Carousel: visual cover browser"/><br/><sub><b>Book Carousel</b> — swipe through cover art with full metadata</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/yearly-progress.jpg" alt="Yearly Progress: cumulative pages read by day of year, and all-years bar chart"/><br/><sub><b>Yearly Progress</b> — cumulative pages by day of year, all-time comparison</sub></td>
+    <td width="50%"><img src="docs/screenshots/ai-chat.jpg" alt="AI Chat: tool-calling assistant answering a question about the collection"/><br/><sub><b>AI Chat</b> — tool-calling assistant with a visible reasoning trace</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/book-detail.jpg" alt="Book Detail: cover, metadata, and tags"/><br/><sub><b>Book Detail</b> — full record with cover, metadata, and tags</sub></td>
+    <td width="50%"></td>
+  </tr>
+</table>
+
 ## From-Scratch Setup
 
 Full stack on a single host running PostgreSQL, Docker, and nginx.
