@@ -43,6 +43,7 @@ export default function BookForm({ defaultValues, onSubmit, isSubmitting, submit
         <div>
           <label className="block text-sm font-medium text-slate mb-1">Copyright Date</label>
           <input {...register('CopyrightDate')} placeholder="YYYY or YYYY-MM-DD" className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white" />
+          {errors.CopyrightDate && <p className="text-red-500 text-xs mt-1">{errors.CopyrightDate.message}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium text-slate mb-1">Pages</label>

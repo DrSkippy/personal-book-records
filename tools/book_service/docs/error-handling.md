@@ -507,7 +507,7 @@ When reporting issues, include:
 ### Example Issue Report
 
 ```
-API Version: 0.21.1
+API Version: 0.21.2
 
 Request:
 curl -X POST \

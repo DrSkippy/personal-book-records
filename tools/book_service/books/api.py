@@ -1,4 +1,4 @@
-__version__ = '0.21.1'
+__version__ = '0.21.2'
 
 import functools
 import json
@@ -311,6 +311,9 @@ def add_books():
     try:
         with db.cursor() as c:
             for record in records:
+                # Savepoint per record so one bad row doesn't abort the transaction
+                # (and silently roll back) the rows before and after it.
+                c.execute("SAVEPOINT add_book")
                 try:
                     copyright_date = record.get("CopyrightDate") or None
                     if copyright_date and len(copyright_date.strip()) == 4:
@@ -331,6 +334,7 @@ def add_books():
                     record["BookId"] = c.fetchone()[0]
                     rdata.append(record)
                 except psycopg2.Error as e:
+                    c.execute("ROLLBACK TO SAVEPOINT add_book")
                     app.logger.error(e)
                     rdata.append({"error": str(e)})
         db.commit()
@@ -400,11 +404,11 @@ def books_by_isbn():
     a = isbn(isbn_conf)
     for book_isbn in book_isbn_list:
         res_json = a.get_book_by_isbn(book_isbn)
-        if res_json is not None:
-            proto = a._endpoint_to_collection_db(res_json)
+        proto = a._endpoint_to_collection_db(res_json) if res_json is not None else None
+        if proto is not None:
             res.append(proto)
         else:
-            app.logger.error(f"No records found for isbn {book_isbn}.")
+            app.logger.error(f"No usable record found for isbn {book_isbn}: {res_json}")
     return json_response({"book_records": res})
 
 

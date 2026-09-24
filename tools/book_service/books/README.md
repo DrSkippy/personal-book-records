@@ -4,7 +4,7 @@ Flask-based REST API for managing and querying the book collection database.
 
 ## Overview
 
-- **Version**: 0.21.1
+- **Version**: 0.21.2
 - **Framework**: Flask 3.1.2
 - **Port**: 8084
 - **Authentication**: API key via `x-api-key` header
@@ -203,7 +203,7 @@ For the complete endpoint reference with examples, see `../../README.md#tool-2-r
 
 ## Version Information
 
-- API Version: 0.21.1
+- API Version: 0.21.2
 - Flask: 3.1.2
 - Python: 3.12+
 - psycopg2-binary: 2.9+

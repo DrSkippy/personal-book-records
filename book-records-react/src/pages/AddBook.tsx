@@ -43,7 +43,7 @@ export default function AddBook() {
           Location: 'Main Collection',
         });
       } else {
-        setLookupError('No book found for this ISBN.');
+        setLookupError('No book found for this ISBN. Enter the details manually below.');
       }
     } catch {
       setLookupError('Failed to look up ISBN. Please try again.');
@@ -61,7 +61,9 @@ export default function AddBook() {
       if (newBook?.BookId) {
         navigate(`/books/${newBook.BookId}`);
       } else {
-        navigate('/books');
+        // The API reports per-row DB failures as {error} inside a 200 response.
+        setSubmitError(`Failed to add book: ${newBook?.error || 'no record was created.'}`);
+        setIsSubmitting(false);
       }
     } catch {
       setSubmitError('Failed to add book. Please try again.');

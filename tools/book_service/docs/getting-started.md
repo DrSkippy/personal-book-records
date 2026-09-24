@@ -35,7 +35,7 @@ curl -H "x-api-key: YOUR_API_KEY" http://localhost:8084/configuration
 **Expected Response (200 OK)**:
 ```json
 {
-  "version": "0.21.1",
+  "version": "0.21.2",
   "configuration": {
     "user": "books_user",
     "password": "******",

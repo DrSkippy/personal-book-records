@@ -97,6 +97,10 @@ Injected from `package.json` at build time via `define: { __APP_VERSION__ }` in 
 
 ## Changelog
 
+### v0.5.1
+- **Add Book**: a database rejection of the new record is now shown as an error on the page instead of silently navigating to `/books`; the ISBN "not found" message points to manual entry
+- **Book form**: `CopyrightDate` is validated as `YYYY` or a real `YYYY-MM-DD` date (bare years are sent as `YYYY-01-01`), with an inline error message
+
 ### v0.5.0
 - **AI Chat — moved server-side**: the tool-calling loop and LLM connection now run in book-service (`POST /chat`) instead of the browser; `src/api/lmStudio.ts` removed, replaced by `src/api/chat.ts`. The frontend no longer configures, stores, or sends the chat model, host, or API key — `VITE_OLLAMA_BASE_URL`/`VITE_OLLAMA_MODEL`/`VITE_OLLAMA_API_KEY` are gone
 - **AI Chat — no incremental reveal**: tool calls and the final reply now arrive in a single response after the backend finishes its loop, rather than streaming in as each tool call completes (same 10-iteration cap, now enforced server-side)

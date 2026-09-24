@@ -1,4 +1,4 @@
-__version__ = '0.7.0'
+__version__ = '0.7.1'
 
 import datetime
 import logging
@@ -191,10 +191,22 @@ class BCTool:
             logging.error(e)
             result_message = {"errors": [str(e)]}
         else:
+            # The API reports per-row DB failures as {"error": ...} inside a 200 response,
+            # and non-row failures (e.g. bad API key) as a top-level {"error": ...}.
             book_collection_id_list = []
-            for rec in tres["add_books"]:
-                book_collection_id_list.append(rec["BookId"])
+            errors = []
+            if "add_books" not in tres:
+                errors.append(tres.get("error", f"Unexpected response: {tres}"))
+            for rec in tres.get("add_books", []):
+                if "BookId" in rec:
+                    book_collection_id_list.append(rec["BookId"])
+                else:
+                    errors.append(rec.get("error", f"Unexpected record: {rec}"))
+            for e in errors:
+                logging.error(e)
             self.result = book_collection_id_list
+            if errors:
+                result_message = {"errors": errors}
         return result_message
 
     def version(self):
@@ -605,21 +617,22 @@ class BCTool:
             >>> bc.abi(["0060929480", "9780140449136"])
         """
         q = self.end_point + "/books_by_isbn"
-        payload = {"isbn_list": book_isbn_list}
-        try:
-            tr = requests.post(q, json=payload, headers=self.header)
-            book_record_list = tr.json()["book_records"]
-        except requests.RequestException as e:
-            logging.error(e)
         res = []
-        for book_json, book_isbn in zip(book_record_list, book_isbn_list):
-            if book_json is not None:
-                proto = self._inputer(book_json)
-                records = [proto]
-                self.result = proto
-                res.append(self._add_books(records))
-            else:
+        # One lookup per ISBN: the API drops ISBNs it can't find, so a batched
+        # response can't be reliably paired back to the requested ISBNs.
+        for book_isbn in book_isbn_list:
+            try:
+                tr = requests.post(q, json={"isbn_list": [book_isbn]}, headers=self.header)
+                book_record_list = tr.json()["book_records"]
+            except (requests.RequestException, ValueError, KeyError) as e:
+                logging.error(f"ISBN lookup failed for {book_isbn}: {e}")
+                continue
+            if not book_record_list:
                 logging.error(f"No records found for isbn {book_isbn}.")
+                continue
+            proto = self._inputer(book_record_list[0])
+            self.result = proto
+            res.append(self._add_books([proto]))
         return res
 
     abi = add_books_by_isbn

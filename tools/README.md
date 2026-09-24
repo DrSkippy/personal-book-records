@@ -178,7 +178,7 @@ tools/
 
 BookDBTool is an interactive Python REPL for querying and managing the book collection. It provides a rich command-line interface with multiple specialized classes for different operations.
 
-**Version**: 0.7.0
+**Version**: 0.7.1
 **Entry Point**: `bin/books.py`
 **Location**: `bookdbtool/`
 
@@ -324,7 +324,7 @@ See `test/README.md` for detailed test documentation.
 
 A comprehensive REST API built with Flask for managing book records, reading history, tags, and generating visualizations.
 
-**Version**: 0.21.1
+**Version**: 0.21.2
 **Framework**: Flask 3.1.2
 **Port**: 8084
 **Location**: `book_service/books/`
@@ -3098,8 +3098,8 @@ make stop-all                     # Stop all containers
 
 ## Version Information
 
-- **BookDBTool**: v0.7.0
-- **REST API**: v0.21.1
+- **BookDBTool**: v0.7.1
+- **REST API**: v0.21.2
 - **MCP Server**: v3.3.1
 - **Python**: 3.12+
 - **Flask**: 3.1.2

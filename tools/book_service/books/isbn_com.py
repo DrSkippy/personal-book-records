@@ -1,3 +1,6 @@
+import datetime
+import re
+
 import requests
 
 
@@ -41,22 +44,32 @@ class Endpoint:
                 result[isbn] = {'error': str(e)}
         return result
 
+    @staticmethod
+    def _normalize_published_date(value):
+        """Return a Postgres-safe YYYY-MM-DD string, or None if the value is missing or unusable."""
+        if not value:
+            return None
+        m = re.match(r"^(\d{4})(?:-(\d{2}))?(?:-(\d{2}))?", str(value).strip())
+        if not m:
+            return None
+        year, month, day = m.group(1), m.group(2) or "01", m.group(3) or "01"
+        try:
+            return datetime.date(int(year), int(month), int(day)).isoformat()
+        except ValueError:
+            return None
+
     def _endpoint_to_collection_db(self, isbn_dict):
+        """Convert an isbndb response into a collection record, or None if it holds no usable book."""
+        book = isbn_dict.get("book") if isinstance(isbn_dict, dict) else None
+        if not book or not book.get("title"):
+            return None
         proto = self.COLLECTION_DB_DICT.copy()
-        proto["Title"] = isbn_dict["book"]["title"]
-        proto["Author"] = isbn_dict["book"]["authors"][0]
-        proto["IsbnNumber"] = isbn_dict["book"]["isbn"]
-        proto["IsbnNumber13"] = isbn_dict["book"]["isbn13"]
-        try:
-            proto["PublisherName"] = isbn_dict["book"]["publisher"]
-        except KeyError:
-            proto["PublisherName"] = "unknown"
-        proto["Pages"] = isbn_dict["book"]["pages"]
-        try:
-            _pub = str(isbn_dict["book"]["date_published"])[:10]  # yyyy-mm-dd
-            if len(_pub) == 4:
-                _pub += "-01-01"
-            proto["CopyrightDate"] = _pub
-        except KeyError:
-            proto["CopyrightDate"] = "0000-01-01"
+        proto["Title"] = book["title"]
+        authors = book.get("authors") or []
+        proto["Author"] = authors[0] if authors else ""
+        proto["IsbnNumber"] = book.get("isbn") or ""
+        proto["IsbnNumber13"] = book.get("isbn13") or ""
+        proto["PublisherName"] = book.get("publisher") or "unknown"
+        proto["Pages"] = book.get("pages") or None
+        proto["CopyrightDate"] = self._normalize_published_date(book.get("date_published"))
         return proto

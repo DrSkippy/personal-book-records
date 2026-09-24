@@ -4,7 +4,7 @@ An interactive Python REPL for querying and managing the personal book collectio
 
 ## Overview
 
-- **Version**: 0.7.0
+- **Version**: 0.7.1
 - **Entry Point**: `../bin/books.py`
 - **Type**: Interactive Python REPL with pre-loaded objects
 
@@ -201,9 +201,10 @@ All dependencies managed via `../pyproject.toml`
 
 ## Version History
 
-- **v0.7.0** (Current): AI integration, reading estimates, enhanced search
+- **v0.7.1** (Current): `_add_books` reports per-row and top-level API errors instead of raising `KeyError`; `add_books_by_isbn` looks up one ISBN at a time so unfound ISBNs can no longer misalign results
+- **v0.7.0**: AI integration, reading estimates, enhanced search
 - `ai_tools.py` at v0.3.0: `OllamaAgent` rewritten to call an OpenAI-compatible `/v1/chat/completions` server directly (`requests`) instead of the `ollama` package's native API
-- Based on REST API v0.21.1
+- Based on REST API v0.21.2
 - Python 3.12+ required
 
 ---

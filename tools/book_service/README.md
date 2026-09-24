@@ -11,7 +11,7 @@ The `book_service` directory provides:
 - 50+ endpoints for managing books, reading history, and tags
 - Authentication via `x-api-key` header
 - Visualization and image management
-- Version: 0.21.1
+- Version: 0.21.2
 
 ### 2. **MCP Server** (`booksmcp/`)
 - Model Context Protocol server for AI integration (Port 3005)
@@ -255,13 +255,18 @@ Both services share the same database layer and configuration:
 
 ## Version Information
 
-- REST API: v0.21.1
+- REST API: v0.21.2
 - MCP Server: v3.3.1
 - Python: 3.12+
 - Flask: 3.1.2
 - FastMCP: 0.5.0+ (pinned `<4.0.0`)
 
 ## Changelog
+
+### v0.21.2
+- `add_books`: each row runs under its own savepoint, so one rejected row (e.g. an invalid `CopyrightDate`) no longer aborts the transaction and silently rolls back the other rows in the batch while still reporting their `BookId`s
+- `books_by_isbn`: failed lookups (isbndb HTTP errors) and results with no title are logged and omitted instead of raising `KeyError` (HTTP 500); missing authors/pages/publisher no longer raise
+- `books_by_isbn`: a missing or unparseable `date_published` now yields `CopyrightDate: null` instead of `"0000-01-01"` (which Postgres rejects); partial dates are padded (`2001-05` → `2001-05-01`)
 
 ### v0.21.1
 - **AI Chat moved server-side**: `POST /chat` runs the full tool-calling loop in-process (`booksdb/chat_util.py::run_chat_loop`) against `ai_agent.chat_host/chat_model/chat_api_key`; the frontend now only POSTs/receives conversation history and never sees the chat model, host, or key

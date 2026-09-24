@@ -246,6 +246,64 @@ class TestBCTool(unittest.TestCase):
 
         self.assertIn("errors", result)
 
+    @patch('bookdbtool.book_db_tools.requests.post')
+    def test_add_books_row_error_reported_not_raised(self, mock_post):
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "add_books": [{"error": "date/time field value out of range"}, {"BookId": 2}]
+        }
+        mock_post.return_value = mock_response
+
+        with self.assertLogs(level="ERROR"):
+            result = self.bc_tool._add_books([{"Title": "Bad"}, {"Title": "Good"}])
+
+        self.assertEqual(result, {"errors": ["date/time field value out of range"]})
+        self.assertEqual(self.bc_tool.result, [2])
+
+    @patch('bookdbtool.book_db_tools.requests.post')
+    def test_add_books_top_level_error(self, mock_post):
+        mock_response = Mock()
+        mock_response.json.return_value = {"error": "Invalid API key"}
+        mock_post.return_value = mock_response
+
+        with self.assertLogs(level="ERROR"):
+            result = self.bc_tool._add_books([{"Title": "Book 1"}])
+
+        self.assertEqual(result, {"errors": ["Invalid API key"]})
+        self.assertEqual(self.bc_tool.result, [])
+
+    @patch('bookdbtool.book_db_tools.requests.post')
+    def test_add_books_by_isbn_skips_unfound_and_pairs_correctly(self, mock_post):
+        found = {"Title": "Found Book", "IsbnNumber": "222"}
+
+        def post(url, json=None, headers=None):
+            resp = Mock()
+            if url.endswith("/books_by_isbn"):
+                isbn = json["isbn_list"][0]
+                resp.json.return_value = {"book_records": [found] if isbn == "222" else []}
+            else:
+                resp.json.return_value = {"add_books": [{"BookId": 7}]}
+            return resp
+
+        mock_post.side_effect = post
+        with patch.object(self.bc_tool, '_inputer', side_effect=lambda proto: proto) as mock_inputer, \
+                self.assertLogs(level="ERROR") as logs:
+            result = self.bc_tool.add_books_by_isbn(["111", "222"])
+
+        mock_inputer.assert_called_once_with(found)
+        self.assertEqual(result, ["Added."])
+        self.assertIn("111", logs.output[0])
+
+    @patch('bookdbtool.book_db_tools.requests.post')
+    def test_add_books_by_isbn_lookup_exception_continues(self, mock_post):
+        import requests
+        mock_post.side_effect = requests.RequestException("Connection error")
+
+        with self.assertLogs(level="ERROR"):
+            result = self.bc_tool.add_books_by_isbn(["111"])
+
+        self.assertEqual(result, [])
+
     @patch('bookdbtool.book_db_tools.requests.put')
     def test_add_tags_success(self, mock_put):
         mock_response = Mock()

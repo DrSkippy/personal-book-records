@@ -4,10 +4,10 @@
 
 ```
 personal-book-records/
-├── book-records-react/     # React/Vite/TypeScript SPA frontend (v0.5.0)
+├── book-records-react/     # React/Vite/TypeScript SPA frontend (v0.5.1)
 ├── tools/                  # Python backend (API, MCP, CLI)
 │   ├── book_service/
-│   │   ├── books/          # Flask REST API (port 8084, v0.21.1)
+│   │   ├── books/          # Flask REST API (port 8084, v0.21.2)
 │   │   ├── booksmcp/       # FastMCP server (port 3005, v3.3.1)
 │   │   ├── booksdb/        # DB layer (api_util.py, config.py, chat_util.py)
 │   │   ├── config/         # configuration.json (transcrypt-encrypted, committed)

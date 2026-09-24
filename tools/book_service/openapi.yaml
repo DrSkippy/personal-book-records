@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: Book Service API
-  version: 0.21.1
+  version: 0.21.2
   description: |
     Comprehensive REST API for personal book collection management.
 
@@ -293,7 +293,7 @@ components:
         version:
           type: string
           description: API version
-          example: "0.21.1"
+          example: "0.21.2"
         configuration:
           type: object
           description: Database configuration (password masked)
