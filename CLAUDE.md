@@ -110,7 +110,7 @@ The AI Chat page (`/ai-chat`) holds no model configuration. It POSTs the running
 
 **Chat LLM server:** configured via `ai_agent.chat_host`/`chat_model`/`chat_api_key` in `tools/book_service/config/configuration.json` (or `AI_CHAT_HOST`/`AI_CHAT_MODEL`/`AI_CHAT_API_KEY` env overrides). Currently `http://192.168.1.91:1234`, model `openai/gpt-oss-20b` — the same physical LM Studio instance used for RAG embeddings (`ai_agent.embed_*`), though the two are configured independently and are not required to stay on the same host.
 
-**Tool-calling loop:** implemented in `tools/book_service/booksdb/chat_util.py` (`run_chat_loop`), up to 10 iterations per request. `bookdbtool`'s CLI chat (`OllamaAgent` in `ai_tools.py`) is a separate consumer of the same `ai_agent.chat_*` config, with its own smaller 5-tool set.
+**Tool-calling loop:** implemented in `tools/book_service/booksdb/chat_util.py` (`run_chat_loop`), up to 10 iterations per request. `bookdbtool`'s CLI chat (`ChatAgent` in `ai_tools.py`, aliased as `OllamaAgent`) is also a client of `POST /chat`, so it shares the server's system prompt, tools, and loop; it holds no chat model config of its own.
 
 **Tools available to the model (12):** `search_books`, `get_book_details`, `get_recently_edited_books`, `get_recently_read_books`, `get_books_read_by_year`, `get_reading_summary`, `get_tags_for_book`, `search_books_by_tag`, `get_tag_counts`, `get_reading_estimates`, `add_tag_to_book`, `semantic_search_notes`.
 

@@ -127,7 +127,7 @@ tools/
 │   └── database_cleanup.sh       # Database cleanup
 ├── bookdbtool/                   # Command-line REPL package
 │   ├── book_db_tools.py          # BCTool class (main interface)
-│   ├── ai_tools.py               # OllamaAgent (AI chat)
+│   ├── ai_tools.py               # ChatAgent (AI chat client for POST /chat)
 │   ├── estimate_tools.py         # ESTTool (reading estimates)
 │   ├── isbn_lookup_tools.py      # ISBNLookup (ISBN queries)
 │   ├── visualization_tools.py    # Visualization utilities
@@ -177,7 +177,7 @@ tools/
 
 BookDBTool is an interactive Python REPL for querying and managing the book collection. It provides a rich command-line interface with multiple specialized classes for different operations.
 
-**Version**: 0.7.1
+**Version**: 0.8.0
 **Entry Point**: `bin/books.py`
 **Location**: `bookdbtool/`
 
@@ -239,38 +239,32 @@ bc.summary(2024)
 bc.add()
 ```
 
-#### 2. **ai** - OllamaAgent (AI Chat Interface)
+#### 2. **ai** - ChatAgent (AI Chat Interface)
 
-Natural language interface for intuitive book queries, powered by an OpenAI-compatible chat LLM
-(LM Studio, OpenRouter, etc.). The class keeps its historical `OllamaAgent` name from when it
-called the Ollama-native API directly, but it now speaks raw `/v1/chat/completions`.
+Natural language interface for book queries. `ChatAgent` is a thin client for book-service's
+`POST /chat` endpoint -- the same one the React AI Chat page uses -- so the CLI gets the server's
+full 12-tool set, system prompt, and multi-step tool-calling loop. The chat model, host, and key
+are configured only on the server (`ai_agent.chat_*`); the CLI just keeps the conversation history
+and sends it on each turn. (`OllamaAgent` remains as an alias for the old class name.)
 
-**Version**: 0.3.0
-**Features**: Tool calling, conversation history, multi-parameter searches
+**Version**: 0.4.0
+**Features**: Server-side tool calling (search, reading history, tags, estimates, semantic note search), conversation history
 
 **Key Methods:**
-- `ai.chat(message)` - Chat with AI about your book collection
+- `ai.chat(message)` - Chat with AI about your book collection; prints each tool call, then the reply
 - `ai.clear_history()` - Clear conversation history
+- `ai.show_reply()` - Show the last `/chat` response (tool calls and results) as JSON
 
 **Example Usage:**
 ```python
 # Natural language queries
 ai.chat("Find all fiction books I read in 2024")
 ai.chat("Show me books by Isaac Asimov")
-ai.chat("What science books do I have with 'quantum' in the title?")
+ai.chat("Which of those have I tagged 'classic'?")
 
 # Clear history to start fresh
 ai.clear_history()
 ```
-
-**Supported AI Search Parameters:**
-- Author
-- Title
-- ISBN (ISBN-10 and ISBN-13)
-- Tags
-- Date ranges
-- Publisher
-- Location
 
 #### 3. **est** - ESTTool (Reading Estimates)
 
@@ -791,9 +785,9 @@ All tools use a single configuration file: `book_service/config/configuration.js
 | `isbn_com.key` | ISBNdb.com API key | Optional |
 | `endpoint` | REST API endpoint URL | Yes (for bookdbtool) |
 | `api_key` | REST API authentication key | Yes (for bookdbtool) |
-| `ai_agent.chat_host` | OpenAI-compatible chat LLM server URL, used by both the bookdbtool CLI's AI chat (`bin/books.py`) and the REST API's `POST /chat` endpoint (which backs the React AI Chat page) | Optional (bookdbtool + REST API) |
-| `ai_agent.chat_model` | Chat model name | Optional (bookdbtool + REST API) |
-| `ai_agent.chat_api_key` | Bearer token for the chat LLM server | Optional (bookdbtool + REST API) |
+| `ai_agent.chat_host` | OpenAI-compatible chat LLM server URL, used by the REST API's `POST /chat` endpoint (which backs both the React AI Chat page and the bookdbtool CLI's `chat()`) | Optional (REST API) |
+| `ai_agent.chat_model` | Chat model name | Optional (REST API) |
+| `ai_agent.chat_api_key` | Bearer token for the chat LLM server | Optional (REST API) |
 | `ai_agent.embed_host` | OpenAI-compatible embeddings endpoint (LM Studio) used for RAG semantic search | Optional (REST API + MCP) |
 | `ai_agent.embed_model` | Embedding model name | Optional (REST API + MCP) |
 | `ai_agent.embed_api_key` | Bearer token for the embeddings endpoint | Optional (REST API + MCP) |
@@ -860,13 +854,10 @@ export API_KEY=your_api_key_here         # overrides api_key (x-api-key header)
 export ISBN_COM_KEY=your_isbndb_key      # overrides isbn_com.key
 ```
 
-`bin/books.py` has its own AI chat (`OllamaAgent`), separate from the REST API's `/chat` endpoint -- both read the same `ai_agent.chat_*` config, but each has its own process and its own env-var overrides:
+`chat()` in `bin/books.py` goes through book-service's `POST /chat`, so the chat model/host/key are set on the server (the `AI_CHAT_HOST`/`AI_CHAT_MODEL`/`AI_CHAT_API_KEY` overrides above), not in the CLI. Client-side settings only:
 
 ```bash
-export AI_CHAT_HOST=http://host:1234    # overrides ai_agent.chat_host
-export AI_CHAT_MODEL=your-chat-model    # overrides ai_agent.chat_model
-export AI_CHAT_API_KEY=bearer-token     # overrides ai_agent.chat_api_key
-export AI_CHAT_TIMEOUT=10               # overrides ai_agent.timeout (bookdbtool only)
+export AI_CHAT_TIMEOUT=300              # overrides ai_agent.timeout: /chat request timeout, seconds (bookdbtool only)
 export AI_CHAT_MAX_HISTORY=50           # overrides ai_agent.max_history (bookdbtool only)
 ```
 
@@ -1544,7 +1535,7 @@ poetry run pytest test/test_book_db_tools.py::TestBCTool::test_init -v
 
 **Test Files**:
 - `test/test_book_db_tools.py` - BCTool class tests
-- `test/test_ai_tools.py` - OllamaAgent tests
+- `test/test_ai_tools.py` - ChatAgent (`/chat` client) tests
 - `test/test_estimate_tools.py` - ESTTool tests
 - `test/test_isbn_lookup_tools.py` - ISBNLookup tests
 - `test/test_visualization_tools.py` - Visualization tests
@@ -3072,7 +3063,7 @@ make stop-all                     # Stop all containers
 
 ## Version Information
 
-- **BookDBTool**: v0.7.1
+- **BookDBTool**: v0.8.0
 - **REST API**: v0.21.2
 - **MCP Server**: v3.3.1
 - **Python**: 3.12+

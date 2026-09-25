@@ -59,7 +59,7 @@ def get_endpoint():
     isbn_conf = dict(config["isbn_com"])
     if os.getenv("ISBN_COM_KEY"):
         isbn_conf["key"] = os.getenv("ISBN_COM_KEY")
-    # OllamaAgent reads endpoint/api_key from the same dict, so keep it in sync with overrides
+    # ChatAgent reads endpoint/api_key from the same dict, so keep it in sync with overrides
     config["endpoint"] = end_point
     config["api_key"] = api_key
     return config, (end_point, api_key), isbn_conf
@@ -152,7 +152,7 @@ def show_welcome():
 bc = rt.BCTool(*book_service_conf)
 est = et.ESTTool(*book_service_conf)
 isbn = isbn_module.ISBNLookup(isbn_conf)
-ai = ai_module.OllamaAgent(ai_conf)
+ai = ai_module.ChatAgent(ai_conf)
 
 # Track the last result from any operation
 result = None

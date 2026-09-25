@@ -4,7 +4,7 @@ An interactive Python REPL for querying and managing the personal book collectio
 
 ## Overview
 
-- **Version**: 0.7.1
+- **Version**: 0.8.0
 - **Entry Point**: `../bin/books.py`
 - **Type**: Interactive Python REPL with pre-loaded objects
 
@@ -39,9 +39,10 @@ bc.recent(10)
 bc.add()
 ```
 
-### 2. **ai** - OllamaAgent
-Natural language AI interface powered by an OpenAI-compatible chat LLM (the class keeps its
-historical `OllamaAgent` name, but no longer talks to the Ollama-native API).
+### 2. **ai** - ChatAgent
+Natural language AI interface. A thin client for book-service's `POST /chat` endpoint (the same
+one the React AI Chat page uses); the server runs the tool-calling loop with its full tool set.
+`OllamaAgent` remains as an alias for the old class name.
 
 ```python
 ai.chat("Find all fiction books I read in 2024")
@@ -77,7 +78,7 @@ man  # Show help text
 bookdbtool/
 ├── __init__.py
 ├── book_db_tools.py          # BCTool class (main interface)
-├── ai_tools.py               # OllamaAgent (AI chat)
+├── ai_tools.py               # ChatAgent (AI chat client for POST /chat)
 ├── estimate_tools.py         # ESTTool (reading estimates)
 ├── isbn_lookup_tools.py      # ISBNLookup (ISBN queries)
 ├── visualization_tools.py    # Visualization utilities
@@ -140,7 +141,6 @@ Required fields:
 - Requests (for HTTP API calls)
 - Pandas, NumPy (for data processing)
 - Matplotlib (for visualizations)
-- Requests (for the OpenAI-compatible chat LLM calls in `ai_tools.py`)
 
 All dependencies managed via `../pyproject.toml`
 
@@ -153,12 +153,11 @@ All dependencies managed via `../pyproject.toml`
 - Get reading statistics and summaries
 - Add and update book records interactively
 
-### AI Chat (OllamaAgent)
-- Natural language book queries against an OpenAI-compatible chat LLM (`ai_agent.chat_*` config)
-- Tool calling for advanced searches
-- Conversation history
-- Multi-parameter searches
-- Supports: author, title, ISBN, tags, dates
+### AI Chat (ChatAgent)
+- Natural language book queries via book-service's `POST /chat` (chat LLM configured server-side)
+- Server-side tool calling: search, book details, reading history, tags, estimates, semantic note search
+- Tool calls are printed as they're reported, followed by the reply
+- Conversation history kept client-side for follow-up questions
 
 ### Reading Estimates (ESTTool)
 - Track daily reading progress
@@ -201,8 +200,10 @@ All dependencies managed via `../pyproject.toml`
 
 ## Version History
 
-- **v0.7.1** (Current): `_add_books` reports per-row and top-level API errors instead of raising `KeyError`; `add_books_by_isbn` looks up one ISBN at a time so unfound ISBNs can no longer misalign results
+- **v0.8.0** (Current): `ai.chat()` now goes through book-service's `POST /chat` (`ChatAgent`, `ai_tools.py` v0.4.0) instead of calling the chat LLM directly; table pagination measures rendered row height so pages fit the terminal; `bin/books.py` accepts `BOOK_API_URL`/`BOOK_API_HOST`/`BOOK_API_PORT`/`BOOK_API_SCHEME`/`BOOK_API_TEST`/`BOOKDB_CONFIG`/`ISBN_COM_KEY` overrides
+- **v0.7.1**: `_add_books` reports per-row and top-level API errors instead of raising `KeyError`; `add_books_by_isbn` looks up one ISBN at a time so unfound ISBNs can no longer misalign results
 - **v0.7.0**: AI integration, reading estimates, enhanced search
+- `ai_tools.py` at v0.4.0: `OllamaAgent` replaced by `ChatAgent`, a client for book-service's `POST /chat` -- the CLI no longer calls the chat LLM or runs its own 5-tool loop; it gets the server's 12 tools, system prompt, and multi-step loop
 - `ai_tools.py` at v0.3.0: `OllamaAgent` rewritten to call an OpenAI-compatible `/v1/chat/completions` server directly (`requests`) instead of the `ollama` package's native API
 - Based on REST API v0.21.2
 - Python 3.12+ required
