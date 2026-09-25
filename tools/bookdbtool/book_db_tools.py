@@ -2,7 +2,6 @@ __version__ = '0.7.1'
 
 import datetime
 import logging
-import os
 import pprint
 
 pp = pprint.PrettyPrinter(indent=3)
@@ -66,7 +65,6 @@ class BCTool:
     MINIMAL_BOOK_INDEXES = [0, 1, 2, 7, 8, 9, 10, 12]
     page_size = 35
     terminal_width = 180
-    LINES_TO_ROWS = 1.3
     DIVIDER_WIDTH = 50
 
     # Column styling for rich tables
@@ -105,49 +103,60 @@ class BCTool:
     def _column_selector(self, data, indexes):
         return [self._row_column_selector(i, indexes) for i in data]
 
-    def _show_table(self, data, header, indexes, pagination=True):
-        try:
-            [self.terminal_width, page_size] = os.get_terminal_size()
-        except OSError:
-            [self.terminal_width, page_size] = [80, 60]
-        if pagination:
-            self.page_size = int(page_size / self.LINES_TO_ROWS)
-        else:
-            self.page_size = 10000
+    def _build_table(self, headers, rows):
+        table = Table(
+            show_header=True,
+            header_style="bold magenta",
+            border_style="blue",
+            row_styles=["", "dim"],
+            expand=False,
+            width=min(self.terminal_width, 200),
+        )
+        for col_name in headers:
+            style = self.COLUMN_STYLES.get(col_name, "white")
+            table.add_column(col_name, style=style, overflow="fold")
+        for row in rows:
+            table.add_row(*row)
+        return table
 
+    def _rows_that_fit(self, headers, rows, max_lines):
+        """
+        Return how many of rows fit on one screen, counting the table's real
+        rendered height (borders, header, and cells that fold onto several lines).
+        Always returns at least 1 so a single oversized row still gets shown.
+        """
+        n = 1
+        while n < len(rows):
+            table = self._build_table(headers, rows[:n + 1])
+            if len(console.render_lines(table, console.options, pad=False)) > max_lines:
+                break
+            n += 1
+        return n
+
+    def _show_table(self, data, header, indexes, pagination=True):
+        self.terminal_width, terminal_height = console.size
         selected_headers = self._row_column_selector(header, indexes)
 
         try:
-            i = 0
-            while i < len(data):
-                d = len(data) - i if len(data) - i < self.page_size else self.page_size
-                page_data = self._column_selector(data[i:i + d], indexes)
-
-                table = Table(
-                    show_header=True,
-                    header_style="bold magenta",
-                    border_style="blue",
-                    row_styles=["", "dim"],
-                    expand=False,
-                    width=min(self.terminal_width, 200),
-                )
-
-                for col_name in selected_headers:
-                    style = self.COLUMN_STYLES.get(col_name, "white")
-                    table.add_column(col_name, style=style, overflow="fold")
-
-                for row in page_data:
-                    table.add_row(*[str(cell) if cell is not None else "" for cell in row])
-
-                console.print(table)
-
-                i += d
-                if i < len(data):
-                    a = input("Return to continue; q to quit...")
-                    if a.startswith("q"):
-                        break
-        except TypeError as e:
+            rows = [[str(cell) if cell is not None else "" for cell in row]
+                    for row in self._column_selector(data, indexes)]
+        except TypeError:
             console.print("[red]No data[/red]")
+            return
+
+        # Leave one line for the "Return to continue" prompt
+        max_lines = max(terminal_height - 1, 5)
+        i = 0
+        while i < len(rows):
+            n = self._rows_that_fit(selected_headers, rows[i:], max_lines) if pagination else len(rows)
+            self.page_size = n
+            console.print(self._build_table(selected_headers, rows[i:i + n]))
+
+            i += n
+            if i < len(rows):
+                a = input("Return to continue; q to quit...")
+                if a.startswith("q"):
+                    break
 
     def _populate_new_book_record(self):
         proto = self.COLLECTION_DB_DICT.copy()
