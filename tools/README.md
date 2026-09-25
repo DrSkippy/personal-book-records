@@ -847,6 +847,19 @@ export AI_EMBED_DIMENSIONS=768              # overrides ai_agent.embed_dimension
 
 #### For bookdbtool CLI (`bin/books.py`)
 
+Book-service connection (base URL is built from `endpoint`, then overridden in this order):
+
+```bash
+export BOOKDB_CONFIG=/path/to/configuration.json  # config file (default: searched from tools/ or tools/bin/)
+export BOOK_API_TEST=1                   # start from endpoint_test instead of endpoint
+export BOOK_API_URL=https://books.drskippy.app/api  # replaces the base URL entirely
+export BOOK_API_SCHEME=http              # override just the scheme
+export BOOK_API_HOST=localhost           # override just the host
+export BOOK_API_PORT=8084                # override just the port
+export API_KEY=your_api_key_here         # overrides api_key (x-api-key header)
+export ISBN_COM_KEY=your_isbndb_key      # overrides isbn_com.key
+```
+
 `bin/books.py` has its own AI chat (`OllamaAgent`), separate from the REST API's `/chat` endpoint -- both read the same `ai_agent.chat_*` config, but each has its own process and its own env-var overrides:
 
 ```bash

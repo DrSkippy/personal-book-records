@@ -2,6 +2,7 @@ import json
 import readline
 from code import InteractiveConsole
 import os
+from urllib.parse import urlsplit, urlunsplit
 
 import bookdbtool.estimate_tools as et
 import bookdbtool.book_db_tools as rt
@@ -18,23 +19,50 @@ CONFIG_PATH = "/book_service/config/configuration.json"  # root is "tools"
 console = Console()
 
 
-def get_endpoint():
-    try:
-        cfile = open(f".{CONFIG_PATH}", "r")
-    except OSError:
+def _open_config():
+    """Open the config file: BOOKDB_CONFIG if set, else search from tools/ or tools/bin/."""
+    env_path = os.getenv("BOOKDB_CONFIG")
+    candidates = [env_path] if env_path else [f".{CONFIG_PATH}", f"..{CONFIG_PATH}"]
+    for path in candidates:
         try:
-            cfile = open(f"..{CONFIG_PATH}", "r")
+            return open(path, "r")
         except OSError:
-            print("Configuration file not found!")
-    with cfile:
+            continue
+    raise SystemExit(f"Configuration file not found! Tried: {', '.join(candidates)}")
+
+
+def _resolve_endpoint(config):
+    """
+    Build the book-service base URL from configuration.json plus env overrides.
+
+    BOOK_API_TEST=1 starts from endpoint_test instead of endpoint.
+    BOOK_API_URL replaces the base URL entirely.
+    BOOK_API_SCHEME / BOOK_API_HOST / BOOK_API_PORT then override individual parts.
+    """
+    use_test = os.getenv("BOOK_API_TEST", "").lower() in ("1", "true", "yes")
+    end_point = config["endpoint_test"] if use_test else config["endpoint"]
+    end_point = os.getenv("BOOK_API_URL") or end_point
+
+    parts = urlsplit(end_point)
+    scheme = os.getenv("BOOK_API_SCHEME") or parts.scheme or "http"
+    host = os.getenv("BOOK_API_HOST") or parts.hostname or "localhost"
+    port = os.getenv("BOOK_API_PORT") or parts.port
+    netloc = f"{host}:{port}" if port else host
+    return urlunsplit((scheme, netloc, parts.path, parts.query, parts.fragment)).rstrip("/")
+
+
+def get_endpoint():
+    with _open_config() as cfile:
         config = json.load(cfile)
-        end_point = config["endpoint"]
-        if os.getenv("API_KEY") is not None:
-            api_key = os.getenv("API_KEY").replace('\n', '')
-        elif "api_key" in config:
-            api_key = config["api_key"].replace('\n', '')
-        # todo fix this so everyone uses the same config
-    return config, (end_point, api_key), config["isbn_com"]
+    end_point = _resolve_endpoint(config)
+    api_key = (os.getenv("API_KEY") or config.get("api_key", "")).replace('\n', '')
+    isbn_conf = dict(config["isbn_com"])
+    if os.getenv("ISBN_COM_KEY"):
+        isbn_conf["key"] = os.getenv("ISBN_COM_KEY")
+    # OllamaAgent reads endpoint/api_key from the same dict, so keep it in sync with overrides
+    config["endpoint"] = end_point
+    config["api_key"] = api_key
+    return config, (end_point, api_key), isbn_conf
 
 
 ai_conf, book_service_conf, isbn_conf = get_endpoint()
