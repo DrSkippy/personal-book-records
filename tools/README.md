@@ -124,8 +124,7 @@ tools/
 ├── bin/                          # Executable entry points
 │   ├── books.py                  # REPL entry point
 │   ├── backup_db.sh              # Database backup script
-│   ├── database_cleanup.sh       # Database cleanup
-│   └── deploy.sh                 # PHP frontend deployment
+│   └── database_cleanup.sh       # Database cleanup
 ├── bookdbtool/                   # Command-line REPL package
 │   ├── book_db_tools.py          # BCTool class (main interface)
 │   ├── ai_tools.py               # OllamaAgent (AI chat)
@@ -1992,44 +1991,6 @@ curl http://localhost:5000/v2/_catalog
 # Pull from registry
 docker pull localhost:5000/book-service:latest
 docker pull localhost:5000/booksmcp-service:latest
-```
-
----
-
-### Deployment Script (deploy.sh)
-
-**Location**: `bin/deploy.sh`
-
-This script deploys the **PHP frontend** (not the Docker services). It:
-- Generates a new API key using OpenSSL
-- Updates `library/base.js` with the new key
-- Syncs frontend files to remote server via rsync
-
-**Usage**:
-```bash
-cd bin
-./deploy.sh [options]
-
-# With custom settings
-./deploy.sh --user myuser --host example.com --path /var/www/html
-```
-
-**Post-Deployment**:
-After deploying PHP frontend, update the Docker book service with the new API key:
-
-```bash
-# Option 1: Update docker-compose.yml
-vim book_service/books/docker-compose.yml
-# Update API_KEY environment variable
-
-# Option 2: Pass as environment variable
-export API_KEY=new_key_here
-docker-compose up -d
-
-# Option 3: Update Dockerfile ENV
-vim book_service/books/Dockerfile
-# Add: ENV API_KEY=new_key
-make build-book-service
 ```
 
 ---
