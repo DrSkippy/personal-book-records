@@ -58,6 +58,24 @@ class Endpoint:
         except ValueError:
             return None
 
+    @staticmethod
+    def isbn13_to_isbn10(isbn13):
+        """Return the ISBN-10 for a 978-prefixed ISBN-13, or None (979 prefixes have no ISBN-10)."""
+        digits = re.sub(r"[^0-9]", "", str(isbn13 or ""))
+        if len(digits) != 13 or not digits.startswith("978"):
+            return None
+        core = digits[3:12]
+        check = (11 - sum((10 - i) * int(d) for i, d in enumerate(core)) % 11) % 11
+        return core + ("X" if check == 10 else str(check))
+
+    @classmethod
+    def _isbn10_from_book(cls, book):
+        """isbndb's "isbn" field often holds the ISBN-13, so only trust a 10-character value."""
+        for candidate in (book.get("isbn10"), book.get("isbn")):
+            if candidate and len(str(candidate).strip()) == 10:
+                return str(candidate).strip()
+        return cls.isbn13_to_isbn10(book.get("isbn13") or book.get("isbn")) or ""
+
     def _endpoint_to_collection_db(self, isbn_dict):
         """Convert an isbndb response into a collection record, or None if it holds no usable book."""
         book = isbn_dict.get("book") if isinstance(isbn_dict, dict) else None
@@ -67,7 +85,7 @@ class Endpoint:
         proto["Title"] = book["title"]
         authors = book.get("authors") or []
         proto["Author"] = authors[0] if authors else ""
-        proto["IsbnNumber"] = book.get("isbn") or ""
+        proto["IsbnNumber"] = self._isbn10_from_book(book)
         proto["IsbnNumber13"] = book.get("isbn13") or ""
         proto["PublisherName"] = book.get("publisher") or "unknown"
         proto["Pages"] = book.get("pages") or None

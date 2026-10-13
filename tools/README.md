@@ -317,7 +317,7 @@ See `test/README.md` for detailed test documentation.
 
 A comprehensive REST API built with Flask for managing book records, reading history, tags, and generating visualizations.
 
-**Version**: 0.21.2
+**Version**: 0.21.3
 **Framework**: Flask 3.1.2
 **Port**: 8084
 **Location**: `book_service/books/`
@@ -3064,7 +3064,7 @@ make stop-all                     # Stop all containers
 ## Version Information
 
 - **BookDBTool**: v0.8.0
-- **REST API**: v0.21.2
+- **REST API**: v0.21.3
 - **MCP Server**: v3.3.1
 - **Python**: 3.12+
 - **Flask**: 3.1.2

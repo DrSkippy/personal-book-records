@@ -73,6 +73,34 @@ class TestEndpointToCollectionDb(unittest.TestCase):
         self.assertIsNone(proto["CopyrightDate"])
         self.assertEqual(proto["PublisherName"], "unknown")
 
+    def test_isbn13_in_isbn_field_yields_derived_isbn10(self):
+        proto = self.ep._endpoint_to_collection_db({"book": {
+            "title": "T", "isbn": "9780306406157", "isbn13": "9780306406157",
+        }})
+        self.assertEqual(proto["IsbnNumber"], "0306406152")
+        self.assertEqual(proto["IsbnNumber13"], "9780306406157")
+
+    def test_isbn10_field_preferred(self):
+        proto = self.ep._endpoint_to_collection_db({"book": {
+            "title": "T", "isbn": "9780306406157", "isbn10": "0306406152",
+            "isbn13": "9780306406157",
+        }})
+        self.assertEqual(proto["IsbnNumber"], "0306406152")
+
+    def test_979_prefix_has_no_isbn10(self):
+        proto = self.ep._endpoint_to_collection_db({"book": {
+            "title": "T", "isbn": "9791234567896", "isbn13": "9791234567896",
+        }})
+        self.assertEqual(proto["IsbnNumber"], "")
+
+    def test_isbn13_to_isbn10(self):
+        conv = Endpoint.isbn13_to_isbn10
+        self.assertEqual(conv("9780306406157"), "0306406152")
+        self.assertEqual(conv("978-0-8044-2957-3"), "080442957X")
+        self.assertIsNone(conv("9791234567896"))
+        self.assertIsNone(conv("0306406152"))
+        self.assertIsNone(conv(None))
+
     def test_published_date_normalization(self):
         norm = Endpoint._normalize_published_date
         self.assertEqual(norm("1999"), "1999-01-01")
