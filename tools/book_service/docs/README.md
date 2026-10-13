@@ -102,8 +102,9 @@ Expected response:
    - Year-over-year progress comparison charts
    - All-time reading statistics charts
 
-9. **AI Chat & Search** (2 endpoints)
+9. **AI Chat & Search** (3 endpoints)
    - Server-side OpenAI-compatible tool-calling chat loop (`/chat`)
+   - Read-note review drafting from the reader's observations (`/draft_read_note`)
    - Semantic (pgvector) search over book/read notes (`/rag_search`)
 
 ## Response Format

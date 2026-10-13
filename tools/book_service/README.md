@@ -264,6 +264,16 @@ Both services share the same database layer and configuration:
 ## Changelog
 
 ### v0.22.0
+- **Read-note review drafting**: new `POST /draft_read_note` takes a book's `BookId`, a `ReadDate` that must match one of its reads, and the reader's 3-4 `observations`, and asks the chat LLM for a 3-4 paragraph first-person review built only from them. It writes nothing; the client shows the draft for editing and saves it with `POST /update_edit_read_note`
+- **AI Chat**: `get_book_details` now adds `reads_missing_notes` and a `next_step` hint when a read has a date but a blank `ReadNote`, so the model asks the user for 3-4 observations. New 13th tool `draft_read_note` (same drafting function as the endpoint) puts the draft in the trace, where the UI renders an editable box with a Save button; the draft text is hidden from the model so it doesn't paste it into its reply. The model itself cannot save read notes
+- `update_edit_read_note`: logic moved to `api_util.update_read_note` (returns rows updated). The route now returns 400 for missing fields, 404 when the book has no read on `ReadDate` (previously a silent no-op 200), and 500 on a database error
+- `chat_util.chat_completion` takes a `tools` argument (`None` for a plain completion)
+
+### v0.21.3
+- `books_by_isbn`: `IsbnNumber` (ISBN-10) no longer copies the ISBN-13. isbndb's `isbn` field often holds the 13-digit form, so the lookup now prefers `isbn10`, accepts `isbn` only when it is 10 characters, and otherwise derives the ISBN-10 from a `978`-prefixed ISBN-13 (`979` prefixes have no ISBN-10 and leave it empty)
+- Added one-off repair script `tools/database/fix_isbn10_equals_isbn13.py` for existing rows where `IsbnNumber == IsbnNumber13` (dry run by default; `--apply` writes without bumping `LastUpdate`); applied to 111 rows
+
+### v0.21.2
 - `add_books`: each row runs under its own savepoint, so one rejected row (e.g. an invalid `CopyrightDate`) no longer aborts the transaction and silently rolls back the other rows in the batch while still reporting their `BookId`s
 - `books_by_isbn`: failed lookups (isbndb HTTP errors) and results with no title are logged and omitted instead of raising `KeyError` (HTTP 500); missing authors/pages/publisher no longer raise
 - `books_by_isbn`: a missing or unparseable `date_published` now yields `CopyrightDate: null` instead of `"0000-01-01"` (which Postgres rejects); partial dates are padded (`2001-05` → `2001-05-01`)

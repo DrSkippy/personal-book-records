@@ -191,6 +191,7 @@ For the complete endpoint reference with examples, see `../../README.md#tool-2-r
 ### AI Chat & Search
 - POST `/rag_search` - Semantic (pgvector) search over book/read notes
 - POST `/chat` - One turn of the server-side AI chat tool-calling loop
+- POST `/draft_read_note` - Draft a 3-4 paragraph read-note review from the reader's observations (saves nothing)
 
 **Full endpoint reference**: See `../../README.md#complete-api-endpoint-reference`
 

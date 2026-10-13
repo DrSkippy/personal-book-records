@@ -156,7 +156,7 @@ A Vite + React + TypeScript SPA served via nginx at `https://books.drskippy.app`
 **Pages:**
 - **Dashboard** — reading stats, recent books, yearly progress charts
 - **Book Search** — search by title, author, location, ISBN, or tag
-- **Book Detail** — full record with reads, tags, images, and estimates
+- **Book Detail** — full record with reads, tags, images, and estimates; a read with no note offers "Draft review" (enter 3-4 observations, the chat LLM drafts a review you edit and save)
 - **Inventory** — full collection table with sorting and filtering
 - **Books by Year** — books read in a given year
 - **Progress** — daily page records and reading progress
@@ -165,7 +165,7 @@ A Vite + React + TypeScript SPA served via nginx at `https://books.drskippy.app`
 - **Add / Edit Book** — create and update book records
 - **Add Read Date / Page Progress / Estimate** — logging forms
 - **Batch Update Read Notes** — bulk-edit notes across read records
-- **AI Chat** — assistant with tool access to the collection and RAG semantic search over notes; the chat model/host/key are configured server-side only (see `tools/README.md`), the frontend just calls `POST /api/chat`
+- **AI Chat** — assistant with tool access to the collection and RAG semantic search over notes; the chat model/host/key are configured server-side only (see `tools/README.md`), the frontend just calls `POST /api/chat`. Ask about a book whose read has no note and it offers to draft one from your observations, shown in an editable box you save
 
 **Environment variables (`.env.local`):**
 ```

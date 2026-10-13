@@ -62,6 +62,7 @@ AI Chat needs no frontend configuration — it POSTs to `POST /chat` on the REST
 ### Book Detail
 - Inline prev/next navigation between books
 - Inline `BookNote` editing (saved without leaving the page)
+- **Draft review** for reads with no `ReadNote`: enter 3-4 observations, book-service drafts a 3-4 paragraph review (`POST /draft_read_note`), edit it, then Save (`POST /update_edit_read_note`) — `src/components/reads/ReadNoteDrafter.tsx`
 - Tag management (add/remove tags)
 - Image gallery
 - Reading estimates panel
@@ -71,6 +72,7 @@ AI Chat needs no frontend configuration — it POSTs to `POST /chat` on the REST
 - Frontend POSTs the running conversation to `POST /chat` on the REST API (`src/api/chat.ts`); book-service runs the OpenAI-compatible tool-calling loop server-side and returns the updated history plus a display trace — the frontend never configures or sees the chat model, host, or API key
 - Up to 10 tool-call iterations per user message (enforced server-side)
 - Tools available: `search_books`, `get_book_details`, `get_recently_edited_books`, `get_recently_read_books`, `get_books_read_by_year`, `get_reading_summary`, `get_tags_for_book`, `search_books_by_tag`, `get_tag_counts`, `get_reading_estimates`, `add_tag_to_book`, `draft_read_note`, `semantic_search_notes`
+- Read-note drafts: a `draft_read_note` tool result renders as an editable box with Save / Discard (`src/components/reads/ReadNoteDraftEditor.tsx`); nothing is saved until you click Save
 - Markdown rendering toggle
 - Session history reset via "Clear" button
 
