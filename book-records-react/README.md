@@ -49,7 +49,7 @@ AI Chat needs no frontend configuration — it POSTs to `POST /chat` on the REST
 | `/estimates/:id` | Reading Estimates | Estimated finish dates and reading sessions for a book |
 | `/estimates/add/:id` | Add Estimate | Start a new reading session/estimate |
 | `/estimates/:id/progress` | Add Page Progress | Log daily page progress for an active estimate |
-| `/ai-chat` | AI Chat | Conversational assistant; tool-calling loop and LM connection run server-side (`POST /chat`), 12 book-service tools |
+| `/ai-chat` | AI Chat | Conversational assistant; tool-calling loop and LM connection run server-side (`POST /chat`), 13 book-service tools |
 
 ## Key Features
 
@@ -70,7 +70,7 @@ AI Chat needs no frontend configuration — it POSTs to `POST /chat` on the REST
 ### AI Chat
 - Frontend POSTs the running conversation to `POST /chat` on the REST API (`src/api/chat.ts`); book-service runs the OpenAI-compatible tool-calling loop server-side and returns the updated history plus a display trace — the frontend never configures or sees the chat model, host, or API key
 - Up to 10 tool-call iterations per user message (enforced server-side)
-- Tools available: `search_books`, `get_book_details`, `get_recently_edited_books`, `get_recently_read_books`, `get_books_read_by_year`, `get_reading_summary`, `get_tags_for_book`, `search_books_by_tag`, `get_tag_counts`, `get_reading_estimates`, `add_tag_to_book`, `semantic_search_notes`
+- Tools available: `search_books`, `get_book_details`, `get_recently_edited_books`, `get_recently_read_books`, `get_books_read_by_year`, `get_reading_summary`, `get_tags_for_book`, `search_books_by_tag`, `get_tag_counts`, `get_reading_estimates`, `add_tag_to_book`, `draft_read_note`, `semantic_search_notes`
 - Markdown rendering toggle
 - Session history reset via "Clear" button
 
@@ -96,6 +96,11 @@ AI Chat needs no frontend configuration — it POSTs to `POST /chat` on the REST
 Injected from `package.json` at build time via `define: { __APP_VERSION__ }` in `vite.config.ts`. Displayed in the nav bar alongside the live API version.
 
 ## Changelog
+
+### v0.6.0
+- **Book Detail — draft a read note**: a read with no note shows a "Draft review" button. Enter 3-4 observations and book-service (`POST /draft_read_note`) drafts a 3-4 paragraph review, shown in an editable box with Save / Discard / Regenerate. Save writes it with `POST /update_edit_read_note`
+- **AI Chat — read-note drafts**: when you ask about a book with a blank read note, the assistant asks for your 3-4 observations; the resulting `draft_read_note` result renders as the same editable draft box with a Save button. Nothing is saved until you click Save
+- New shared components `src/components/reads/ReadNoteDrafter.tsx` and `ReadNoteDraftEditor.tsx`; `draftReadNote` added to `src/api/reads.ts`
 
 ### v0.5.1
 - **Add Book**: a database rejection of the new record is now shown as an error on the page instead of silently navigating to `/books`; the ISBN "not found" message points to manual entry

@@ -6,6 +6,7 @@ import TagBadge from '../components/tags/TagBadge';
 import TagEditor from '../components/tags/TagEditor';
 import ImageGallery from '../components/images/ImageGallery';
 import EstimateList from '../components/estimates/EstimateList';
+import ReadNoteDrafter from '../components/reads/ReadNoteDrafter';
 import { useCompleteRecord } from '../hooks/useCompleteRecord';
 import { useReadingEstimates } from '../hooks/useReadingEstimates';
 import { toObjects } from '../lib/utils';
@@ -214,7 +215,11 @@ export default function BookDetail() {
                   {reads.map((r, i) => (
                     <tr key={i} className={i % 2 === 0 ? 'bg-accent-light' : ''}>
                       <td className="px-3 py-2 text-sm">{formatDisplay(r.DateRead)}</td>
-                      <td className="px-3 py-2 text-sm whitespace-pre-line">{r.ReadNote || ''}</td>
+                      <td className="px-3 py-2 text-sm whitespace-pre-line">
+                        {r.ReadNote?.trim()
+                          ? r.ReadNote
+                          : r.DateRead && <ReadNoteDrafter bookId={book.BookId} readDate={r.DateRead} />}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

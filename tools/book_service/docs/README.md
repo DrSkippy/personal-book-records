@@ -1,6 +1,6 @@
 # Book Service API Documentation
 
-**Version**: 0.21.3
+**Version**: 0.22.0
 
 ## Overview
 
@@ -40,7 +40,7 @@ curl -H "x-api-key: YOUR_API_KEY" http://localhost:8084/configuration
 Expected response:
 ```json
 {
-  "version": "0.21.3",
+  "version": "0.22.0",
   "configuration": {
     "user": "...",
     "password": "******",

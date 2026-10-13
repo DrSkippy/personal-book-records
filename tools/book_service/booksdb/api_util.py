@@ -48,7 +48,7 @@ __all__ = [
     # Functions defined in this module
     'get_valid_locations', 'get_recently_touched', 'get_recently_read', 'get_next_book_id',
     'get_book_ids_in_window', 'get_complete_book_record',
-    'update_book_record_by_key', 'summary_books_read_by_year_utility',
+    'update_book_record_by_key', 'update_read_note', 'summary_books_read_by_year_utility',
     'books_read_by_year_utility', 'status_read_utility',
     'tags_search_utility', 'books_search_utility', 'book_tags',
     'get_tag_counts', 'add_tag_to_book', 'get_images_for_book',
@@ -581,6 +581,39 @@ def update_book_record_by_key(update_dict):
     finally:
         db.close()
     return results
+
+
+def update_read_note(book_id, read_date, read_note):
+    """
+    Replace the ReadNote of one books_read row and refresh its RAG embedding.
+
+    Returns (rows_updated, error). rows_updated is 0 when no read of book_id on
+    read_date exists; error is a string on a database failure, else None.
+    """
+    db = psycopg2.connect(**books_conf)
+    try:
+        with db.cursor() as c:
+            try:
+                c.execute("UPDATE books_read SET ReadNote=%s WHERE BookId = %s AND ReadDate = %s",
+                          (read_note, book_id, read_date))
+                rows_updated = c.rowcount
+            except psycopg2.Error as e:
+                app_logger.error(e)
+                return 0, str(e)
+        db.commit()
+    finally:
+        db.close()
+    if rows_updated and read_note and read_note.strip():
+        embed_db = None
+        try:
+            embed_db = psycopg2.connect(**books_conf)
+            upsert_read_note_embedding(embed_db, book_id, read_date, read_note.strip())
+        except Exception as e:
+            app_logger.error(f"read_note embed update failed: {e}")
+        finally:
+            if embed_db:
+                embed_db.close()
+    return rows_updated, None
 
 
 ##########################################################################

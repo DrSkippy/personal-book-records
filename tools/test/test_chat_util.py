@@ -175,5 +175,84 @@ class TestRunChatLoop(unittest.TestCase):
         self.assertIn("couldn't finish", result["trace"][-1]["content"])
 
 
+def _record(reads, title="Dune", tags=("sf", "classic")):
+    return {
+        "book": {"header": ["BookId", "Title", "Author"], "data": [[7, title, "Herbert"]]},
+        "reads": {"header": ["DateRead", "ReadNote"], "data": reads},
+        "tags": {"header": ["Tag"], "data": [list(tags)]},
+        "img": {"header": ["ImageURL"], "data": [[]]},
+    }
+
+
+class TestReadNoteDrafting(unittest.TestCase):
+    def test_book_details_flags_read_with_blank_note(self):
+        rec = _record([["2026-01-02", "Loved it"], ["2026-09-01", None], ["2026-10-01", "  "]])
+        with patch.object(chat_util.api_util, "get_complete_book_record", return_value=rec):
+            result = chat_util.execute_tool("get_book_details", {"bookId": 7})
+        self.assertEqual(result["reads_missing_notes"], [{"ReadDate": "2026-09-01"}, {"ReadDate": "2026-10-01"}])
+        self.assertIn("draft_read_note", result["next_step"])
+
+    def test_book_details_no_flag_when_notes_present_or_never_read(self):
+        for reads in ([["2026-01-02", "Loved it"]], []):
+            with patch.object(chat_util.api_util, "get_complete_book_record", return_value=_record(reads)):
+                result = chat_util.execute_tool("get_book_details", {"bookId": 7})
+            self.assertNotIn("reads_missing_notes", result)
+            self.assertNotIn("next_step", result)
+
+    @patch('booksdb.chat_util.requests.post')
+    def test_draft_read_note_sends_observations_without_tools(self, mock_post):
+        mock_post.return_value = Mock(json=Mock(return_value=_openai_response("Para one.\n\nPara two.")),
+                                      raise_for_status=Mock())
+        with patch.object(chat_util.api_util, "get_complete_book_record",
+                          return_value=_record([["2026-09-01", None]])):
+            result = chat_util.draft_read_note(7, "2026-09-01", ["Ecology matters", " ", "Slow start"])
+        self.assertEqual(result, {"BookId": 7, "ReadDate": "2026-09-01", "Title": "Dune",
+                                  "draft": "Para one.\n\nPara two."})
+        payload = mock_post.call_args.kwargs["json"]
+        self.assertNotIn("tools", payload)
+        self.assertEqual(payload["messages"][0]["content"], chat_util.DRAFT_REVIEW_PROMPT)
+        user_msg = payload["messages"][1]["content"]
+        self.assertIn("- Ecology matters\n- Slow start", user_msg)
+        self.assertIn("Tags: sf, classic", user_msg)
+
+    def test_draft_read_note_rejects_bad_input(self):
+        with patch.object(chat_util.api_util, "get_complete_book_record",
+                          return_value=_record([["2026-09-01", None]])):
+            with self.assertRaises(ValueError):
+                chat_util.draft_read_note(7, "2026-09-01", ["  "])
+            with self.assertRaises(ValueError):
+                chat_util.draft_read_note(7, "1999-01-01", ["A point"])
+        with patch.object(chat_util.api_util, "get_complete_book_record",
+                          return_value={"book": {"header": ["BookId"], "data": []}}):
+            with self.assertRaises(ValueError):
+                chat_util.draft_read_note(999, "2026-09-01", ["A point"])
+
+    def test_draft_tool_marks_unsaved_and_accepts_string_observations(self):
+        with patch.object(chat_util, "draft_read_note",
+                          return_value={"BookId": 7, "ReadDate": "2026-09-01", "Title": "Dune", "draft": "x"}) as fn:
+            result = chat_util.execute_tool("draft_read_note", {
+                "bookId": 7, "readDate": "2026-09-01", "observations": "- one\n- two"})
+        fn.assert_called_once_with(7, "2026-09-01", ["one", "two"])
+        self.assertIn("NOT been saved", result["status"])
+
+
+class TestDraftHiddenFromModel(unittest.TestCase):
+    @patch('booksdb.chat_util.requests.post')
+    def test_draft_text_in_trace_but_not_history(self, mock_post):
+        tool_call = {"id": "c1", "type": "function", "function": {
+            "name": "draft_read_note",
+            "arguments": json.dumps({"bookId": 7, "readDate": "2026-09-01", "observations": ["a"]})}}
+        mock_post.side_effect = [
+            Mock(json=Mock(return_value=_openai_response("", [tool_call])), raise_for_status=Mock()),
+            Mock(json=Mock(return_value=_openai_response("Ready below.")), raise_for_status=Mock()),
+        ]
+        draft = {"BookId": 7, "ReadDate": "2026-09-01", "Title": "Dune", "draft": "SECRET DRAFT"}
+        with patch.object(chat_util, "draft_read_note", return_value=dict(draft)):
+            result = chat_util.run_chat_loop([{"role": "user", "content": "go"}])
+        self.assertEqual(result["trace"][0]["toolResult"]["draft"], "SECRET DRAFT")
+        tool_msg = [m for m in result["history"] if m["role"] == "tool"][0]
+        self.assertNotIn("SECRET DRAFT", tool_msg["content"])
+
+
 if __name__ == '__main__':
     unittest.main()

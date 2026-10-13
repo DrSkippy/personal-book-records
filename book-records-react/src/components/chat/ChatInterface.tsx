@@ -1,6 +1,8 @@
 import { useRef, useEffect } from 'react';
 import type { ChatMessage } from '../../types';
 import ToolCallResult from './ToolCallResult';
+import ReadNoteDraftEditor from '../reads/ReadNoteDraftEditor';
+import type { ReadNoteDraft } from '../../api/reads';
 import { User, Bot } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -37,6 +39,14 @@ const mdComponents: React.ComponentProps<typeof ReactMarkdown>['components'] = {
   td:         ({ children }) => <td className="px-2 py-1 border border-gray-200">{children}</td>,
 };
 
+/** A draft_read_note tool result, or null if the tool returned an error. */
+function asReadNoteDraft(result: unknown): ReadNoteDraft | null {
+  const r = result as Partial<ReadNoteDraft> | null;
+  return r && typeof r.draft === 'string' && typeof r.BookId === 'number' && typeof r.ReadDate === 'string'
+    ? (r as ReadNoteDraft)
+    : null;
+}
+
 export default function ChatInterface({ messages, isLoading, markdownEnabled }: ChatInterfaceProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -48,13 +58,25 @@ export default function ChatInterface({ messages, isLoading, markdownEnabled }: 
     <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-white rounded-xl border border-gray-200 min-h-96 max-h-[60vh]">
       {messages.map((msg) => {
         if (msg.role === 'tool') {
+          const draft = msg.toolName === 'draft_read_note' ? asReadNoteDraft(msg.toolResult) : null;
           return (
-            <ToolCallResult
-              key={msg.id}
-              toolName={msg.toolName || 'tool'}
-              args={msg.toolArgs}
-              result={msg.toolResult}
-            />
+            <div key={msg.id}>
+              <ToolCallResult
+                toolName={msg.toolName || 'tool'}
+                args={msg.toolArgs}
+                result={msg.toolResult}
+              />
+              {draft && (
+                <div className="p-3 border border-primary/40 rounded-lg bg-accent-light">
+                  <ReadNoteDraftEditor
+                    bookId={draft.BookId}
+                    readDate={draft.ReadDate}
+                    title={draft.Title}
+                    initialDraft={draft.draft}
+                  />
+                </div>
+              )}
+            </div>
           );
         }
         return (

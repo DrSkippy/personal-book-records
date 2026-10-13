@@ -90,5 +90,96 @@ class TestChatEndpoint(unittest.TestCase):
         self.assertIn("error", resp.get_json())
 
 
+class TestDraftReadNoteEndpoint(unittest.TestCase):
+    def setUp(self):
+        self.client = api.app.test_client()
+        self.body = {"BookId": 7, "ReadDate": "2026-09-01", "observations": ["a", "b", "c"]}
+
+    def post(self, body):
+        return self.client.post("/draft_read_note", headers={"x-api-key": "test-key"}, json=body)
+
+    def test_returns_draft(self):
+        draft = {"BookId": 7, "ReadDate": "2026-09-01", "Title": "Dune", "draft": "Text"}
+        with patch.object(api, "draft_read_note", return_value=draft) as fn:
+            resp = self.post(self.body)
+        fn.assert_called_once_with(7, "2026-09-01", ["a", "b", "c"])
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json(), draft)
+
+    def test_missing_fields_400(self):
+        resp = self.post({"BookId": 7, "ReadDate": "2026-09-01", "observations": "a"})
+        self.assertEqual(resp.status_code, 400)
+
+    def test_value_error_400(self):
+        with patch.object(api, "draft_read_note", side_effect=ValueError("no read")):
+            resp = self.post(self.body)
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.get_json()["error"], "no read")
+
+    def test_upstream_failure_502(self):
+        import requests
+        with patch.object(api, "draft_read_note", side_effect=requests.ConnectionError("down")):
+            resp = self.post(self.body)
+        self.assertEqual(resp.status_code, 502)
+
+    def test_not_configured_503(self):
+        with patch.object(api, "CHAT_HOST", None):
+            resp = self.post(self.body)
+        self.assertEqual(resp.status_code, 503)
+
+
+class TestUpdateEditReadNoteEndpoint(unittest.TestCase):
+    def setUp(self):
+        self.client = api.app.test_client()
+
+    def post(self, body):
+        return self.client.post("/update_edit_read_note", headers={"x-api-key": "test-key"}, json=body)
+
+    def test_updates_note(self):
+        body = {"BookId": 7, "ReadDate": "2026-09-01", "ReadNote": "Review"}
+        with patch.object(api, "update_read_note", return_value=(1, None)) as fn:
+            resp = self.post(body)
+        fn.assert_called_once_with(7, "2026-09-01", "Review")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json(), {"update_read": [body]})
+
+    def test_no_matching_read_404(self):
+        with patch.object(api, "update_read_note", return_value=(0, None)):
+            resp = self.post({"BookId": 7, "ReadDate": "1999-01-01", "ReadNote": "x"})
+        self.assertEqual(resp.status_code, 404)
+
+    def test_missing_fields_400(self):
+        resp = self.post({"BookId": 7, "ReadNote": "x"})
+        self.assertEqual(resp.status_code, 400)
+
+
+class TestUpdateReadNoteUtil(unittest.TestCase):
+    def _conn(self, rowcount):
+        cursor = Mock(rowcount=rowcount)
+        conn = Mock()
+        conn.cursor.return_value.__enter__ = Mock(return_value=cursor)
+        conn.cursor.return_value.__exit__ = Mock(return_value=False)
+        return conn, cursor
+
+    def test_updates_and_reembeds(self):
+        from booksdb import api_util
+        conn, cursor = self._conn(1)
+        with patch.object(api_util.psycopg2, "connect", return_value=conn), \
+                patch.object(api_util, "upsert_read_note_embedding") as embed:
+            self.assertEqual(api_util.update_read_note(7, "2026-09-01", " Review "), (1, None))
+        cursor.execute.assert_called_once()
+        self.assertEqual(cursor.execute.call_args.args[1], (" Review ", 7, "2026-09-01"))
+        conn.commit.assert_called_once()
+        embed.assert_called_once_with(conn, 7, "2026-09-01", "Review")
+
+    def test_no_matching_read_skips_embedding(self):
+        from booksdb import api_util
+        conn, _ = self._conn(0)
+        with patch.object(api_util.psycopg2, "connect", return_value=conn), \
+                patch.object(api_util, "upsert_read_note_embedding") as embed:
+            self.assertEqual(api_util.update_read_note(7, "1999-01-01", "Review"), (0, None))
+        embed.assert_not_called()
+
+
 if __name__ == '__main__':
     unittest.main()

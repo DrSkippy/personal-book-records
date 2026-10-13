@@ -4,10 +4,10 @@
 
 ```
 personal-book-records/
-├── book-records-react/     # React/Vite/TypeScript SPA frontend (v0.5.1)
+├── book-records-react/     # React/Vite/TypeScript SPA frontend (v0.6.0)
 ├── tools/                  # Python backend (API, MCP, CLI)
 │   ├── book_service/
-│   │   ├── books/          # Flask REST API (port 8084, v0.21.3)
+│   │   ├── books/          # Flask REST API (port 8084, v0.22.0)
 │   │   ├── booksmcp/       # FastMCP server (port 3005, v3.3.1)
 │   │   ├── booksdb/        # DB layer (api_util.py, config.py, chat_util.py)
 │   │   ├── config/         # configuration.json (transcrypt-encrypted, committed)
@@ -112,9 +112,11 @@ The AI Chat page (`/ai-chat`) holds no model configuration. It POSTs the running
 
 **Tool-calling loop:** implemented in `tools/book_service/booksdb/chat_util.py` (`run_chat_loop`), up to 10 iterations per request. `bookdbtool`'s CLI chat (`ChatAgent` in `ai_tools.py`, aliased as `OllamaAgent`) is also a client of `POST /chat`, so it shares the server's system prompt, tools, and loop; it holds no chat model config of its own.
 
-**Tools available to the model (12):** `search_books`, `get_book_details`, `get_recently_edited_books`, `get_recently_read_books`, `get_books_read_by_year`, `get_reading_summary`, `get_tags_for_book`, `search_books_by_tag`, `get_tag_counts`, `get_reading_estimates`, `add_tag_to_book`, `semantic_search_notes`.
+**Tools available to the model (13):** `search_books`, `get_book_details`, `get_recently_edited_books`, `get_recently_read_books`, `get_books_read_by_year`, `get_reading_summary`, `get_tags_for_book`, `search_books_by_tag`, `get_tag_counts`, `get_reading_estimates`, `add_tag_to_book`, `draft_read_note`, `semantic_search_notes`.
 
 `get_recently_edited_books` ranks by `LastUpdate` (edits/tags/images/estimates — "recently touched"; calls `get_recently_touched`/the `/recent` REST endpoint under the hood). `get_recently_read_books` ranks by `books_read.ReadDate` ("recently finished"; calls `get_recently_read`/`/recently_read`). These are deliberately separate tools with non-overlapping names: the model previously conflated "recent" with "last edited" when asked about recently-read books, first by picking the wrong tool, then (even after a `get_recent_books` name/description fix) by calling the edit-ranked tool anyway and surfacing a stale `ReadDate` from a follow-up `get_book_details` call. Dropping "recent" entirely from the edit-ranked tool's name closes that gap.
+
+**Read-note review drafting:** when a read has a date but a blank `ReadNote`, the AI Chat (via `get_book_details`, which adds `reads_missing_notes` + a `next_step` hint to its result) and the Book Detail page ("Draft review" button) ask for the reader's 3-4 key observations. `chat_util.draft_read_note` (shared by the chat's `draft_read_note` tool and `POST /draft_read_note`) has the chat LLM write a 3-4 paragraph review from only those observations. The draft is shown in an editable box (`src/components/reads/ReadNoteDraftEditor.tsx`); only the user's Save click writes it, via `POST /update_edit_read_note`. The model has no tool that writes read notes — deliberately, since gpt-oss-20b doesn't reliably wait for confirmation.
 
 **Conversation loop:** the frontend sends its accumulated history (user/assistant/tool turns, no system message — the server owns that) on every turn; the backend runs the loop to completion and returns the updated history plus a display trace (each tool call/result, then the final reply) in a single response. History lives in `historyRef` client-side for the session; reset on "Clear". There is no live/incremental reveal of tool calls mid-turn — the loading indicator covers the wait, and the full trace renders once the response arrives.
 

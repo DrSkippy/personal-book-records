@@ -1,4 +1,4 @@
-__version__ = '0.21.3'
+__version__ = '0.22.0'
 
 import functools
 import json
@@ -9,7 +9,7 @@ from logging.config import dictConfig
 import pandas as pd
 import requests
 from booksdb.api_util import *
-from booksdb.chat_util import run_chat_loop
+from booksdb.chat_util import run_chat_loop, draft_read_note
 from flask import Flask, Response, send_file, request, abort
 from matplotlib import pylab as plt
 from werkzeug.utils import secure_filename
@@ -432,38 +432,17 @@ def update_edit_read_note():
 
     :return:
     """
-    # records should be a single dictionaries including all fields
-    db = psycopg2.connect(**books_conf)
-    record = request.get_json()
-    search_str = "UPDATE books_read SET ReadNote=%s WHERE BookId = %s AND ReadDate = %s"
+    record = request.get_json() or {}
+    if not all(k in record for k in ("BookId", "ReadDate", "ReadNote")):
+        return json_response({"error": "Missing required fields: BookId, ReadDate, ReadNote"}, status=400)
     app.logger.debug(f"Updating read note for BookId: {record['BookId']}")
-    rdata = []
-    try:
-        with db.cursor() as c:
-            try:
-                c.execute(search_str, (
-                    record["ReadNote"],
-                    record["BookId"],
-                    record["ReadDate"]
-                ))
-                rdata.append(record)
-            except psycopg2.Error as e:
-                app.logger.error(e)
-                rdata.append({"error": str(e)})
-        db.commit()
-    finally:
-        db.close()
-    if record.get("ReadNote") and record["ReadNote"].strip():
-        embed_db = None
-        try:
-            embed_db = psycopg2.connect(**books_conf)
-            upsert_read_note_embedding(embed_db, record["BookId"], record["ReadDate"], record["ReadNote"].strip())
-        except Exception as e:
-            app.logger.error(f"read_note embed update failed: {e}")
-        finally:
-            if embed_db:
-                embed_db.close()
-    return json_response({"update_read": rdata})
+    rows_updated, error = update_read_note(record["BookId"], record["ReadDate"], record["ReadNote"])
+    if error:
+        return json_response({"update_read": [{"error": error}]}, status=500)
+    if not rows_updated:
+        return json_response(
+            {"error": f"No read of BookId {record['BookId']} on {record['ReadDate']}"}, status=404)
+    return json_response({"update_read": [record]})
 
 
 @app.route('/update_book_note_status', methods=['POST'])
@@ -686,6 +665,38 @@ def chat_endpoint():
         result = run_chat_loop(history)
     except requests.RequestException as e:
         app_logger.error(f"chat completion request failed: {e}")
+        return json_response(
+            {"error": "The AI chat backend is unavailable. Please check the chat LLM server and try again."},
+            status=502,
+        )
+    return json_response(result)
+
+
+@app.route('/draft_read_note', methods=['POST'])
+@require_app_key
+def draft_read_note_endpoint():
+    """
+    Draft a 3-4 paragraph read-note review from the reader's observations,
+    using the chat LLM. Writes nothing; the client shows the draft for
+    editing and saves it via POST /update_edit_read_note.
+
+    Request body: {"BookId": 1606, "ReadDate": "2026-10-02",
+                   "observations": ["...", "...", "..."]}
+    Response body: {"BookId": ..., "ReadDate": ..., "Title": ..., "draft": "..."}
+    """
+    if not CHAT_HOST or not CHAT_MODEL:
+        return json_response({"error": "Chat is not configured on this server."}, status=503)
+    data = request.get_json() or {}
+    observations = data.get("observations")
+    if not data.get("BookId") or not data.get("ReadDate") or not isinstance(observations, list):
+        return json_response(
+            {"error": "Missing required fields: BookId, ReadDate, observations (list)"}, status=400)
+    try:
+        result = draft_read_note(data["BookId"], data["ReadDate"], observations)
+    except ValueError as e:
+        return json_response({"error": str(e)}, status=400)
+    except requests.RequestException as e:
+        app_logger.error(f"draft_read_note request failed: {e}")
         return json_response(
             {"error": "The AI chat backend is unavailable. Please check the chat LLM server and try again."},
             status=502,

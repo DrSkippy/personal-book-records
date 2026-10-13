@@ -15,3 +15,14 @@ export const addReadDates = (records: Array<{ BookId: number; ReadDate: string; 
 
 export const updateEditReadNote = (data: { BookId: number; ReadDate: string; ReadNote: string }) =>
   apiClient.post('/update_edit_read_note', data).then(r => r.data);
+
+export interface ReadNoteDraft {
+  BookId: number;
+  ReadDate: string;
+  Title: string;
+  draft: string;
+}
+
+/** Ask the server's chat LLM for a 3-4 paragraph review from the reader's observations. Saves nothing. */
+export const draftReadNote = (data: { BookId: number; ReadDate: string; observations: string[] }) =>
+  apiClient.post<ReadNoteDraft>('/draft_read_note', data, { timeout: 120000 }).then(r => r.data);

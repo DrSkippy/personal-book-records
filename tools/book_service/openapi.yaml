@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: Book Service API
-  version: 0.21.3
+  version: 0.22.0
   description: |
     Comprehensive REST API for personal book collection management.
 
@@ -293,7 +293,7 @@ components:
         version:
           type: string
           description: API version
-          example: "0.21.3"
+          example: "0.22.0"
         configuration:
           type: object
           description: Database configuration (password masked)
@@ -668,6 +668,68 @@ paths:
                     type: array
                     items:
                       type: object
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '502':
+          description: The configured chat LLM backend is unavailable
+        '503':
+          description: Chat not configured on this server (no chat_host/chat_model)
+
+  /draft_read_note:
+    post:
+      summary: Draft a read-note review from the reader's observations
+      description: |
+        Asks the chat LLM (`ai_agent.chat_host`/`chat_model`) for a 3-4 paragraph
+        first-person review built only from the reader's observations, using the
+        book's title, author and tags for context. Writes nothing: the client
+        shows the draft for editing and saves it with `POST /update_edit_read_note`.
+        The AI Chat's `draft_read_note` tool uses the same function.
+      tags:
+        - AI Chat & Search
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - BookId
+                - ReadDate
+                - observations
+              properties:
+                BookId:
+                  type: integer
+                ReadDate:
+                  type: string
+                  format: date
+                  description: Must match one of the book's reads
+                observations:
+                  type: array
+                  items:
+                    type: string
+                  description: The reader's 3-4 most important observations
+            example:
+              BookId: 1234
+              ReadDate: "2024-01-15"
+              observations: ["Calibration beats expertise", "Break questions into pieces", "Too many anecdotes"]
+      responses:
+        '200':
+          description: Draft review (not saved)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  BookId:
+                    type: integer
+                  ReadDate:
+                    type: string
+                  Title:
+                    type: string
+                  draft:
+                    type: string
+        '400':
+          description: Missing fields, no usable observations, unknown book, or no read on ReadDate
         '401':
           $ref: '#/components/responses/UnauthorizedError'
         '502':
@@ -1477,8 +1539,14 @@ paths:
                     type: array
                     items:
                       type: object
+        '400':
+          description: Missing BookId, ReadDate or ReadNote
         '401':
           $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: The book has no read on ReadDate
+        '500':
+          description: Database error
 
   /record_set/{book_id}:
     get:

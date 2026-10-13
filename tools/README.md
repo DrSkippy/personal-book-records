@@ -243,7 +243,7 @@ bc.add()
 
 Natural language interface for book queries. `ChatAgent` is a thin client for book-service's
 `POST /chat` endpoint -- the same one the React AI Chat page uses -- so the CLI gets the server's
-full 12-tool set, system prompt, and multi-step tool-calling loop. The chat model, host, and key
+full 13-tool set, system prompt, and multi-step tool-calling loop. The chat model, host, and key
 are configured only on the server (`ai_agent.chat_*`); the CLI just keeps the conversation history
 and sends it on each turn. (`OllamaAgent` remains as an alias for the old class name.)
 
@@ -317,7 +317,7 @@ See `test/README.md` for detailed test documentation.
 
 A comprehensive REST API built with Flask for managing book records, reading history, tags, and generating visualizations.
 
-**Version**: 0.21.3
+**Version**: 0.22.0
 **Framework**: Flask 3.1.2
 **Port**: 8084
 **Location**: `book_service/books/`
@@ -612,6 +612,7 @@ curl -H "x-api-key: YOUR_KEY" \
 |--------|----------|-------------|------------|
 | POST | `/rag_search` | Semantic (pgvector) search over `BookNote`/`ReadNote` embeddings | Body: `{"query": "...", "limit": 5}`. Returns 503 if `ai_agent.embed_host`/`embed_model` isn't configured |
 | POST | `/chat` | Run one turn of the server-side AI chat tool-calling loop (see `ai_agent.chat_*` under [Field Descriptions](#field-descriptions) below) | Body: `{"messages": [...]}` |
+| POST | `/draft_read_note` | Draft a 3-4 paragraph read-note review from the reader's observations with the chat LLM (saves nothing) | Body: `{"BookId": 1234, "ReadDate": "2024-01-15", "observations": ["..."]}`. 400 if the book has no read on `ReadDate`; 503 if chat isn't configured |
 
 **Examples:**
 ```bash
@@ -3064,7 +3065,7 @@ make stop-all                     # Stop all containers
 ## Version Information
 
 - **BookDBTool**: v0.8.0
-- **REST API**: v0.21.3
+- **REST API**: v0.22.0
 - **MCP Server**: v3.3.1
 - **Python**: 3.12+
 - **Flask**: 3.1.2

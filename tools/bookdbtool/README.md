@@ -205,7 +205,7 @@ All dependencies managed via `../pyproject.toml`
 - **v0.7.0**: AI integration, reading estimates, enhanced search
 - `ai_tools.py` at v0.4.0: `OllamaAgent` replaced by `ChatAgent`, a client for book-service's `POST /chat` -- the CLI no longer calls the chat LLM or runs its own 5-tool loop; it gets the server's 12 tools, system prompt, and multi-step loop
 - `ai_tools.py` at v0.3.0: `OllamaAgent` rewritten to call an OpenAI-compatible `/v1/chat/completions` server directly (`requests`) instead of the `ollama` package's native API
-- Based on REST API v0.21.3
+- Based on REST API v0.22.0
 - Python 3.12+ required
 
 ---
