@@ -889,7 +889,7 @@ def books_search_utility(args):
             where_parts.append("a.BookId = %s")
             params.append(value)
         elif key == "ReadDate":
-            where_parts.append("b.ReadDate ILIKE %s")
+            where_parts.append("b.ReadDate::text ILIKE %s")  # a date column; ILIKE needs text
             params.append(f"%{value}%")
         elif key == "Tags":
             # Get book IDs matching the tag

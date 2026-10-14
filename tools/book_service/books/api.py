@@ -1,4 +1,4 @@
-__version__ = '0.22.0'
+__version__ = '0.23.0'
 
 import functools
 import json
@@ -9,6 +9,7 @@ from logging.config import dictConfig
 import pandas as pd
 import requests
 from booksdb.api_util import *
+from booksdb.book_add import insert_book_row
 from booksdb.chat_util import run_chat_loop, draft_read_note
 from flask import Flask, Response, send_file, request, abort
 from matplotlib import pylab as plt
@@ -303,10 +304,6 @@ def add_books():
     # records should be a list of dictionaries including all fields
     db = psycopg2.connect(**books_conf)
     records = request.get_json()
-    search_str = ("INSERT INTO books "
-                  "(Title, Author, CopyrightDate, IsbnNumber, IsbnNumber13, PublisherName, CoverType, Pages, "
-                  "Location, BookNote, Recycled) "
-                  "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING bookid")
     rdata = []
     try:
         with db.cursor() as c:
@@ -315,23 +312,7 @@ def add_books():
                 # (and silently roll back) the rows before and after it.
                 c.execute("SAVEPOINT add_book")
                 try:
-                    copyright_date = record.get("CopyrightDate") or None
-                    if copyright_date and len(copyright_date.strip()) == 4:
-                        copyright_date += "-01-01 00:00:00"  # make it a valid date string!
-                    c.execute(search_str, (
-                        record["Title"],
-                        record["Author"],
-                        copyright_date,
-                        record.get("IsbnNumber") or None,
-                        record.get("IsbnNumber13") or None,
-                        record.get("PublisherName") or None,
-                        record.get("CoverType") or None,
-                        record.get("Pages") or None,
-                        record["Location"],
-                        record.get("BookNote") or None,
-                        record.get("Recycled", 0)
-                    ))
-                    record["BookId"] = c.fetchone()[0]
+                    record["BookId"] = insert_book_row(c, record)
                     rdata.append(record)
                 except psycopg2.Error as e:
                     c.execute("ROLLBACK TO SAVEPOINT add_book")

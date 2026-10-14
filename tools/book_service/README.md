@@ -11,13 +11,13 @@ The `book_service` directory provides:
 - 50+ endpoints for managing books, reading history, and tags
 - Authentication via `x-api-key` header
 - Visualization and image management
-- Version: 0.22.0
+- Version: 0.23.0
 
 ### 2. **MCP Server** (`booksmcp/`)
 - Model Context Protocol server for AI integration (Port 3005)
-- FastMCP framework with 9 tools (8 search tools + pgvector semantic note search)
+- FastMCP framework with 16 tools (8 search tools, pgvector semantic note search, and 7 tools for adding and correcting books)
 - Designed for Claude Desktop and other MCP clients
-- Version: 3.3.1
+- Version: 3.5.0
 
 ### 3. **Shared Database Layer** (`booksdb/`)
 - Common PostgreSQL query utilities used by all services
@@ -255,13 +255,23 @@ Both services share the same database layer and configuration:
 
 ## Version Information
 
-- REST API: v0.22.0
-- MCP Server: v3.3.1
+- REST API: v0.23.0
+- MCP Server: v3.5.0
 - Python: 3.12+
 - Flask: 3.1.2
 - FastMCP: 0.5.0+ (pinned `<4.0.0`)
 
 ## Changelog
+
+### v0.23.0 / MCP v3.5.0
+- **MCP add-book tools** reworked after their first real use (see `booksmcp/README.md` v3.5.0): scored edition choice with a `needs_review` status, no `DOWNLOAD` from guessed digital editions, a title-search fallback chain, full titles and co-authors, compact responses, and new `check_books`, `add_books`, `update_book` and `list_locations` tools
+- `books_search_utility`: `ReadDate` search casts to text, so a partial date ("2026-10") works instead of failing with `operator does not exist: date ~~* unknown`
+- `isbn_com`: isbndb's `/search/books` and all-column `/books/{query}` searches added; requests retry on HTTP 429
+
+### v0.22.1 / MCP v3.4.0
+- **MCP add-book tools**: `lookup_book_metadata`, `check_book` and `add_book` let an MCP client add books, filling missing fields from isbndb and refusing books already in the collection (different-format second copies need `confirm_second_copy=true`). Logic in `booksdb/book_add.py`; see `booksmcp/README.md`
+- `isbn_com.py` moved to `booksdb/` (`books.isbn_com` still re-exports it); added an isbndb title search, and lookups now map isbndb's binding to `CoverType` (Hard/Soft/Digital) instead of returning a placeholder
+- `POST /add_books`: insert moved to `book_add.insert_book_row`; behavior unchanged (no duplicate check)
 
 ### v0.22.0
 - **Read-note review drafting**: new `POST /draft_read_note` takes a book's `BookId`, a `ReadDate` that must match one of its reads, and the reader's 3-4 `observations`, and asks the chat LLM for a 3-4 paragraph first-person review built only from them. It writes nothing; the client shows the draft for editing and saves it with `POST /update_edit_read_note`

@@ -111,7 +111,15 @@ class TestHTTPEndpoints(unittest.TestCase):
             "search_books_by_publisher",
             "search_books_by_location",
             "search_books_by_tags",
-            "search_books_by_read_date"
+            "search_books_by_read_date",
+            "semantic_search_notes",
+            "lookup_book_metadata",
+            "check_book",
+            "add_book",
+            "check_books",
+            "add_books",
+            "update_book",
+            "list_locations"
         ]
 
         for expected_tool in expected_tools:
@@ -213,7 +221,10 @@ class TestMCPTools(unittest.TestCase):
                     expected_tools = [
                         "search_books_by_title",
                         "search_books_by_author",
-                        "search_books_by_isbn"
+                        "search_books_by_isbn",
+                        "lookup_book_metadata",
+                        "check_book",
+                        "add_book"
                     ]
 
                     for expected_tool in expected_tools:

@@ -317,7 +317,7 @@ See `test/README.md` for detailed test documentation.
 
 A comprehensive REST API built with Flask for managing book records, reading history, tags, and generating visualizations.
 
-**Version**: 0.22.0
+**Version**: 0.23.0
 **Framework**: Flask 3.1.2
 **Port**: 8084
 **Location**: `book_service/books/`
@@ -675,14 +675,14 @@ poetry run pytest test_books/test_docker_api.py -v
 
 A Model Context Protocol (MCP) server that exposes the book database to AI models like Claude for seamless integration and natural language queries.
 
-**Version**: 3.3.1
+**Version**: 3.5.0
 **Framework**: FastMCP 0.5.0+ (pinned `<4.0.0`)
 **Port**: 3005
 **Location**: `book_service/booksmcp/`
 
 ### Features
 
-- **9 MCP Tools**: Search by title, author, ISBN, publisher, location, tags, and read date; plus pgvector semantic note search
+- **16 MCP Tools**: Search by title, author, ISBN, publisher, location, tags, and read date; pgvector semantic note search; and adding and correcting books (`lookup_book_metadata`, `check_book`, `add_book`, `check_books`, `add_books`, `update_book`, `list_locations` — fills missing fields from isbndb, asks for review when the edition or author is unclear, refuses books already in the collection)
 - **FastMCP Framework**: Modern, streamable HTTP transport
 - **Claude Integration**: Designed for Claude Desktop and other MCP clients
 - **Health Checks**: Built-in health monitoring
@@ -704,7 +704,7 @@ The MCP server will be available at `http://localhost:3005`
 
 ### MCP Tools Available
 
-The server exposes 9 tools for searching books:
+The server exposes 16 tools for searching and adding books:
 
 1. `search_books_by_title` - Search by title
 2. `search_books_by_author` - Search by author
@@ -715,6 +715,13 @@ The server exposes 9 tools for searching books:
 7. `search_books_by_tags` - Search by tags
 8. `search_books_by_read_date` - Search by read date
 9. `semantic_search_notes` - pgvector RAG search over book/read notes (`query`, `limit`)
+10. `lookup_book_metadata` - isbndb lookup by ISBN, or title search (`isbn`, `title`, `author`); writes nothing
+11. `check_book` - Dry run of `add_book`: fill fields from isbndb and defaults, validate, check duplicates
+12. `add_book` - Add one book; refuses a duplicate ISBN or same title + author + format; a different-format second copy needs `confirm_second_copy=true`; `needs_review` (unclear edition or author, no isbndb match) needs an `isbn13` or `accept_as_is=true`
+13. `check_books` - Batch dry run for up to 25 books, one row each
+14. `add_books` - Add up to 25 books, each added or refused on its own
+15. `update_book` - Correct an existing book's record; before/after values, `dry_run`
+16. `list_locations` - Valid locations and the location rules
 
 ### Endpoints
 
@@ -3065,8 +3072,8 @@ make stop-all                     # Stop all containers
 ## Version Information
 
 - **BookDBTool**: v0.8.0
-- **REST API**: v0.22.0
-- **MCP Server**: v3.3.1
+- **REST API**: v0.23.0
+- **MCP Server**: v3.5.0
 - **Python**: 3.12+
 - **Flask**: 3.1.2
 - **FastMCP**: 0.5.0+ (pinned `<4.0.0`)

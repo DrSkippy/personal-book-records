@@ -4,12 +4,12 @@
 
 ```
 personal-book-records/
-├── book-records-react/     # React/Vite/TypeScript SPA frontend (v0.6.0)
+├── book-records-react/     # React/Vite/TypeScript SPA frontend (v0.6.1)
 ├── tools/                  # Python backend (API, MCP, CLI)
 │   ├── book_service/
-│   │   ├── books/          # Flask REST API (port 8084, v0.22.0)
-│   │   ├── booksmcp/       # FastMCP server (port 3005, v3.3.1)
-│   │   ├── booksdb/        # DB layer (api_util.py, config.py, chat_util.py)
+│   │   ├── books/          # Flask REST API (port 8084, v0.23.0)
+│   │   ├── booksmcp/       # FastMCP server (port 3005, v3.5.0)
+│   │   ├── booksdb/        # DB layer (api_util.py, config.py, chat_util.py, book_add.py, isbn_com.py)
 │   │   ├── config/         # configuration.json (transcrypt-encrypted, committed)
 │   │   └── test_books/     # Integration tests
 │   ├── bookdbtool/         # CLI REPL tools
@@ -62,6 +62,13 @@ docker compose up -d     # pulls from localhost:5000, starts book-service + book
 - Images are built in `tools/` and pushed to local registry `localhost:5000`
 
 **Auth:** All API requests require `x-api-key` header.
+
+**MCP add-book tools (MCP only, not in the in-app AI Chat):** `lookup_book_metadata`, `check_book` (dry run), `add_book`, `check_books`/`add_books` (batches ≤25), `update_book` (before/after, `dry_run`), `list_locations`. Logic is in `booksdb/book_add.py`; see `booksmcp/README.md` "Adding and correcting books". Key rules:
+- A caller ISBN is authoritative. Without one, a title search (fallback chain) scores editions (physical > digital/audio, exact title, English, 978-0/978-1, bundle/incomplete penalties) and fills from the best only when it's clearly the one; otherwise `needs_review` (`edition_choice`, `author_conflict`, `no_match`) with ≤3 candidates. `add_book` refuses `needs_review` until given an `isbn13` or `accept_as_is=true`. These rules came from the first real use (57 books, 2026-10-14), where the old "earliest edition" pick chose Kindle/audio/foreign editions every time.
+- Digital ⇒ `DOWNLOAD` only when the caller (or the caller's ISBN) says Digital, never from a title-search guess.
+- Duplicates: same caller ISBN, or same title + author in the same/unknown format ⇒ `duplicate`; different format ⇒ `confirm_second_copy` (user must confirm a real second acquisition); `needs_review` is reported before `confirm_second_copy`. Same title, different author ⇒ warning only.
+- Conventions: authors "Last, First and First Last"; full "Title: Subtitle"; leading article ("The X"); provenance goes in `BookNote`. Valid locations = the UI's `VALID_LOCATIONS` plus any already in use.
+- `isbn_com.py` lives in `booksdb/` (re-exported from `books/`) so the MCP image can use it; `POST /add_books` shares `insert_book_row` but does no duplicate check. Unit tests replay recorded isbndb responses from `tools/test/fixtures/isbndb_add_book.json`.
 
 **Carousel adjacent API behavior:**
 - `GET /complete_record/<id>/next` — returns next book by ID; returns `{}` at end of collection (no forward wrap)

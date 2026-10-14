@@ -1,9 +1,9 @@
 {
   "info": {
     "name": "Book Service API",
-    "description": "Comprehensive REST API for personal book collection management (v0.22.0)",
+    "description": "Comprehensive REST API for personal book collection management (v0.23.0)",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "_postman_id": "book-service-api-v0.22.0"
+    "_postman_id": "book-service-api-v0.23.0"
   },
   "auth": {
     "type": "apikey",
