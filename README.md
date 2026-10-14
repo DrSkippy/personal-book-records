@@ -156,7 +156,7 @@ A Vite + React + TypeScript SPA served via nginx at `https://books.drskippy.app`
 **Pages:**
 - **Dashboard** — reading stats, recent books, yearly progress charts
 - **Book Search** — search by title, author, location, ISBN, or tag
-- **Book Detail** — full record with reads, tags, images, and estimates; a read with no note offers "Draft review" (enter 3-4 observations, the chat LLM drafts a review you edit and save)
+- **Book Detail** — full record with reads, tags, images, and estimates; a read with no note offers "Draft review" (enter your observations in one box, the chat LLM drafts a review you edit and save)
 - **Inventory** — full collection table with sorting and filtering
 - **Books by Year** — books read in a given year
 - **Progress** — daily page records and reading progress

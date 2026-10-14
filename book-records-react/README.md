@@ -62,7 +62,7 @@ AI Chat needs no frontend configuration — it POSTs to `POST /chat` on the REST
 ### Book Detail
 - Inline prev/next navigation between books
 - Inline `BookNote` editing (saved without leaving the page)
-- **Draft review** for reads with no `ReadNote`: enter 3-4 observations, book-service drafts a 3-4 paragraph review (`POST /draft_read_note`), edit it, then Save (`POST /update_edit_read_note`) — `src/components/reads/ReadNoteDrafter.tsx`
+- **Draft review** for reads with no `ReadNote`: enter your observations in one text box, book-service drafts a 3-4 paragraph review (`POST /draft_read_note`), edit it, then Save (`POST /update_edit_read_note`) — `src/components/reads/ReadNoteDrafter.tsx`
 - Tag management (add/remove tags)
 - Image gallery
 - Reading estimates panel
@@ -100,7 +100,7 @@ Injected from `package.json` at build time via `define: { __APP_VERSION__ }` in 
 ## Changelog
 
 ### v0.6.0
-- **Book Detail — draft a read note**: a read with no note shows a "Draft review" button. Enter 3-4 observations and book-service (`POST /draft_read_note`) drafts a 3-4 paragraph review, shown in an editable box with Save / Discard / Regenerate. Save writes it with `POST /update_edit_read_note`
+- **Book Detail — draft a read note**: a read with no note shows a "Draft review" button. Enter your observations in one text box and book-service (`POST /draft_read_note`) drafts a 3-4 paragraph review, shown in an editable box with Save / Discard / Regenerate. Save writes it with `POST /update_edit_read_note`
 - **AI Chat — read-note drafts**: when you ask about a book with a blank read note, the assistant asks for your 3-4 observations; the resulting `draft_read_note` result renders as the same editable draft box with a Save button. Nothing is saved until you click Save
 - New shared components `src/components/reads/ReadNoteDrafter.tsx` and `ReadNoteDraftEditor.tsx`; `draftReadNote` added to `src/api/reads.ts`
 
